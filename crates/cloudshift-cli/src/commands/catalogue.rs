@@ -1,13 +1,14 @@
 //! Catalogue command — manage and query the GCP Pattern Catalogue.
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::{Args, Subcommand};
 use tracing::info;
 
-use crate::commands::transform::{LanguageFilter, SourceCloudFilter};
+use crate::commands::{LanguageFilter, SourceCloudFilter};
 
 /// Manage and query the GCP Pattern Catalogue.
 #[derive(Args, Debug)]
+#[command(about = "Manage and query the GCP Pattern Catalogue")]
 pub struct CatalogueArgs {
     #[command(subcommand)]
     pub subcommand: CatalogueSubcommand,
@@ -16,6 +17,7 @@ pub struct CatalogueArgs {
 #[derive(Subcommand, Debug)]
 pub enum CatalogueSubcommand {
     /// List all patterns in the catalogue.
+    #[command(about = "List all patterns in the catalogue, with optional filters")]
     List {
         /// Filter by language.
         #[arg(long = "language", value_enum)]
@@ -31,18 +33,21 @@ pub enum CatalogueSubcommand {
     },
 
     /// Search patterns by keyword.
+    #[command(about = "Search catalogue patterns by keyword")]
     Search {
         /// Search query.
         query: String,
     },
 
     /// Show details of a specific pattern by ID.
+    #[command(about = "Show detailed information for a specific pattern")]
     Info {
         /// Pattern ID.
         id: String,
     },
 
     /// Show catalogue statistics.
+    #[command(about = "Display aggregate catalogue statistics")]
     Stats,
 }
 
@@ -55,22 +60,19 @@ pub fn run(args: CatalogueArgs) -> Result<()> {
                 tag = ?tag,
                 "Listing catalogue patterns"
             );
-            // Stub: will query PatternRepositoryPort once wired up.
-            eprintln!("catalogue list: not yet implemented (catalogue loading pending)");
+            bail!("catalogue list is not yet implemented (catalogue loading pending)");
         }
         CatalogueSubcommand::Search { ref query } => {
             info!(query = %query, "Searching catalogue");
-            eprintln!("catalogue search: not yet implemented (catalogue loading pending)");
+            bail!("catalogue search is not yet implemented (catalogue loading pending)");
         }
         CatalogueSubcommand::Info { ref id } => {
             info!(id = %id, "Showing pattern info");
-            eprintln!("catalogue info: not yet implemented (catalogue loading pending)");
+            bail!("catalogue info is not yet implemented (catalogue loading pending)");
         }
         CatalogueSubcommand::Stats => {
             info!("Showing catalogue stats");
-            eprintln!("catalogue stats: not yet implemented (catalogue loading pending)");
+            bail!("catalogue stats is not yet implemented (catalogue loading pending)");
         }
     }
-
-    Ok(())
 }

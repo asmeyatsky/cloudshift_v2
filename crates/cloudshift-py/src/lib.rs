@@ -81,7 +81,7 @@ impl PyTransformConfig {
         source_cloud: Option<&PySourceCloud>,
         output_format: Option<&PyOutputFormat>,
         dry_run: Option<bool>,
-        parallel: Option<bool>,
+        parallel: Option<usize>,
     ) -> Self {
         let mut cfg = TransformConfig::default();
         if let Some(sc) = source_cloud {
@@ -94,7 +94,7 @@ impl PyTransformConfig {
             cfg.dry_run = dr;
         }
         if let Some(p) = parallel {
-            cfg.parallel = if p { 0 } else { 1 };
+            cfg.parallel = p;
         }
         Self { inner: cfg }
     }
@@ -105,8 +105,8 @@ impl PyTransformConfig {
     }
 
     #[getter]
-    fn parallel(&self) -> bool {
-        self.inner.parallel != 1
+    fn parallel(&self) -> usize {
+        self.inner.parallel
     }
 
     fn __repr__(&self) -> String {

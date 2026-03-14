@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 use clap::Args;
 use tracing::info;
 
-use cloudshift_core::{SourceCloud, TransformConfig, OutputFormat, transform_repo};
+use cloudshift_core::{OutputFormat, TransformConfig, transform_repo};
 
-use crate::commands::transform::{LanguageFilter, SourceCloudFilter};
+use crate::commands::{LanguageFilter, SourceCloudFilter};
 
 /// CLI output format for analysis results.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -15,8 +15,9 @@ pub enum AnalyseOutputFormat {
     Table,
 }
 
-/// Analyse code without transforming (detect patterns only).
+/// Analyse code without transforming (detect cloud usage patterns only).
 #[derive(Args, Debug)]
+#[command(about = "Analyse code to detect cloud usage patterns without transforming")]
 pub struct AnalyseArgs {
     /// File or directory to analyse (default: current directory).
     #[arg(default_value = ".")]
@@ -35,16 +36,17 @@ pub struct AnalyseArgs {
     pub output_format: AnalyseOutputFormat,
 
     /// Alias for --output (deprecated, use --output instead).
-    #[arg(long = "format", value_enum)]
+    #[arg(long = "format", value_enum, hide = true)]
     pub format: Option<AnalyseOutputFormat>,
 }
 
 pub fn run(args: AnalyseArgs) -> Result<()> {
-    let source = match args.source_cloud {
-        SourceCloudFilter::Aws => SourceCloud::Aws,
-        SourceCloudFilter::Azure => SourceCloud::Azure,
-        SourceCloudFilter::Any => SourceCloud::Any,
-    };
+    // Emit deprecation warning when --format is used.
+    if args.format.is_some() {
+        eprintln!("Warning: --format is deprecated, use --output instead");
+    }
+
+    let source = args.source_cloud.to_core();
 
     info!(path = %args.path, source = %source, "Starting analysis");
 

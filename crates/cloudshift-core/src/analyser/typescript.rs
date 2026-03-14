@@ -164,19 +164,19 @@ fn detect_sdk_instantiation(
 
     for m in &matches {
         for capture in &m.captures {
-            if capture.name == "class_name" || capture.name == "ns_class" {
-                if AWS_SDK_CLASSES.contains(&capture.text.as_str()) {
-                    constructs.push(CloudConstruct {
-                        kind: ConstructKind::SdkFunctionCall,
-                        source_cloud: SourceCloud::Aws,
-                        span: capture.span,
-                        description: format!(
-                            "AWS SDK instantiation: new {}(...)",
-                            capture.text
-                        ),
-                        sdk_import: None,
-                    });
-                }
+            if (capture.name == "class_name" || capture.name == "ns_class")
+                && AWS_SDK_CLASSES.contains(&capture.text.as_str())
+            {
+                constructs.push(CloudConstruct {
+                    kind: ConstructKind::SdkFunctionCall,
+                    source_cloud: SourceCloud::Aws,
+                    span: capture.span,
+                    description: format!(
+                        "AWS SDK instantiation: new {}(...)",
+                        capture.text
+                    ),
+                    sdk_import: None,
+                });
             }
         }
     }

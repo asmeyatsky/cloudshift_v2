@@ -8,13 +8,13 @@ use tracing::info;
 
 use cloudshift_core::{TransformConfig, transform_file, transform_repo};
 
-use crate::commands::transform::{
-    LanguageFilter, SourceCloudFilter, TransformOutputFormat,
-};
+use crate::commands::{LanguageFilter, SourceCloudFilter};
+use crate::commands::transform::TransformOutputFormat;
 use crate::output;
 
 /// Show what would change without applying.
 #[derive(Args, Debug)]
+#[command(about = "Show what would change without applying (dry-run diff)")]
 pub struct DiffArgs {
     /// File or directory to diff (default: current directory).
     #[arg(default_value = ".")]
@@ -69,4 +69,3 @@ pub fn run(args: DiffArgs) -> Result<()> {
 
     Ok(())
 }
-

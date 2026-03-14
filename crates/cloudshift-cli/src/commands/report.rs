@@ -6,8 +6,9 @@ use tracing::info;
 
 use cloudshift_core::RepoReport;
 
-/// Generate a migration report from a previous run.
+/// Generate a human-readable migration report from a previous run.
 #[derive(Args, Debug)]
+#[command(about = "Generate a human-readable migration report from a previous run")]
 pub struct ReportArgs {
     /// Path to the JSON report from a previous transform run.
     pub path: String,

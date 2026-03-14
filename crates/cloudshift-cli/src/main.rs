@@ -24,30 +24,36 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Transform code files or repositories.
+    /// Transform code files or repositories from AWS/Azure to GCP.
+    #[command(about = "Transform code files or repositories from AWS/Azure to GCP")]
     Transform(transform::TransformArgs),
 
-    /// Analyse code without transforming (detect patterns only).
+    /// Analyse code to detect cloud usage patterns without transforming.
+    #[command(about = "Analyse code to detect cloud usage patterns without transforming")]
     Analyse(analyse::AnalyseArgs),
 
     /// Show what would change without applying.
+    #[command(about = "Show what would change without applying (dry-run diff)")]
     Diff(diff::DiffArgs),
 
-    /// Apply a previously generated diff.
+    /// Apply a previously generated diff/patch file.
+    #[command(about = "Apply a previously generated diff/patch file")]
     Apply(apply::ApplyArgs),
 
     /// Manage and query the GCP Pattern Catalogue.
+    #[command(about = "Manage and query the GCP Pattern Catalogue")]
     Catalogue(catalogue::CatalogueArgs),
 
     /// Run post-transformation validation checks.
+    #[command(about = "Run post-transformation validation checks on transformed code")]
     Validate(validate::ValidateArgs),
 
     /// Generate a migration report from a previous run.
+    #[command(about = "Generate a human-readable migration report from a previous run")]
     Report(report::ReportArgs),
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() {
     // Initialise tracing with env filter (RUST_LOG).
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -58,15 +64,18 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
-    match cli.command {
-        Command::Transform(args) => transform::run(args)?,
-        Command::Analyse(args) => analyse::run(args)?,
-        Command::Diff(args) => diff::run(args)?,
-        Command::Apply(args) => apply::run(args)?,
-        Command::Catalogue(args) => catalogue::run(args)?,
-        Command::Validate(args) => validate::run(args)?,
-        Command::Report(args) => report::run(args)?,
-    }
+    let result = match cli.command {
+        Command::Transform(args) => transform::run(args),
+        Command::Analyse(args) => analyse::run(args),
+        Command::Diff(args) => diff::run(args),
+        Command::Apply(args) => apply::run(args),
+        Command::Catalogue(args) => catalogue::run(args),
+        Command::Validate(args) => validate::run(args),
+        Command::Report(args) => report::run(args),
+    };
 
-    Ok(())
+    if let Err(err) = result {
+        eprintln!("Error: {err:?}");
+        std::process::exit(1);
+    }
 }

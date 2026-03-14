@@ -95,33 +95,32 @@ fn analyse_yaml_fallback(source: &[u8]) -> Result<Vec<CloudConstruct>, AnalysisE
         }
 
         // Detect AWS service type references in CloudFormation
-        if trimmed.starts_with("Type:") || trimmed.starts_with("type:") {
-            if trimmed.contains("AWS::") {
-                constructs.push(CloudConstruct {
-                    kind: crate::domain::entities::ConstructKind::ResourceDefinition,
-                    source_cloud: crate::domain::value_objects::SourceCloud::Aws,
-                    span: line_to_span(text, line_num),
-                    description: format!("AWS CloudFormation resource: {}", truncate(trimmed, 80)),
-                    sdk_import: None,
-                });
-            }
+        if (trimmed.starts_with("Type:") || trimmed.starts_with("type:"))
+            && trimmed.contains("AWS::")
+        {
+            constructs.push(CloudConstruct {
+                kind: crate::domain::entities::ConstructKind::ResourceDefinition,
+                source_cloud: crate::domain::value_objects::SourceCloud::Aws,
+                span: line_to_span(text, line_num),
+                description: format!("AWS CloudFormation resource: {}", truncate(trimmed, 80)),
+                sdk_import: None,
+            });
         }
 
         // Detect AWS region references
-        if trimmed.contains("us-east-1")
+        if (trimmed.contains("us-east-1")
             || trimmed.contains("us-west-2")
             || trimmed.contains("eu-west-1")
-            || trimmed.contains("ap-southeast-1")
+            || trimmed.contains("ap-southeast-1"))
+            && (trimmed.contains("aws") || trimmed.contains("region"))
         {
-            if trimmed.contains("aws") || trimmed.contains("region") {
-                constructs.push(CloudConstruct {
-                    kind: crate::domain::entities::ConstructKind::ConnectionString,
-                    source_cloud: crate::domain::value_objects::SourceCloud::Aws,
-                    span: line_to_span(text, line_num),
-                    description: format!("AWS region reference: {}", truncate(trimmed, 80)),
-                    sdk_import: None,
-                });
-            }
+            constructs.push(CloudConstruct {
+                kind: crate::domain::entities::ConstructKind::ConnectionString,
+                source_cloud: crate::domain::value_objects::SourceCloud::Aws,
+                span: line_to_span(text, line_num),
+                description: format!("AWS region reference: {}", truncate(trimmed, 80)),
+                sdk_import: None,
+            });
         }
     }
 

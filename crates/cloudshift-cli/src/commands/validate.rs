@@ -6,6 +6,7 @@ use tracing::info;
 
 /// Run post-transformation validation checks.
 #[derive(Args, Debug)]
+#[command(about = "Run post-transformation validation checks on transformed code")]
 pub struct ValidateArgs {
     /// Path to the file or directory to validate.
     #[arg(default_value = ".")]
@@ -15,9 +16,13 @@ pub struct ValidateArgs {
 pub fn run(args: ValidateArgs) -> Result<()> {
     info!(path = %args.path, "Running validation");
 
-    // Stub: validation will check that transformed code compiles,
-    // imports resolve, and no regressions are detected.
-    eprintln!("validate: not yet implemented (path: {})", args.path);
+    println!(
+        "Validation target: {}\n\
+         Status: validation checks are not yet wired up.\n\
+         The validator will verify that transformed code compiles, \
+         imports resolve, and no regressions are detected.",
+        args.path,
+    );
 
     Ok(())
 }

@@ -19,7 +19,7 @@
 //! - Steps 3-6 are per-file and embarrassingly parallel via rayon.
 //! - Step 7 is a sequential fan-in (reduction).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -89,6 +89,31 @@ impl Default for TransformConfig {
             catalogue_path: None,
         }
     }
+}
+
+/// Maximum file size allowed for transformation (10 MB), consistent with the
+/// ingestion module's default limit.
+const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
+/// Validate that `path` does not escape `root` via path traversal.
+///
+/// Canonicalises both paths and checks that the resolved path is a
+/// descendant of `root`.  Returns the canonicalised path on success.
+fn validate_path(path: &Path, root: &Path) -> anyhow::Result<PathBuf> {
+    let canonical = path
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("Cannot resolve path {}: {}", path.display(), e))?;
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("Cannot resolve root {}: {}", root.display(), e))?;
+    if !canonical.starts_with(&canonical_root) {
+        anyhow::bail!(
+            "Path traversal detected: {} escapes root {}",
+            canonical.display(),
+            canonical_root.display()
+        );
+    }
+    Ok(canonical)
 }
 
 /// Transform a single file through the full pipeline.
@@ -233,8 +258,26 @@ pub fn transform_file(
     path: &str,
     config: &TransformConfig,
 ) -> anyhow::Result<TransformResult> {
+    // Validate path does not escape the working directory
+    let file_path = Path::new(path);
+    let root = std::env::current_dir()
+        .map_err(|e| anyhow::anyhow!("Cannot determine current directory: {e}"))?;
+    let canonical = validate_path(file_path, &root)?;
+
+    // Check file size before reading
+    let metadata = std::fs::metadata(&canonical)
+        .map_err(|e| anyhow::anyhow!("Cannot stat {path}: {e}"))?;
+    if metadata.len() > MAX_FILE_SIZE {
+        anyhow::bail!(
+            "File {} is too large ({} bytes, max {} bytes)",
+            path,
+            metadata.len(),
+            MAX_FILE_SIZE
+        );
+    }
+
     // Read the file
-    let source = std::fs::read_to_string(path)
+    let source = std::fs::read_to_string(&canonical)
         .map_err(|e| anyhow::anyhow!("Failed to read {path}: {e}"))?;
 
     // Detect language
@@ -346,7 +389,7 @@ pub fn transform_repo(
         .filter(|f| {
             config
                 .language_filter
-                .map_or(true, |filter| f.language == filter)
+                .is_none_or(|filter| f.language == filter)
         })
         .collect();
 
@@ -354,7 +397,17 @@ pub fn transform_repo(
     let results: Vec<(TransformResult, DiscoveredFile)> = files
         .par_iter()
         .filter_map(|file| {
-            let source = match std::fs::read_to_string(&file.path) {
+            // Validate path stays within the repository root
+            let file_path = Path::new(&file.path);
+            let canonical = match validate_path(file_path, root) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("Skipping {}: {e}", file.path);
+                    return None;
+                }
+            };
+
+            let source = match std::fs::read_to_string(&canonical) {
                 Ok(s) => s,
                 Err(e) => {
                     tracing::warn!("Failed to read {}: {e}", file.path);

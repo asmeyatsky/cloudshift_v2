@@ -142,13 +142,16 @@ pub fn run_query(
     results
 }
 
+/// A simplified query match: `(pattern_index, [(capture_name, text, span)])`.
+pub type SimpleMatch = (usize, Vec<(String, String, SourceSpan)>);
+
 /// Run a query and return matches, providing start/end byte info for the
 /// full matched region from each match's first capture.
 pub fn run_query_simple(
     query: &Query,
     tree: &Tree,
     source: &[u8],
-) -> Vec<(usize, Vec<(String, String, SourceSpan)>)> {
+) -> Vec<SimpleMatch> {
     run_query(query, tree, source)
         .into_iter()
         .map(|m| {

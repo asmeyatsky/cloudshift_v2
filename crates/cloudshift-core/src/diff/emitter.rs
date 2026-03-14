@@ -7,8 +7,22 @@
 //! Pure transformation functions — takes original and transformed text,
 //! produces formatted output. No I/O, no business logic.
 
+use std::path::{Path, Component};
+
 use similar::{ChangeTag, TextDiff};
 use crate::domain::entities::TransformResult;
+
+/// Sanitize a path for use in diff headers: strip `..` and `.` components,
+/// keeping only normal path segments. This prevents directory traversal
+/// sequences from appearing in generated output.
+fn sanitize_diff_path(path: &str) -> String {
+    let p = Path::new(path);
+    let cleaned: std::path::PathBuf = p
+        .components()
+        .filter(|c| matches!(c, Component::Normal(_)))
+        .collect();
+    cleaned.to_string_lossy().into_owned()
+}
 
 /// Generate a unified diff from original and transformed source text.
 ///
@@ -19,12 +33,13 @@ pub fn unified_diff(path: &str, original: &str, transformed: &str) -> String {
         return String::new();
     }
 
+    let safe_path = sanitize_diff_path(path);
     let diff = TextDiff::from_lines(original, transformed);
     let mut output = String::new();
 
     // Header
-    output.push_str(&format!("--- a/{path}\n"));
-    output.push_str(&format!("+++ b/{path}\n"));
+    output.push_str(&format!("--- a/{safe_path}\n"));
+    output.push_str(&format!("+++ b/{safe_path}\n"));
 
     // Generate hunks with 3 lines of context
     for hunk in diff.unified_diff().context_radius(3).iter_hunks() {
@@ -39,9 +54,11 @@ pub fn unified_diff(path: &str, original: &str, transformed: &str) -> String {
 /// Produces a structured JSON representation of the changes, useful for
 /// machine consumption and API responses.
 pub fn json_diff(path: &str, original: &str, transformed: &str) -> String {
+    let safe_path = sanitize_diff_path(path);
+
     if original == transformed {
         return serde_json::json!({
-            "path": path,
+            "path": safe_path,
             "changed": false,
             "hunks": []
         })
@@ -76,7 +93,7 @@ pub fn json_diff(path: &str, original: &str, transformed: &str) -> String {
     }
 
     serde_json::json!({
-        "path": path,
+        "path": safe_path,
         "changed": true,
         "hunks": hunks,
     })

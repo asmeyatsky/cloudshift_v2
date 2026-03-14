@@ -80,7 +80,7 @@ impl ImportManager {
                     Language::TypeScript | Language::JavaScript => {
                         trimmed.contains(imp)
                     }
-                    Language::Java => trimmed == &format!("{};", imp) || trimmed == imp,
+                    Language::Java => trimmed == format!("{};", imp) || trimmed == imp,
                     Language::Go => trimmed.contains(imp),
                     _ => trimmed == imp,
                 }

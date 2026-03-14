@@ -7,21 +7,11 @@ use clap::Args;
 use tracing::info;
 
 use cloudshift_core::{
-    OutputFormat, SourceCloud, TransformConfig, transform_file, transform_repo,
+    OutputFormat, TransformConfig, transform_file, transform_repo,
 };
 
+use crate::commands::{LanguageFilter, SourceCloudFilter};
 use crate::output;
-
-/// CLI language filter (superset of core Language, includes "all").
-#[derive(Debug, Clone, clap::ValueEnum)]
-pub enum LanguageFilter {
-    Python,
-    Typescript,
-    Java,
-    Go,
-    Hcl,
-    All,
-}
 
 /// CLI output format for the transform command.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -41,26 +31,9 @@ impl TransformOutputFormat {
     }
 }
 
-/// CLI source-cloud filter.
-#[derive(Debug, Clone, clap::ValueEnum)]
-pub enum SourceCloudFilter {
-    Aws,
-    Azure,
-    Any,
-}
-
-impl SourceCloudFilter {
-    pub(crate) fn to_core(&self) -> SourceCloud {
-        match self {
-            Self::Aws => SourceCloud::Aws,
-            Self::Azure => SourceCloud::Azure,
-            Self::Any => SourceCloud::Any,
-        }
-    }
-}
-
-/// Transform code files or repositories.
+/// Transform code files or repositories from AWS/Azure to GCP.
 #[derive(Args, Debug)]
+#[command(about = "Transform code files or repositories from AWS/Azure to GCP")]
 pub struct TransformArgs {
     /// File, directory, or Git repo URL (default: current directory).
     #[arg(default_value = ".")]
