@@ -1,0 +1,38 @@
+[pattern]
+id = "aws.sqs.SendMessageCommand -> gcp.pubsub.topic.publishMessage"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.91
+tags = ["messaging", "sqs", "pubsub", "queue"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "SendMessageCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-sqs"]
+
+[pattern.transform]
+template = '''
+  import {PubSub} from "@google-cloud/pubsub";
+
+  const pubsub = new PubSub();
+  const topic = pubsub.topic({topic_name});
+  const messageId = await topic.publishMessage({
+      data: Buffer.from({message_body}),
+  });
+'''
+import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
+import_remove = ["import {SQSClient, SendMessageCommand} from \"@aws-sdk/client-sqs\""]
+
+[pattern.bindings]
+topic_name = "params.QueueUrl"
+message_body = "params.MessageBody"

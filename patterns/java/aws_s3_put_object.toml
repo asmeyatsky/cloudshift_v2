@@ -1,0 +1,38 @@
+[pattern]
+id = "aws.s3.S3Client.putObject -> gcp.storage.Storage.create"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.94
+tags = ["storage", "s3", "gcs", "upload"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "putObject")
+    arguments: (argument_list
+      (_) @request
+      (_) @body) @args)
+'''
+imports = ["software.amazon.awssdk.services.s3"]
+
+[pattern.transform]
+template = '''
+  import com.google.cloud.storage.BlobId;
+  import com.google.cloud.storage.BlobInfo;
+  import com.google.cloud.storage.Storage;
+  import com.google.cloud.storage.StorageOptions;
+
+  Storage storage = StorageOptions.getDefaultInstance().getService();
+  BlobId blobId = BlobId.of({bucket_name}, {key});
+  BlobInfo blobInfo = BlobInfo.newBuilder(blobId).build();
+  storage.create(blobInfo, {body});
+'''
+import_add = ["import com.google.cloud.storage.BlobId", "import com.google.cloud.storage.BlobInfo", "import com.google.cloud.storage.Storage", "import com.google.cloud.storage.StorageOptions"]
+import_remove = ["import software.amazon.awssdk.services.s3.S3Client", "import software.amazon.awssdk.services.s3.model.PutObjectRequest"]
+
+[pattern.bindings]
+bucket_name = "request.bucket()"
+key = "request.key()"
+body = "body"

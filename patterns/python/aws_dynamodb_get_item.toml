@@ -1,0 +1,39 @@
+[pattern]
+id = "aws.dynamodb.get_item -> gcp.firestore.document.get"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.88
+tags = ["database", "dynamodb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get_item"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import firestore
+
+  _db = firestore.Client()
+  _doc_ref = _db.collection({table_name}).document({key_value})
+  _doc = _doc_ref.get()
+  _item = _doc.to_dict() if _doc.exists else None
+'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+table_name = "args.TableName"
+key_value = "args.Key.__key__"
+
+[pattern.notes]
+description = "DynamoDB get_item returns typed attributes. Firestore returns native Python dicts. A deserialization adapter may be needed for full compatibility."

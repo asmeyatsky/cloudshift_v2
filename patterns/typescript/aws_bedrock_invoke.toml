@@ -1,0 +1,43 @@
+[pattern]
+id = "aws.bedrock.InvokeModelCommand -> gcp.vertex_ai.generateContent"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.83
+tags = ["ml", "ai", "bedrock", "vertex-ai", "generative"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "InvokeModelCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-bedrock-runtime"]
+
+[pattern.transform]
+template = '''
+  import {VertexAI} from "@google-cloud/vertexai";
+
+  const vertexAI = new VertexAI({project: {project_id}, location: {region}});
+  const model = vertexAI.getGenerativeModel({model: {model_name}});
+  const result = await model.generateContent({prompt});
+  const response = result.response;
+  const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+'''
+import_add = ["import {VertexAI} from \"@google-cloud/vertexai\""]
+import_remove = ["import {BedrockRuntimeClient, InvokeModelCommand} from \"@aws-sdk/client-bedrock-runtime\""]
+
+[pattern.bindings]
+model_name = "params.modelId"
+prompt = "params.body"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Bedrock InvokeModelCommand passes model-specific JSON in body. Vertex AI has a unified generateContent API. Model ID mapping and request body transformation are needed. Response parsing also differs significantly."

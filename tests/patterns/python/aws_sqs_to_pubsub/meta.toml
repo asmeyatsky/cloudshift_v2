@@ -1,0 +1,12 @@
+pattern_ids = [
+    "aws.sqs.send_message -> gcp.pubsub.publisher.publish",
+    "aws.sqs.send_message_batch -> gcp.pubsub.publisher.publish_batch",
+    "aws.sqs.receive_message -> gcp.pubsub.subscriber.pull",
+    "aws.sqs.delete_message -> gcp.pubsub.subscriber.acknowledge",
+]
+expected_confidence = 0.86
+expected_warnings = [
+    "SQS queue URL has no direct Pub/Sub equivalent — uses topic/subscription paths",
+    "SQS long polling maps to Pub/Sub synchronous pull — consider async streaming pull",
+    "SQS message visibility timeout has no direct Pub/Sub equivalent — uses ack deadline",
+]

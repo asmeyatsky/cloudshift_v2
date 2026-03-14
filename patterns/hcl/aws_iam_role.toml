@@ -1,0 +1,43 @@
+[pattern]
+id = "aws.iam_role -> gcp.project_iam_member"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.77
+tags = ["terraform", "iam", "security"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_iam_role\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_service_account" {resource_name} {
+    account_id   = {role_name}
+    display_name = {role_name}
+    project      = {project_id}
+  }
+
+  resource "google_project_iam_member" "{resource_name}_binding" {
+    project = {project_id}
+    role    = {gcp_role}
+    member  = "serviceAccount:${{google_service_account.{resource_name}.email}}"
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+role_name = "resource_body.name"
+project_id = "__project_id__"
+gcp_role = "resource_body.__mapped_role__"
+
+[pattern.notes]
+description = "AWS IAM roles use assume_role_policy for trust and separate policy attachments. GCP uses service accounts + IAM bindings. The role-to-role mapping requires understanding the specific permissions (e.g., AmazonS3ReadOnlyAccess -> roles/storage.objectViewer). Policy documents need manual review."

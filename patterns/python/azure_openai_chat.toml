@@ -1,0 +1,46 @@
+[pattern]
+id = "azure.openai.chat_completion -> gcp.vertex_ai.generative_model"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["ml", "ai", "openai", "vertex-ai", "generative", "chat"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (attribute
+        object: (attribute
+          object: (identifier) @client
+          attribute: (identifier) @completions (#eq? @completions "chat"))
+        attribute: (identifier) @sub (#eq? @sub "completions"))
+      attribute: (identifier) @method (#eq? @method "create"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["openai"]
+
+[pattern.transform]
+template = '''
+  import vertexai
+  from vertexai.generative_models import GenerativeModel
+
+  vertexai.init(project={project_id}, location={region})
+  _model = GenerativeModel({model_name})
+  _response = _model.generate_content({prompt})
+  _result = _response.text
+'''
+import_add = ["import vertexai", "from vertexai.generative_models import GenerativeModel"]
+import_remove = ["from openai import AzureOpenAI", "import openai"]
+
+[pattern.bindings]
+model_name = "args.model"
+prompt = "args.messages"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Azure OpenAI uses the OpenAI SDK with azure-specific configuration (api_base, api_version, api_key). Vertex AI uses its own SDK. The messages format (role/content dicts) needs conversion to Vertex AI Content objects. Model name mapping (gpt-4 -> gemini-pro) is required."

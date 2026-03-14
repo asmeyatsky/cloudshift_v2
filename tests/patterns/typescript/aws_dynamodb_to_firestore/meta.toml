@@ -1,0 +1,11 @@
+pattern_ids = [
+    "aws.dynamodb.PutItemCommand -> gcp.firestore.doc.set",
+    "aws.dynamodb.GetItemCommand -> gcp.firestore.doc.get",
+    "aws.dynamodb.DeleteItemCommand -> gcp.firestore.doc.delete",
+    "aws.dynamodb.QueryCommand -> gcp.firestore.collection.where",
+]
+expected_confidence = 0.87
+expected_warnings = [
+    "DynamoDB marshall/unmarshall has no Firestore equivalent — Firestore uses native types",
+    "DynamoDB KeyConditionExpression requires manual review for Firestore query translation",
+]

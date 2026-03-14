@@ -1,0 +1,66 @@
+[pattern]
+id = "aws.security_group -> gcp.compute_firewall"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.87
+tags = ["terraform", "networking", "security", "firewall"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_security_group\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_firewall" "{resource_name}_ingress" {
+    name    = "{sg_name}-ingress"
+    network = {network}
+
+    direction = "INGRESS"
+
+    allow {
+      protocol = {ingress_protocol}
+      ports    = [{ingress_ports}]
+    }
+
+    source_ranges = [{ingress_cidr}]
+    target_tags   = ["{sg_name}"]
+  }
+
+  resource "google_compute_firewall" "{resource_name}_egress" {
+    name    = "{sg_name}-egress"
+    network = {network}
+
+    direction = "EGRESS"
+
+    allow {
+      protocol = {egress_protocol}
+      ports    = [{egress_ports}]
+    }
+
+    destination_ranges = [{egress_cidr}]
+    target_tags        = ["{sg_name}"]
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+sg_name = "resource_body.name"
+network = "resource_body.vpc_id"
+ingress_protocol = "resource_body.ingress.protocol"
+ingress_ports = "resource_body.ingress.from_port"
+ingress_cidr = "resource_body.ingress.cidr_blocks"
+egress_protocol = "resource_body.egress.protocol"
+egress_ports = "resource_body.egress.from_port"
+egress_cidr = "resource_body.egress.cidr_blocks"
+
+[pattern.notes]
+description = "AWS security groups are stateful (allow return traffic automatically). GCP firewall rules are stateful for TCP/UDP but each direction needs explicit rules. Security group references (source_security_group_id) map to target_tags/source_tags. One SG may produce multiple firewall rules."

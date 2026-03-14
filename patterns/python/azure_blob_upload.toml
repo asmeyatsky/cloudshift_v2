@@ -1,0 +1,41 @@
+[pattern]
+id = "azure.blob.upload_blob -> gcp.gcs.blob.upload_from_string"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.94
+tags = ["storage", "azure-blob", "gcs", "upload"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "upload_blob"))
+    arguments: (argument_list
+      (_) @data
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.storage.blob"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import storage
+
+  _client = storage.Client()
+  _bucket = _client.bucket({container_name})
+  _blob = _bucket.blob({blob_name})
+  _blob.upload_from_string({data})
+'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["from azure.storage.blob import BlobServiceClient", "from azure.storage.blob import BlobClient", "from azure.storage.blob import ContainerClient"]
+
+[pattern.bindings]
+container_name = "client.__container_name__"
+blob_name = "client.__blob_name__"
+data = "args[0]"
+
+[pattern.notes]
+description = "Azure Blob Storage uses BlobClient.upload_blob(). The container maps to a GCS bucket and blob name maps directly. Azure uses connection strings for auth while GCP uses Application Default Credentials."

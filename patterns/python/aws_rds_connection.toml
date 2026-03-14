@@ -1,0 +1,54 @@
+[pattern]
+id = "aws.rds.psycopg2_connect -> gcp.cloud_sql.connector"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["database", "rds", "cloud-sql", "postgresql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "psycopg2")
+      attribute: (identifier) @method (#eq? @method "connect"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["psycopg2"]
+
+[pattern.transform]
+template = '''
+  from google.cloud.sql.connector import Connector
+  import sqlalchemy
+
+  _connector = Connector()
+
+  def _getconn():
+      return _connector.connect(
+          {instance_connection_name},
+          "pg8000",
+          user={user},
+          password={password},
+          db={database},
+      )
+
+  _pool = sqlalchemy.create_engine(
+      "postgresql+pg8000://",
+      creator=_getconn,
+  )
+'''
+import_add = ["from google.cloud.sql.connector import Connector", "import sqlalchemy"]
+import_remove = ["import psycopg2"]
+
+[pattern.bindings]
+host = "args.host"
+user = "args.user"
+password = "args.password"
+database = "args.dbname"
+instance_connection_name = "__instance_connection_name__"
+
+[pattern.notes]
+description = "RDS connections use direct host/port. Cloud SQL uses the Cloud SQL Connector for secure IAM-based connections. The instance connection name format is 'project:region:instance'. Connection pooling via SQLAlchemy is recommended."

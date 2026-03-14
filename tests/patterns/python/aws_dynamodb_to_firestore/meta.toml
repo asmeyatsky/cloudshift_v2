@@ -1,0 +1,12 @@
+pattern_ids = [
+    "aws.dynamodb.put_item -> gcp.firestore.document.set",
+    "aws.dynamodb.get_item -> gcp.firestore.document.get",
+    "aws.dynamodb.update_item -> gcp.firestore.document.update",
+    "aws.dynamodb.delete_item -> gcp.firestore.document.delete",
+    "aws.dynamodb.query -> gcp.firestore.collection.where",
+]
+expected_confidence = 0.88
+expected_warnings = [
+    "DynamoDB query expressions require manual review for Firestore equivalents",
+    "DynamoDB secondary indexes have no direct Firestore equivalent — consider composite indexes",
+]

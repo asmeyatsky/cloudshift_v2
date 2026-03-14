@@ -1,0 +1,9 @@
+pattern_ids = [
+    "aws.s3.PutObjectCommand -> gcp.storage.file.save",
+    "aws.s3.GetObjectCommand -> gcp.storage.file.download",
+    "aws.s3.ListObjectsV2Command -> gcp.storage.bucket.getFiles",
+]
+expected_confidence = 0.92
+expected_warnings = [
+    "S3 stream-based response body differs from GCS download — verify buffer handling",
+]

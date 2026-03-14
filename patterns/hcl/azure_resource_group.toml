@@ -1,0 +1,49 @@
+[pattern]
+id = "azure.resource_group -> gcp.project"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.79
+tags = ["terraform", "organization", "resource-group", "project"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_resource_group\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  # Azure Resource Groups map conceptually to GCP Projects.
+  # GCP projects are typically pre-created and referenced by project ID.
+  #
+  # If dynamic project creation is needed:
+  resource "google_project" {resource_name} {
+    name       = {rg_name}
+    project_id = {project_id}
+    org_id     = {org_id}
+
+    labels = {tags}
+  }
+
+  # NOTE: Azure resource groups are regional containers.
+  # GCP projects are global. Location is specified per-resource in GCP.
+  # Azure location: {location}
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+rg_name = "resource_body.name"
+location = "resource_body.location"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+org_id = "__org_id__"
+
+[pattern.notes]
+description = "Azure resource groups are regional containers for resources. GCP projects serve a similar organizational purpose but are global. Most GCP migrations use a pre-existing project rather than creating one via Terraform. Resource group location has no direct project equivalent."

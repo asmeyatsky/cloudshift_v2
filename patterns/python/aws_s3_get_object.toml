@@ -1,0 +1,36 @@
+[pattern]
+id = "aws.s3.get_object -> gcp.gcs.blob.download_as_bytes"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.97
+tags = ["storage", "s3", "gcs", "download"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get_object"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import storage
+
+  _client = storage.Client()
+  _bucket = _client.bucket({bucket_expr})
+  _blob = _bucket.blob({key_expr})
+  _data = _blob.download_as_bytes()
+'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+bucket_expr = "args.Bucket"
+key_expr = "args.Key"

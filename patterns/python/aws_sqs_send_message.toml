@@ -1,0 +1,40 @@
+[pattern]
+id = "aws.sqs.send_message -> gcp.pubsub.publish"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.92
+tags = ["messaging", "sqs", "pubsub", "queue"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "send_message"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import pubsub_v1
+
+  _publisher = pubsub_v1.PublisherClient()
+  _topic_path = _publisher.topic_path({project_id}, {topic_name})
+  _future = _publisher.publish(_topic_path, {message_body}.encode("utf-8"))
+  _future.result()
+'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+topic_name = "args.QueueUrl"
+message_body = "args.MessageBody"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "SQS uses QueueUrl while Pub/Sub uses topic paths. The queue URL needs to be mapped to a Pub/Sub topic name. Message attributes mapping may also be required."

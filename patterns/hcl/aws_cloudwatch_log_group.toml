@@ -1,0 +1,48 @@
+[pattern]
+id = "aws.cloudwatch_log_group -> gcp.logging_comment"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.75
+tags = ["terraform", "logging", "cloudwatch", "cloud-logging"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_cloudwatch_log_group\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  # GCP Cloud Logging is built-in and does not require explicit log group creation.
+  # AWS CloudWatch Log Group "{log_group_name}" has been removed.
+  #
+  # GCP equivalent configuration:
+  # - Logs are automatically collected from GCP services
+  # - Use log sinks (google_logging_project_sink) to route logs to storage
+  # - Use log-based metrics (google_logging_metric) for monitoring
+  # - Retention is configured at the bucket level via google_logging_project_bucket_config
+  #
+  # If retention was configured (retention_in_days = {retention_days}):
+  # resource "google_logging_project_bucket_config" "{resource_name}" {
+  #   project        = {project_id}
+  #   location       = "global"
+  #   bucket_id      = "_Default"
+  #   retention_days = {retention_days}
+  # }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+log_group_name = "resource_body.name"
+retention_days = "resource_body.retention_in_days"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "GCP Cloud Logging does not require explicit log group creation - logs are collected automatically. CloudWatch log groups with retention policies can be mapped to google_logging_project_bucket_config for retention management. Log subscriptions/filters map to log sinks."

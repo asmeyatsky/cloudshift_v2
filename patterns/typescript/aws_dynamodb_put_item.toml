@@ -1,0 +1,40 @@
+[pattern]
+id = "aws.dynamodb.PutItemCommand -> gcp.firestore.doc.set"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.86
+tags = ["database", "dynamodb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "PutItemCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-dynamodb"]
+
+[pattern.transform]
+template = '''
+  import {Firestore} from "@google-cloud/firestore";
+
+  const firestore = new Firestore();
+  const docRef = firestore.collection({table_name}).doc({item_key});
+  await docRef.set({item_data});
+'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {DynamoDBClient, PutItemCommand} from \"@aws-sdk/client-dynamodb\""]
+
+[pattern.bindings]
+table_name = "params.TableName"
+item_key = "params.Item.__key__"
+item_data = "params.Item"
+
+[pattern.notes]
+description = "DynamoDB uses typed attribute values ({S: 'value'}). Firestore uses native JS types. An unmarshalling step using @aws-sdk/util-dynamodb unmarshall() equivalent is needed."

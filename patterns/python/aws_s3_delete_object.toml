@@ -1,0 +1,36 @@
+[pattern]
+id = "aws.s3.delete_object -> gcp.gcs.blob.delete"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.97
+tags = ["storage", "s3", "gcs", "delete"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "delete_object"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import storage
+
+  _client = storage.Client()
+  _bucket = _client.bucket({bucket_expr})
+  _blob = _bucket.blob({key_expr})
+  _blob.delete()
+'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+bucket_expr = "args.Bucket"
+key_expr = "args.Key"

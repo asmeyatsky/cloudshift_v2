@@ -1,0 +1,43 @@
+[pattern]
+id = "aws.dynamodb_table -> gcp.firestore_database"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.80
+tags = ["terraform", "database", "dynamodb", "firestore"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_dynamodb_table\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_firestore_database" {resource_name} {
+    project     = {project_id}
+    name        = {table_name}
+    location_id = {location}
+    type        = "FIRESTORE_NATIVE"
+  }
+
+  # NOTE: Firestore indexes must be configured separately using
+  # google_firestore_index resources. DynamoDB GSI/LSI attributes:
+  # {gsi_attributes}
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+table_name = "resource_body.name"
+location = "resource_body.region"
+gsi_attributes = "resource_body.global_secondary_index"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "DynamoDB tables have hash/range keys and GSIs/LSIs defined inline. Firestore is schemaless with separate index resources. Billing models differ significantly (provisioned/on-demand capacity vs document reads/writes). The table structure needs manual review for data model migration."

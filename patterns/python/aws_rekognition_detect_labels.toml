@@ -1,0 +1,39 @@
+[pattern]
+id = "aws.rekognition.detect_labels -> gcp.vision.annotate_image"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.86
+tags = ["ml", "ai", "rekognition", "vision", "image-analysis"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "detect_labels"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import vision
+
+  _client = vision.ImageAnnotatorClient()
+  _image = vision.Image(content={image_bytes})
+  _response = _client.label_detection(image=_image, max_results={max_labels})
+  _labels = [label.description for label in _response.label_annotations]
+'''
+import_add = ["from google.cloud import vision"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+image_bytes = "args.Image.Bytes"
+max_labels = "args.MaxLabels"
+
+[pattern.notes]
+description = "Rekognition detect_labels accepts S3 object references or raw bytes. Vision AI label_detection takes image content or a GCS URI. S3 references need conversion to GCS URIs or inline bytes."

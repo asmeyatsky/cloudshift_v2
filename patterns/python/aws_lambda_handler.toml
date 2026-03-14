@@ -1,0 +1,46 @@
+[pattern]
+id = "aws.lambda.handler -> gcp.cloud_functions.handler"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["compute", "lambda", "cloud-functions", "serverless"]
+
+[pattern.detect]
+query = '''
+  (function_definition
+    name: (identifier) @func_name
+    parameters: (parameters
+      (identifier) @event_param
+      (identifier) @context_param)
+    body: (block) @func_body)
+'''
+imports = []
+
+[pattern.detect.constraints]
+# Lambda handlers typically have (event, context) signature
+param_count = 2
+
+[pattern.transform]
+template = '''
+  import functions_framework
+
+  @functions_framework.http
+  def {func_name}(request):
+      """HTTP Cloud Function."""
+      request_json = request.get_json(silent=True)
+      request_args = request.args
+
+      {func_body}
+'''
+import_add = ["import functions_framework"]
+import_remove = []
+
+[pattern.bindings]
+func_name = "func_name"
+func_body = "func_body"
+event_param = "event_param"
+context_param = "context_param"
+
+[pattern.notes]
+description = "Lambda handlers take (event, context). Cloud Functions HTTP handlers take (request). Event-driven functions use @functions_framework.cloud_event for Pub/Sub triggers."

@@ -1,0 +1,58 @@
+[pattern]
+id = "aws.s3.PutObjectInput -> gcp.storage.Writer"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.93
+tags = ["storage", "s3", "gcs", "upload"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "PutObject"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "s3")
+            name: (type_identifier) @type (#eq? @type "PutObjectInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.transform]
+template = '''
+  import (
+      "cloud.google.com/go/storage"
+      "context"
+      "io"
+  )
+
+  ctx := context.Background()
+  client, err := storage.NewClient(ctx)
+  if err != nil {
+      return fmt.Errorf("storage.NewClient: %w", err)
+  }
+  defer client.Close()
+
+  wc := client.Bucket({bucket}).Object({key}).NewWriter(ctx)
+  if _, err = io.Copy(wc, {body}); err != nil {
+      return fmt.Errorf("io.Copy: %w", err)
+  }
+  if err := wc.Close(); err != nil {
+      return fmt.Errorf("Writer.Close: %w", err)
+  }
+'''
+import_add = ["cloud.google.com/go/storage"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.bindings]
+bucket = "params.Bucket"
+key = "params.Key"
+body = "params.Body"
+
+[pattern.notes]
+description = "S3 PutObject takes an io.Reader as Body. GCS Writer implements io.Writer. The data transfer uses io.Copy. Always close the Writer to finalize the upload."

@@ -1,0 +1,42 @@
+[pattern]
+id = "aws.bedrock.invoke_model -> gcp.vertex_ai.generative_model.generate_content"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["ml", "ai", "bedrock", "vertex-ai", "generative"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "invoke_model"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  import vertexai
+  from vertexai.generative_models import GenerativeModel
+
+  vertexai.init(project={project_id}, location={region})
+  _model = GenerativeModel({model_id})
+  _response = _model.generate_content({prompt})
+  _result = _response.text
+'''
+import_add = ["import vertexai", "from vertexai.generative_models import GenerativeModel"]
+import_remove = ["import boto3", "import json"]
+
+[pattern.bindings]
+model_id = "args.modelId"
+prompt = "args.body"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Bedrock invoke_model takes a JSON body with model-specific format. Vertex AI GenerativeModel has a unified API. The request body parsing and model ID mapping (e.g., anthropic.claude-v2 -> gemini-pro) requires additional transformation logic."

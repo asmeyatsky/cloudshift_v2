@@ -1,0 +1,13 @@
+pattern_ids = [
+    "aws.iam_role -> gcp.service_account",
+    "aws.iam_role_policy.s3 -> gcp.project_iam_member.storage",
+    "aws.iam_role_policy_attachment.lambda_basic -> gcp.project_iam_member.logging",
+    "aws.iam_role_policy.dynamodb -> gcp.project_iam_member.datastore",
+]
+expected_confidence = 0.78
+expected_warnings = [
+    "AWS IAM inline policies mapped to GCP predefined roles — review for least-privilege",
+    "AWS assume_role_policy has no direct GCP equivalent — service account binding used instead",
+    "Fine-grained S3 actions mapped to broader GCP roles — consider custom roles",
+    "DynamoDB actions mapped to datastore.user — verify Firestore mode compatibility",
+]

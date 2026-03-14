@@ -1,0 +1,38 @@
+[pattern]
+id = "aws.dynamodb.DynamoDbClient.putItem -> gcp.firestore.Firestore.set"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.84
+tags = ["database", "dynamodb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "putItem")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.dynamodb"]
+
+[pattern.transform]
+template = '''
+  import com.google.cloud.firestore.DocumentReference;
+  import com.google.cloud.firestore.Firestore;
+  import com.google.cloud.firestore.FirestoreOptions;
+
+  Firestore firestore = FirestoreOptions.getDefaultInstance().getService();
+  DocumentReference docRef = firestore.collection({table_name}).document({item_key});
+  docRef.set({item_data}).get();
+'''
+import_add = ["import com.google.cloud.firestore.DocumentReference", "import com.google.cloud.firestore.Firestore", "import com.google.cloud.firestore.FirestoreOptions"]
+import_remove = ["import software.amazon.awssdk.services.dynamodb.DynamoDbClient", "import software.amazon.awssdk.services.dynamodb.model.PutItemRequest"]
+
+[pattern.bindings]
+table_name = "request.tableName()"
+item_key = "request.item().__key__"
+item_data = "request.item()"
+
+[pattern.notes]
+description = "DynamoDB PutItemRequest uses AttributeValue maps. Firestore uses native Java Maps/POJOs. The AttributeValue conversion (S, N, B, etc.) needs an adapter. Firestore set() returns ApiFuture - .get() blocks for completion."

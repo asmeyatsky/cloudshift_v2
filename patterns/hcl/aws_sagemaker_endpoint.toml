@@ -1,0 +1,45 @@
+[pattern]
+id = "aws.sagemaker_endpoint -> gcp.vertex_ai_endpoint"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.78
+tags = ["terraform", "ml", "sagemaker", "vertex-ai"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_sagemaker_endpoint\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_vertex_ai_endpoint" {resource_name} {
+    name         = {endpoint_name}
+    display_name = {endpoint_name}
+    location     = {region}
+    project      = {project_id}
+
+    # NOTE: Model deployment to endpoint must be done separately using
+    # google_vertex_ai_endpoint_deployed_model or via the Vertex AI SDK.
+    # SageMaker EndpointConfig maps to deployed model configuration.
+
+    # SageMaker endpoint config: {endpoint_config}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+endpoint_name = "resource_body.name"
+endpoint_config = "resource_body.endpoint_config_name"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "SageMaker uses a three-resource pattern: Model, EndpointConfig, Endpoint. Vertex AI uses Endpoint + deployed model. Instance types need mapping (ml.m5.xlarge -> n1-standard-4). Auto-scaling policies differ significantly between the platforms."

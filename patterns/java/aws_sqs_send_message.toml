@@ -1,0 +1,49 @@
+[pattern]
+id = "aws.sqs.SqsClient.sendMessage -> gcp.pubsub.Publisher.publish"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.90
+tags = ["messaging", "sqs", "pubsub", "queue"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "sendMessage")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.sqs"]
+
+[pattern.transform]
+template = '''
+  import com.google.api.core.ApiFuture;
+  import com.google.cloud.pubsub.v1.Publisher;
+  import com.google.protobuf.ByteString;
+  import com.google.pubsub.v1.PubsubMessage;
+  import com.google.pubsub.v1.TopicName;
+
+  TopicName topicName = TopicName.of({project_id}, {topic_name});
+  Publisher publisher = Publisher.newBuilder(topicName).build();
+  try {
+      ByteString data = ByteString.copyFromUtf8({message_body});
+      PubsubMessage pubsubMessage = PubsubMessage.newBuilder()
+          .setData(data)
+          .build();
+      ApiFuture<String> messageIdFuture = publisher.publish(pubsubMessage);
+      String messageId = messageIdFuture.get();
+  } finally {
+      publisher.shutdown();
+  }
+'''
+import_add = ["import com.google.api.core.ApiFuture", "import com.google.cloud.pubsub.v1.Publisher", "import com.google.protobuf.ByteString", "import com.google.pubsub.v1.PubsubMessage", "import com.google.pubsub.v1.TopicName"]
+import_remove = ["import software.amazon.awssdk.services.sqs.SqsClient", "import software.amazon.awssdk.services.sqs.model.SendMessageRequest"]
+
+[pattern.bindings]
+topic_name = "request.queueUrl()"
+message_body = "request.messageBody()"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "SQS sendMessage is synchronous. Pub/Sub Publisher.publish returns ApiFuture. Publisher instances should be reused and shut down gracefully. Consider using Publisher as a managed singleton."

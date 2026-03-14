@@ -1,0 +1,42 @@
+[pattern]
+id = "aws.sns.PublishCommand -> gcp.pubsub.topic.publishMessage"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.91
+tags = ["messaging", "sns", "pubsub", "notification"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "PublishCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-sns"]
+
+[pattern.transform]
+template = '''
+  import {PubSub} from "@google-cloud/pubsub";
+
+  const pubsub = new PubSub();
+  const topic = pubsub.topic({topic_name});
+  const messageId = await topic.publishMessage({
+      data: Buffer.from({message}),
+      attributes: {
+          subject: {subject},
+      },
+  });
+'''
+import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
+import_remove = ["import {SNSClient, PublishCommand} from \"@aws-sdk/client-sns\""]
+
+[pattern.bindings]
+topic_name = "params.TopicArn"
+message = "params.Message"
+subject = "params.Subject"

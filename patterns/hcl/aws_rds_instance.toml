@@ -1,0 +1,81 @@
+[pattern]
+id = "aws.db_instance -> gcp.sql_database_instance"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.88
+tags = ["terraform", "database", "rds", "cloud-sql"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_db_instance\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_sql_database_instance" {resource_name} {
+    name             = {instance_name}
+    database_version = {database_version}
+    region           = {region}
+
+    settings {
+      tier              = {machine_type}
+      availability_type = {availability_type}
+      disk_size         = {allocated_storage}
+      disk_type         = "PD_SSD"
+
+      ip_configuration {
+        ipv4_enabled    = true
+        private_network = {vpc_id}
+      }
+
+      backup_configuration {
+        enabled            = true
+        binary_log_enabled = {binary_log_enabled}
+      }
+
+      database_flags {
+        name  = "max_connections"
+        value = "100"
+      }
+    }
+
+    deletion_protection = {deletion_protection}
+  }
+
+  resource "google_sql_database" "{resource_name}_db" {
+    name     = {db_name}
+    instance = google_sql_database_instance.{resource_name}.name
+  }
+
+  resource "google_sql_user" "{resource_name}_user" {
+    name     = {username}
+    instance = google_sql_database_instance.{resource_name}.name
+    password = {password}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+instance_name = "resource_body.identifier"
+database_version = "resource_body.engine_version"
+region = "resource_body.availability_zone"
+machine_type = "resource_body.instance_class"
+allocated_storage = "resource_body.allocated_storage"
+availability_type = "resource_body.multi_az"
+db_name = "resource_body.db_name"
+username = "resource_body.username"
+password = "resource_body.password"
+vpc_id = "resource_body.db_subnet_group_name"
+deletion_protection = "resource_body.deletion_protection"
+binary_log_enabled = "resource_body.backup_retention_period"
+
+[pattern.notes]
+description = "RDS instance class names (db.t3.medium) need mapping to Cloud SQL tiers (db-custom-2-7680). Engine versions differ (postgres 14.7 -> POSTGRES_14). Multi-AZ maps to REGIONAL availability_type. Subnet groups map to private_network VPC references."

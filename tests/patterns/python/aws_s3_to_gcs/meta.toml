@@ -1,0 +1,7 @@
+pattern_ids = [
+    "aws.s3.put_object -> gcp.gcs.blob.upload",
+    "aws.s3.get_object -> gcp.gcs.blob.download",
+    "aws.s3.list_objects_v2 -> gcp.gcs.bucket.list_blobs",
+]
+expected_confidence = 0.94
+expected_warnings = []

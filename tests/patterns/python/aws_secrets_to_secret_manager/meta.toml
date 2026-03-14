@@ -1,0 +1,10 @@
+pattern_ids = [
+    "aws.secretsmanager.get_secret_value -> gcp.secretmanager.access_secret_version",
+    "aws.secretsmanager.create_secret -> gcp.secretmanager.create_secret",
+    "aws.secretsmanager.list_secrets -> gcp.secretmanager.list_secrets",
+]
+expected_confidence = 0.90
+expected_warnings = [
+    "AWS region parameter has no direct GCP equivalent — uses project_id instead",
+    "AWS SecretBinary handling requires manual verification",
+]

@@ -1,0 +1,38 @@
+[pattern]
+id = "aws.s3.PutObjectCommand -> gcp.gcs.file.save"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.95
+tags = ["storage", "s3", "gcs", "upload"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "PutObjectCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-s3"]
+
+[pattern.transform]
+template = '''
+  import {Storage} from "@google-cloud/storage";
+
+  const storage = new Storage();
+  const bucket = storage.bucket({bucket_name});
+  const file = bucket.file({key});
+  await file.save({body});
+'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {S3Client, PutObjectCommand} from \"@aws-sdk/client-s3\""]
+
+[pattern.bindings]
+bucket_name = "params.Bucket"
+key = "params.Key"
+body = "params.Body"

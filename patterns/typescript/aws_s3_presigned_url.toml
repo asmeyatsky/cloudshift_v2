@@ -1,0 +1,46 @@
+[pattern]
+id = "aws.s3.getSignedUrl -> gcp.gcs.file.getSignedUrl"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.92
+tags = ["storage", "s3", "gcs", "presigned-url", "signed-url"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (identifier) @func_name (#eq? @func_name "getSignedUrl")
+    arguments: (arguments
+      (identifier) @client
+      (new_expression
+        constructor: (identifier) @command (#match? @command "^(GetObjectCommand|PutObjectCommand)$")
+        arguments: (arguments
+          (object) @params))
+      (object) @options))
+'''
+imports = ["@aws-sdk/s3-request-presigner"]
+
+[pattern.transform]
+template = '''
+  import {Storage} from "@google-cloud/storage";
+
+  const storage = new Storage();
+  const bucket = storage.bucket({bucket_name});
+  const file = bucket.file({key});
+  const [url] = await file.getSignedUrl({
+      version: "v4",
+      action: {action},
+      expires: Date.now() + {expires_in} * 1000,
+  });
+'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {getSignedUrl} from \"@aws-sdk/s3-request-presigner\""]
+
+[pattern.bindings]
+bucket_name = "params.Bucket"
+key = "params.Key"
+action = "command.__action__"
+expires_in = "options.expiresIn"
+
+[pattern.notes]
+description = "AWS uses getSignedUrl from @aws-sdk/s3-request-presigner with command objects. GCS uses file.getSignedUrl() with action ('read'/'write') and expires options. The action is inferred from the command type (GetObjectCommand -> 'read', PutObjectCommand -> 'write')."

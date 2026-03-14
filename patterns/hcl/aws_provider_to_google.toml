@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.provider -> gcp.provider"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.95
+tags = ["terraform", "provider", "configuration"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "provider")
+    (string_lit) @provider_name (#eq? @provider_name "\"aws\"")
+    (body) @provider_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  provider "google" {
+    project = {project_id}
+    region  = {region}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+region = "provider_body.region"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS provider uses access_key/secret_key or profile. Google provider uses project and optional credentials file or Application Default Credentials. Region naming differs (us-east-1 -> us-east1)."

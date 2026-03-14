@@ -1,0 +1,52 @@
+[pattern]
+id = "azure.storage_account -> gcp.storage_bucket"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.86
+tags = ["terraform", "storage", "azure-blob", "gcs"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_storage_account\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_storage_bucket" {resource_name} {
+    name          = {account_name}
+    location      = {location}
+    project       = {project_id}
+    force_destroy = false
+
+    storage_class = {storage_class}
+
+    uniform_bucket_level_access = true
+
+    versioning {
+      enabled = true
+    }
+
+    # Azure replication type: {replication_type}
+    # GCP equivalent is controlled by location type:
+    # LRS -> single region, GRS -> dual-region, RAGRS -> multi-region
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+account_name = "resource_body.name"
+location = "resource_body.location"
+storage_class = "resource_body.account_tier"
+replication_type = "resource_body.account_replication_type"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Azure storage accounts are containers for blobs, files, queues, and tables. GCS buckets are for object storage only. Azure account_tier (Standard/Premium) maps to GCS storage_class (STANDARD/NEARLINE/COLDLINE/ARCHIVE). Azure replication types (LRS/GRS/ZRS/RAGRS) map to GCS location types (region/dual-region/multi-region). Azure containers within the storage account map to separate GCS buckets or prefixes."

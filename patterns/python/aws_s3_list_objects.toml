@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.s3.list_objects_v2 -> gcp.gcs.bucket.list_blobs"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.95
+tags = ["storage", "s3", "gcs", "list"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "list_objects_v2"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import storage
+
+  _client = storage.Client()
+  _bucket = _client.bucket({bucket_expr})
+  _blobs = list(_bucket.list_blobs(prefix={prefix_expr}))
+'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+bucket_expr = "args.Bucket"
+prefix_expr = "args.Prefix"

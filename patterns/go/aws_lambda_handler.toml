@@ -1,0 +1,58 @@
+[pattern]
+id = "aws.lambda.Start -> gcp.functions_framework.RegisterHTTPFunction"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.88
+tags = ["compute", "lambda", "cloud-functions", "serverless"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @pkg (#eq? @pkg "lambda")
+      field: (field_identifier) @method (#eq? @method "Start"))
+    arguments: (argument_list
+      (identifier) @handler_func))
+'''
+imports = ["github.com/aws/aws-lambda-go/lambda"]
+
+[pattern.transform]
+template = '''
+  import (
+      "net/http"
+
+      "github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
+      "github.com/GoogleCloudPlatform/functions-framework-go/functions"
+  )
+
+  func init() {
+      functions.HTTP("{func_name}", {handler_func_adapted})
+  }
+
+  func {handler_func_adapted}(w http.ResponseWriter, r *http.Request) {
+      // Adapted from Lambda handler: {handler_func}
+      // TODO: Convert event/context parameters to http.Request reading
+      w.WriteHeader(http.StatusOK)
+  }
+
+  func main() {
+      port := "8080"
+      if envPort := os.Getenv("PORT"); envPort != "" {
+          port = envPort
+      }
+      if err := funcframework.Start(port); err != nil {
+          log.Fatalf("funcframework.Start: %v\n", err)
+      }
+  }
+'''
+import_add = ["github.com/GoogleCloudPlatform/functions-framework-go/funcframework", "github.com/GoogleCloudPlatform/functions-framework-go/functions"]
+import_remove = ["github.com/aws/aws-lambda-go/lambda"]
+
+[pattern.bindings]
+handler_func = "handler_func"
+func_name = "handler_func"
+handler_func_adapted = "handler_func.__adapted__"
+
+[pattern.notes]
+description = "Lambda handlers take (context.Context, Event) and return (Response, error). Cloud Functions HTTP handlers take (http.ResponseWriter, *http.Request). Event-driven functions use CloudEvent handler signature. The function registration model differs significantly."

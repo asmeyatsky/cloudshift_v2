@@ -1,0 +1,56 @@
+[pattern]
+id = "aws.lambda.RequestHandler -> gcp.cloud_functions.HttpFunction"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.89
+tags = ["compute", "lambda", "cloud-functions", "serverless"]
+
+[pattern.detect]
+query = '''
+  (class_declaration
+    name: (identifier) @class_name
+    interfaces: (super_interfaces
+      (interface_type_list
+        (type_identifier) @interface_name (#eq? @interface_name "RequestHandler")))
+    body: (class_body
+      (method_declaration
+        name: (identifier) @method_name (#eq? @method_name "handleRequest")
+        parameters: (formal_parameters
+          (formal_parameter
+            type: (_) @input_type
+            name: (identifier) @input_param)
+          (formal_parameter
+            type: (type_identifier) @context_type (#eq? @context_type "Context")
+            name: (identifier) @context_param))
+        body: (block) @method_body)))
+'''
+imports = ["com.amazonaws.services.lambda.runtime"]
+
+[pattern.transform]
+template = '''
+  import com.google.cloud.functions.HttpFunction;
+  import com.google.cloud.functions.HttpRequest;
+  import com.google.cloud.functions.HttpResponse;
+
+  public class {class_name} implements HttpFunction {
+      @Override
+      public void service(HttpRequest request, HttpResponse response) throws Exception {
+          String body = request.getReader().lines().collect(java.util.stream.Collectors.joining());
+          {method_body}
+          response.setStatusCode(200);
+          response.getWriter().write(result);
+      }
+  }
+'''
+import_add = ["import com.google.cloud.functions.HttpFunction", "import com.google.cloud.functions.HttpRequest", "import com.google.cloud.functions.HttpResponse"]
+import_remove = ["import com.amazonaws.services.lambda.runtime.Context", "import com.amazonaws.services.lambda.runtime.RequestHandler"]
+
+[pattern.bindings]
+class_name = "class_name"
+method_body = "method_body"
+input_type = "input_type"
+input_param = "input_param"
+
+[pattern.notes]
+description = "Lambda RequestHandler<I,O> returns a value. Cloud Functions HttpFunction writes to response. The return type mapping and error handling need manual adjustment. BackgroundFunction is available for event-driven patterns."

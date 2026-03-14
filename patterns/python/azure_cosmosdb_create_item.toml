@@ -1,0 +1,42 @@
+[pattern]
+id = "azure.cosmosdb.create_item -> gcp.firestore.document.set"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.84
+tags = ["database", "cosmosdb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @container
+      attribute: (identifier) @method (#eq? @method "create_item"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name (#eq? @param_name "body")
+        value: (_) @item_body)
+      (keyword_argument
+        name: (identifier) @param_name2
+        value: (_) @param_value2)*) @args)
+'''
+imports = ["azure.cosmos"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import firestore
+
+  _db = firestore.Client()
+  _doc_ref = _db.collection({collection_name}).document({item_id})
+  _doc_ref.set({item_body})
+'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["from azure.cosmos import CosmosClient", "from azure.cosmos import exceptions"]
+
+[pattern.bindings]
+collection_name = "container.__container_id__"
+item_id = "args.body.id"
+item_body = "args.body"
+
+[pattern.notes]
+description = "Cosmos DB create_item requires a partition key and generates conflicts on existing IDs. Firestore set() overwrites by default. Use create() for conflict detection. Cosmos DB's SQL API query model differs significantly from Firestore's document-path model."

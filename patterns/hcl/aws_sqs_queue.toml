@@ -1,0 +1,57 @@
+[pattern]
+id = "aws.sqs_queue -> gcp.pubsub_topic_and_subscription"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.85
+tags = ["terraform", "messaging", "sqs", "pubsub"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_sqs_queue\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_pubsub_topic" {resource_name} {
+    name = {queue_name}
+
+    message_retention_duration = "{retention_seconds}s"
+  }
+
+  resource "google_pubsub_subscription" "{resource_name}_sub" {
+    name  = "{queue_name}-sub"
+    topic = google_pubsub_topic.{resource_name}.id
+
+    ack_deadline_seconds       = {visibility_timeout}
+    message_retention_duration = "{retention_seconds}s"
+
+    retry_policy {
+      minimum_backoff = "10s"
+      maximum_backoff = "600s"
+    }
+
+    # Dead letter policy equivalent to SQS DLQ
+    # dead_letter_policy {
+    #   dead_letter_topic     = google_pubsub_topic.{resource_name}_dlq.id
+    #   max_delivery_attempts = {max_receive_count}
+    # }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+queue_name = "resource_body.name"
+visibility_timeout = "resource_body.visibility_timeout_seconds"
+retention_seconds = "resource_body.message_retention_seconds"
+max_receive_count = "resource_body.redrive_policy.maxReceiveCount"
+
+[pattern.notes]
+description = "SQS is a single queue resource. Pub/Sub requires both a topic and subscription. SQS FIFO queues map to Pub/Sub topics with ordering_key. SQS dead-letter queues map to Pub/Sub dead_letter_policy. Delay queues have no direct Pub/Sub equivalent."

@@ -1,0 +1,55 @@
+[pattern]
+id = "aws.kinesis_stream -> gcp.pubsub_topic"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.83
+tags = ["terraform", "streaming", "kinesis", "pubsub"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_kinesis_stream\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_pubsub_topic" {resource_name} {
+    name = {stream_name}
+
+    message_retention_duration = "{retention_hours}h"
+
+    # Kinesis shard count: {shard_count}
+    # Pub/Sub scales automatically - no shard management needed
+  }
+
+  resource "google_pubsub_subscription" "{resource_name}_sub" {
+    name  = "{stream_name}-sub"
+    topic = google_pubsub_topic.{resource_name}.id
+
+    ack_deadline_seconds       = 60
+    message_retention_duration = "{retention_hours}h"
+
+    enable_exactly_once_delivery = true
+
+    retry_policy {
+      minimum_backoff = "10s"
+      maximum_backoff = "600s"
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+stream_name = "resource_body.name"
+shard_count = "resource_body.shard_count"
+retention_hours = "resource_body.retention_period"
+
+[pattern.notes]
+description = "Kinesis uses shards for parallelism and ordering. Pub/Sub scales automatically with no shard management. Kinesis retention (24h-365d) maps to Pub/Sub message_retention_duration. Kinesis enhanced fan-out consumers have no direct equivalent."

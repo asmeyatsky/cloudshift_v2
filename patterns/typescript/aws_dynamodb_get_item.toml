@@ -1,0 +1,40 @@
+[pattern]
+id = "aws.dynamodb.GetItemCommand -> gcp.firestore.doc.get"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.86
+tags = ["database", "dynamodb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "GetItemCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-dynamodb"]
+
+[pattern.transform]
+template = '''
+  import {Firestore} from "@google-cloud/firestore";
+
+  const firestore = new Firestore();
+  const docRef = firestore.collection({table_name}).doc({key_value});
+  const doc = await docRef.get();
+  const item = doc.exists ? doc.data() : null;
+'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {DynamoDBClient, GetItemCommand} from \"@aws-sdk/client-dynamodb\""]
+
+[pattern.bindings]
+table_name = "params.TableName"
+key_value = "params.Key.__key__"
+
+[pattern.notes]
+description = "DynamoDB returns typed Item attribute map. Firestore returns DocumentSnapshot with .data() method. Check .exists for missing documents (DynamoDB returns empty response for missing items)."

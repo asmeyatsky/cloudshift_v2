@@ -1,0 +1,37 @@
+[pattern]
+id = "aws.s3.GetObjectCommand -> gcp.gcs.file.download"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.95
+tags = ["storage", "s3", "gcs", "download"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "GetObjectCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-s3"]
+
+[pattern.transform]
+template = '''
+  import {Storage} from "@google-cloud/storage";
+
+  const storage = new Storage();
+  const bucket = storage.bucket({bucket_name});
+  const file = bucket.file({key});
+  const [contents] = await file.download();
+'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {S3Client, GetObjectCommand} from \"@aws-sdk/client-s3\""]
+
+[pattern.bindings]
+bucket_name = "params.Bucket"
+key = "params.Key"

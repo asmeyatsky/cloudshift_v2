@@ -1,0 +1,38 @@
+[pattern]
+id = "aws.athena.start_query_execution -> gcp.bigquery.query"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.83
+tags = ["analytics", "athena", "bigquery", "sql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "start_query_execution"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import bigquery
+
+  _client = bigquery.Client()
+  _query_job = _client.query({query_string})
+  _results = _query_job.result()
+  _rows = [dict(row) for row in _results]
+'''
+import_add = ["from google.cloud import bigquery"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+query_string = "args.QueryString"
+
+[pattern.notes]
+description = "Athena is async (start_query_execution + get_query_results). BigQuery client.query() returns a job that can be awaited with .result(). SQL dialects differ (Presto/Trino vs GoogleSQL). Output location mapping (S3 -> GCS) is handled separately."

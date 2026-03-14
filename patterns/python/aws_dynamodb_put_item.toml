@@ -1,0 +1,39 @@
+[pattern]
+id = "aws.dynamodb.put_item -> gcp.firestore.document.set"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.88
+tags = ["database", "dynamodb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "put_item"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import firestore
+
+  _db = firestore.Client()
+  _doc_ref = _db.collection({table_name}).document({item_key})
+  _doc_ref.set({item_data})
+'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+table_name = "args.TableName"
+item_key = "args.Item.__key__"
+item_data = "args.Item"
+
+[pattern.notes]
+description = "DynamoDB item format uses typed attributes (e.g., {'S': 'value'}). Firestore uses native types. A marshaling step may be needed."

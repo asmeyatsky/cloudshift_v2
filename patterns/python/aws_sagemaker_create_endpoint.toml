@@ -1,0 +1,45 @@
+[pattern]
+id = "aws.sagemaker.create_endpoint -> gcp.vertex_ai.deploy_model"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["ml", "sagemaker", "vertex-ai", "endpoint", "deployment"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "create_endpoint"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import aiplatform
+
+  aiplatform.init(project={project_id}, location={region})
+  _model = aiplatform.Model({model_id})
+  _endpoint = _model.deploy(
+      deployed_model_display_name={endpoint_name},
+      machine_type="n1-standard-4",
+      min_replica_count=1,
+      max_replica_count=1,
+  )
+'''
+import_add = ["from google.cloud import aiplatform"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+endpoint_name = "args.EndpointName"
+model_id = "args.EndpointConfigName"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "SageMaker endpoint creation is a multi-step process (Model, EndpointConfig, Endpoint). Vertex AI combines these into Model.deploy(). Machine type mapping and scaling configuration will need manual review."

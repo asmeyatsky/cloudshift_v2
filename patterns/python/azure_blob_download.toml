@@ -1,0 +1,39 @@
+[pattern]
+id = "azure.blob.download_blob -> gcp.gcs.blob.download_as_bytes"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.94
+tags = ["storage", "azure-blob", "gcs", "download"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "download_blob"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.storage.blob"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import storage
+
+  _client = storage.Client()
+  _bucket = _client.bucket({container_name})
+  _blob = _bucket.blob({blob_name})
+  _data = _blob.download_as_bytes()
+'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["from azure.storage.blob import BlobServiceClient", "from azure.storage.blob import BlobClient", "from azure.storage.blob import ContainerClient"]
+
+[pattern.bindings]
+container_name = "client.__container_name__"
+blob_name = "client.__blob_name__"
+
+[pattern.notes]
+description = "Azure download_blob returns a StorageStreamDownloader that needs .readall(). GCS download_as_bytes returns bytes directly."

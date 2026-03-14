@@ -1,0 +1,37 @@
+[pattern]
+id = "aws.s3.create_bucket -> gcp.gcs.client.create_bucket"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.93
+tags = ["storage", "s3", "gcs", "bucket", "create"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "create_bucket"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import storage
+
+  _client = storage.Client()
+  _bucket = _client.create_bucket({bucket_name_expr}, location={location_expr})
+'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+bucket_name_expr = "args.Bucket"
+location_expr = "args.CreateBucketConfiguration.LocationConstraint"
+
+[pattern.notes]
+description = "AWS create_bucket with LocationConstraint maps to GCS location parameter. GCS does not have the same region naming scheme."

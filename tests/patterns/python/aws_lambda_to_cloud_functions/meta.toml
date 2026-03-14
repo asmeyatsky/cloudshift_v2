@@ -1,0 +1,10 @@
+pattern_ids = [
+    "aws.lambda.handler -> gcp.cloud_functions.cloud_event",
+    "aws.lambda.event_records -> gcp.cloud_functions.cloud_event_data",
+    "aws.lambda.context -> gcp.cloud_functions.framework",
+]
+expected_confidence = 0.82
+expected_warnings = [
+    "Lambda event structure differs from CloudEvent — verify field mappings",
+    "Lambda return format differs from Cloud Functions response",
+]

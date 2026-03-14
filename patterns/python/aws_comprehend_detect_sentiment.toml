@@ -1,0 +1,45 @@
+[pattern]
+id = "aws.comprehend.detect_sentiment -> gcp.language.analyze_sentiment"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.87
+tags = ["ml", "ai", "comprehend", "natural-language", "sentiment"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "detect_sentiment"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''
+  from google.cloud import language_v1
+
+  _client = language_v1.LanguageServiceClient()
+  _document = language_v1.Document(
+      content={text},
+      type_=language_v1.Document.Type.PLAIN_TEXT,
+      language={language_code}
+  )
+  _response = _client.analyze_sentiment(request={"document": _document})
+  _sentiment = _response.document_sentiment
+  _score = _sentiment.score
+  _magnitude = _sentiment.magnitude
+'''
+import_add = ["from google.cloud import language_v1"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+text = "args.Text"
+language_code = "args.LanguageCode"
+
+[pattern.notes]
+description = "Comprehend returns Sentiment (POSITIVE/NEGATIVE/NEUTRAL/MIXED) with SentimentScore. GCP NL API returns a numeric score (-1.0 to 1.0) and magnitude. Mapping between categorical and numeric sentiment requires a threshold-based conversion."

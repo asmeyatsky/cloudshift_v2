@@ -1,0 +1,60 @@
+[pattern]
+id = "aws.s3.GetObjectInput -> gcp.storage.Reader"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.93
+tags = ["storage", "s3", "gcs", "download"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "GetObject"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "s3")
+            name: (type_identifier) @type (#eq? @type "GetObjectInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.transform]
+template = '''
+  import (
+      "cloud.google.com/go/storage"
+      "context"
+      "io"
+  )
+
+  ctx := context.Background()
+  client, err := storage.NewClient(ctx)
+  if err != nil {
+      return nil, fmt.Errorf("storage.NewClient: %w", err)
+  }
+  defer client.Close()
+
+  rc, err := client.Bucket({bucket}).Object({key}).NewReader(ctx)
+  if err != nil {
+      return nil, fmt.Errorf("Object.NewReader: %w", err)
+  }
+  defer rc.Close()
+
+  data, err := io.ReadAll(rc)
+  if err != nil {
+      return nil, fmt.Errorf("io.ReadAll: %w", err)
+  }
+'''
+import_add = ["cloud.google.com/go/storage"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.bindings]
+bucket = "params.Bucket"
+key = "params.Key"
+
+[pattern.notes]
+description = "S3 GetObject returns an output with Body as io.ReadCloser. GCS NewReader also returns an io.ReadCloser. Both require closing after use."

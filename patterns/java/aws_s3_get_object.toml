@@ -1,0 +1,37 @@
+[pattern]
+id = "aws.s3.S3Client.getObject -> gcp.storage.Storage.readAllBytes"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.94
+tags = ["storage", "s3", "gcs", "download"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "getObject")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.s3"]
+
+[pattern.transform]
+template = '''
+  import com.google.cloud.storage.BlobId;
+  import com.google.cloud.storage.Storage;
+  import com.google.cloud.storage.StorageOptions;
+
+  Storage storage = StorageOptions.getDefaultInstance().getService();
+  BlobId blobId = BlobId.of({bucket_name}, {key});
+  byte[] content = storage.readAllBytes(blobId);
+'''
+import_add = ["import com.google.cloud.storage.BlobId", "import com.google.cloud.storage.Storage", "import com.google.cloud.storage.StorageOptions"]
+import_remove = ["import software.amazon.awssdk.services.s3.S3Client", "import software.amazon.awssdk.services.s3.model.GetObjectRequest"]
+
+[pattern.bindings]
+bucket_name = "request.bucket()"
+key = "request.key()"
+
+[pattern.notes]
+description = "S3 getObject returns a ResponseInputStream. GCS readAllBytes returns byte[]. For large objects, use Storage.reader() for streaming reads equivalent to S3's streaming response."

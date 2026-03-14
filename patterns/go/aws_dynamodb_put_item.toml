@@ -1,0 +1,55 @@
+[pattern]
+id = "aws.dynamodb.PutItemInput -> gcp.firestore.Set"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.83
+tags = ["database", "dynamodb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "PutItem"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "dynamodb")
+            name: (type_identifier) @type (#eq? @type "PutItemInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.transform]
+template = '''
+  import (
+      "cloud.google.com/go/firestore"
+      "context"
+  )
+
+  ctx := context.Background()
+  client, err := firestore.NewClient(ctx, {project_id})
+  if err != nil {
+      return fmt.Errorf("firestore.NewClient: %w", err)
+  }
+  defer client.Close()
+
+  _, err = client.Collection({table_name}).Doc({item_key}).Set(ctx, {item_data})
+  if err != nil {
+      return fmt.Errorf("Doc.Set: %w", err)
+  }
+'''
+import_add = ["cloud.google.com/go/firestore"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.bindings]
+table_name = "params.TableName"
+item_key = "params.Item.__key__"
+item_data = "params.Item"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "DynamoDB uses AttributeValue types (S, N, B, etc.) while Firestore uses native Go types via reflection. The Item map needs conversion from DynamoDB AttributeValue format to a Go struct or map[string]interface{}."

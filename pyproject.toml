@@ -1,0 +1,22 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "cloudshift"
+description = "Universal GCP code refactoring engine"
+version = "2.0.0"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "cloudshift._cloudshift_core"
+manifest-path = "crates/cloudshift-py/Cargo.toml"
+strip = true
+profile = "release"

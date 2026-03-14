@@ -1,0 +1,13 @@
+pattern_ids = [
+    "aws.s3_bucket -> gcp.storage_bucket",
+    "aws.s3_bucket_versioning -> gcp.storage_bucket.versioning",
+    "aws.s3_bucket_encryption -> gcp.storage_bucket.encryption",
+    "aws.s3_bucket_lifecycle -> gcp.storage_bucket.lifecycle_rule",
+    "aws.s3_bucket_public_access_block -> gcp.storage_bucket.uniform_bucket_level_access",
+]
+expected_confidence = 0.91
+expected_warnings = [
+    "AWS KMS key must be replaced with GCP KMS key reference",
+    "S3 GLACIER storage class maps to GCS ARCHIVE — verify retrieval SLAs",
+    "AWS tags mapped to GCS labels — labels must be lowercase",
+]

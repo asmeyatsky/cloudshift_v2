@@ -1,0 +1,63 @@
+[pattern]
+id = "aws.lambda_function -> gcp.cloudfunctions2_function"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.87
+tags = ["terraform", "compute", "lambda", "cloud-functions", "serverless"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_lambda_function\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_cloudfunctions2_function" {resource_name} {
+    name     = {function_name}
+    location = {region}
+
+    build_config {
+      runtime     = {runtime}
+      entry_point = {handler}
+      source {
+        storage_source {
+          bucket = {source_bucket}
+          object = {source_key}
+        }
+      }
+    }
+
+    service_config {
+      max_instance_count    = 1
+      available_memory      = "{memory_size}M"
+      timeout_seconds       = {timeout}
+      service_account_email = {service_account}
+
+      environment_variables = {environment_variables}
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+function_name = "resource_body.function_name"
+runtime = "resource_body.runtime"
+handler = "resource_body.handler"
+memory_size = "resource_body.memory_size"
+timeout = "resource_body.timeout"
+source_bucket = "resource_body.s3_bucket"
+source_key = "resource_body.s3_key"
+environment_variables = "resource_body.environment.variables"
+service_account = "__service_account__"
+region = "__region__"
+
+[pattern.notes]
+description = "Lambda uses S3 for code storage (s3_bucket/s3_key). Cloud Functions v2 uses GCS (storage_source). Runtime names differ (python3.9 vs python39). Lambda layers have no direct equivalent - use dependencies in requirements.txt. VPC config maps to vpc_connector."

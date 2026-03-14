@@ -1,0 +1,52 @@
+[pattern]
+id = "aws.lambda.handler -> gcp.cloud_functions.handler"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.90
+tags = ["compute", "lambda", "cloud-functions", "serverless"]
+
+[pattern.detect]
+query = '''
+  (export_statement
+    (lexical_declaration
+      (variable_declarator
+        name: (identifier) @handler_name
+        value: (arrow_function
+          parameters: (formal_parameters
+            (required_parameter
+              pattern: (identifier) @event_param
+              type: (type_annotation
+                (type_reference
+                  (identifier) @event_type)))
+            (required_parameter
+              pattern: (identifier) @context_param
+              type: (type_annotation
+                (type_reference
+                  (identifier) @context_type (#eq? @context_type "Context"))))?)
+          body: (_) @func_body))))
+'''
+imports = ["aws-lambda"]
+
+[pattern.transform]
+template = '''
+  import {Request, Response} from "@google-cloud/functions-framework";
+  import * as functions from "@google-cloud/functions-framework";
+
+  functions.http("{handler_name}", (req: Request, res: Response) => {
+      const body = req.body;
+      {func_body}
+      res.status(200).send(result);
+  });
+'''
+import_add = ["import {Request, Response} from \"@google-cloud/functions-framework\"", "import * as functions from \"@google-cloud/functions-framework\""]
+import_remove = ["import {APIGatewayProxyEvent, APIGatewayProxyResult, Context} from \"aws-lambda\""]
+
+[pattern.bindings]
+handler_name = "handler_name"
+event_param = "event_param"
+context_param = "context_param"
+func_body = "func_body"
+
+[pattern.notes]
+description = "Lambda handlers return APIGatewayProxyResult with statusCode/body. Cloud Functions use Express-style req/res. Event type mapping (APIGatewayProxyEvent -> Request) requires body parsing changes."

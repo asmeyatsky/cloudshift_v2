@@ -1,0 +1,54 @@
+[pattern]
+id = "aws.s3_bucket -> gcp.storage_bucket"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.93
+tags = ["terraform", "storage", "s3", "gcs"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_s3_bucket\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_storage_bucket" {resource_name} {
+    name          = {bucket_name}
+    location      = {location}
+    force_destroy = {force_destroy}
+
+    uniform_bucket_level_access = true
+
+    versioning {
+      enabled = {versioning_enabled}
+    }
+
+    lifecycle_rule {
+      condition {
+        age = {lifecycle_days}
+      }
+      action {
+        type = "Delete"
+      }
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+bucket_name = "resource_body.bucket"
+location = "resource_body.region"
+force_destroy = "resource_body.force_destroy"
+versioning_enabled = "resource_body.versioning.enabled"
+lifecycle_days = "resource_body.lifecycle_rule.expiration.days"
+
+[pattern.notes]
+description = "AWS S3 bucket has separate resources for versioning, lifecycle, ACL, etc. (aws_s3_bucket_versioning, aws_s3_bucket_lifecycle_configuration). GCP consolidates these into the google_storage_bucket resource. ACLs map to uniform_bucket_level_access."

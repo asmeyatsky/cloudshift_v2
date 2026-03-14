@@ -1,0 +1,48 @@
+[pattern]
+id = "aws.vpc -> gcp.compute_network"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.90
+tags = ["terraform", "networking", "vpc"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_vpc\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_network" {resource_name} {
+    name                    = {vpc_name}
+    auto_create_subnetworks = false
+    routing_mode            = "REGIONAL"
+
+    # AWS CIDR block: {cidr_block}
+    # GCP VPCs do not have a CIDR block - subnets define IP ranges
+  }
+
+  # Map aws_subnet resources to google_compute_subnetwork
+  # resource "google_compute_subnetwork" "{resource_name}_subnet" {
+  #   name          = "{vpc_name}-subnet"
+  #   ip_cidr_range = {cidr_block}
+  #   region        = {region}
+  #   network       = google_compute_network.{resource_name}.id
+  # }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+vpc_name = "resource_body.tags.Name"
+cidr_block = "resource_body.cidr_block"
+region = "__region__"
+
+[pattern.notes]
+description = "AWS VPCs have a CIDR block and contain subnets. GCP VPC networks are global and do not have a CIDR - subnets define IP ranges per region. enable_dns_hostnames/enable_dns_support have no GCP equivalent (DNS is always enabled). NAT gateways, internet gateways, and route tables are separate resources."

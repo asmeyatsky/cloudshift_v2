@@ -1,0 +1,76 @@
+[pattern]
+id = "aws.ecs_service -> gcp.cloud_run_v2_service"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.82
+tags = ["terraform", "compute", "ecs", "cloud-run", "containers"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_ecs_service\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_cloud_run_v2_service" {resource_name} {
+    name     = {service_name}
+    location = {region}
+
+    template {
+      containers {
+        image = {container_image}
+
+        ports {
+          container_port = {container_port}
+        }
+
+        resources {
+          limits = {
+            cpu    = {cpu}
+            memory = "{memory}Mi"
+          }
+        }
+
+        env {
+          name  = "PORT"
+          value = "{container_port}"
+        }
+      }
+
+      scaling {
+        min_instance_count = {min_count}
+        max_instance_count = {max_count}
+      }
+
+      service_account = {service_account}
+    }
+
+    traffic {
+      type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+      percent = 100
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+service_name = "resource_body.name"
+container_image = "resource_body.task_definition.__image__"
+container_port = "resource_body.task_definition.__port__"
+cpu = "resource_body.task_definition.__cpu__"
+memory = "resource_body.task_definition.__memory__"
+min_count = "resource_body.desired_count"
+max_count = "resource_body.desired_count"
+service_account = "__service_account__"
+region = "__region__"
+
+[pattern.notes]
+description = "ECS services reference task definitions (separate resource). Cloud Run v2 defines containers inline. ECS uses ALB/NLB for load balancing while Cloud Run has built-in HTTPS. Service discovery, capacity providers, and deployment circuits need alternative implementations."

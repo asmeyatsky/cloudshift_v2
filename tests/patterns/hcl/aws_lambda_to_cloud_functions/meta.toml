@@ -1,0 +1,12 @@
+pattern_ids = [
+    "aws.lambda_function -> gcp.cloudfunctions2_function",
+    "aws.lambda_permission -> gcp.cloudfunctions2_function.event_trigger",
+    "aws.cloudwatch_log_group -> gcp.cloud_logging (implicit)",
+]
+expected_confidence = 0.83
+expected_warnings = [
+    "Lambda handler entry point must be updated to match Cloud Functions convention",
+    "Lambda runtime 'python3.12' maps to Cloud Functions 'python312'",
+    "CloudWatch log group has no direct equivalent — Cloud Functions logs to Cloud Logging automatically",
+    "Cloud Functions requires source code in a GCS bucket — added storage resources",
+]
