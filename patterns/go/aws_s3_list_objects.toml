@@ -1,0 +1,48 @@
+[pattern]
+id = "aws.s3.ListObjectsV2Input -> gcp.storage.BucketHandle.Objects"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.91
+tags = ["storage", "s3", "gcs", "list"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "ListObjectsV2"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "s3")
+            name: (type_identifier) @type (#eq? @type "ListObjectsV2Input"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.transform]
+template = '''
+it := client.Bucket({bucket}).Objects(ctx, &storage.Query{Prefix: {prefix}})
+for {
+    attrs, err := it.Next()
+    if err == iterator.Done {
+        break
+    }
+    if err != nil {
+        return fmt.Errorf("Objects.Next: %%w", err)
+    }
+    _ = attrs.Name
+}
+'''
+import_add = ["cloud.google.com/go/storage", "google.golang.org/api/iterator"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.bindings]
+bucket = "params.Bucket"
+prefix = "params.Prefix"
+
+[pattern.notes]
+description = "S3 ListObjectsV2 returns a paginated response with Contents slice. GCS Objects returns an ObjectIterator that yields ObjectAttrs. S3 uses ContinuationToken for pagination; GCS iterator handles pagination automatically. S3 MaxKeys has no direct equivalent in the GCS iterator."

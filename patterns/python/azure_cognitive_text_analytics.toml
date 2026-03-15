@@ -1,0 +1,32 @@
+[pattern]
+id = "azure.textanalytics.analyze_sentiment -> gcp.language.analyze_sentiment"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["ai", "nlp", "sentiment", "text-analytics", "language"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "analyze_sentiment"))
+    arguments: (argument_list
+      (_) @documents_arg
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.ai.textanalytics"]
+
+[pattern.transform]
+template = '''language_v1.LanguageServiceClient().analyze_sentiment(document={doc_expr})'''
+import_add = ["from google.cloud import language_v1"]
+import_remove = ["from azure.ai.textanalytics import TextAnalyticsClient"]
+
+[pattern.bindings]
+doc_expr = "args[0]"
+
+[pattern.notes]
+description = "Azure Text Analytics analyze_sentiment accepts a list of documents and returns per-document and per-sentence sentiment with confidence scores. GCP Natural Language analyze_sentiment accepts a single Document object with content and type fields. Batch processing requires iterating over documents. Sentiment scale differs: Azure uses positive/neutral/negative/mixed labels, GCP returns score (-1.0 to 1.0) and magnitude."

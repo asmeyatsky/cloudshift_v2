@@ -544,6 +544,114 @@ fn test_pattern_matching_on_boto3_code() {
 }
 
 // ---------------------------------------------------------------------------
+// Binding resolution tests (tree-sitter-based arg extraction)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_binding_resolution_with_complex_args() {
+    // Source with complex expressions: commas inside strings, nested calls, f-strings
+    let source = br#"import boto3
+s3 = boto3.client('s3')
+s3.put_object(Bucket=get_bucket_name("prod"), Key=f"{prefix}/file.txt", Body=json.dumps(data))
+"#;
+
+    let catalogue_path = workspace_root().join("patterns");
+    let catalogue =
+        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+
+    use cloudshift_core::domain::ports::PatternRepositoryPort;
+    let python_patterns = catalogue.get_patterns(
+        cloudshift_core::Language::Python,
+        cloudshift_core::SourceCloud::Aws,
+    );
+
+    use cloudshift_core::domain::ports::PatternMatcherPort;
+    let matcher = cloudshift_core::pattern::PatternEngine::new();
+    let matches = matcher.match_patterns(
+        source,
+        cloudshift_core::Language::Python,
+        cloudshift_core::SourceCloud::Aws,
+        &python_patterns,
+    );
+
+    // Find the put_object match
+    let put_match = matches
+        .iter()
+        .find(|m| m.pattern_id.as_str().contains("put_object"));
+    assert!(
+        put_match.is_some(),
+        "Expected to find a put_object pattern match"
+    );
+    let put_match = put_match.unwrap();
+
+    // The replacement should contain the full complex bucket expression,
+    // not a truncated version from naive comma splitting
+    assert!(
+        put_match.replacement_text.contains("get_bucket_name(\"prod\")"),
+        "Bucket binding should contain the full call expression, got: {}",
+        put_match.replacement_text
+    );
+
+    // The key binding should contain the f-string
+    assert!(
+        put_match.replacement_text.contains("f\"{prefix}/file.txt\""),
+        "Key binding should contain the full f-string, got: {}",
+        put_match.replacement_text
+    );
+
+    // The body binding should contain the full json.dumps call
+    assert!(
+        put_match.replacement_text.contains("json.dumps(data)"),
+        "Body binding should contain the full call expression, got: {}",
+        put_match.replacement_text
+    );
+}
+
+#[test]
+fn test_binding_resolution_with_comma_in_string() {
+    // Regression test: commas inside string arguments must not split incorrectly
+    let source = br#"import boto3
+s3 = boto3.client('s3')
+s3.put_object(Bucket="my-bucket", Key="path/to/file, with comma.txt", Body=b"data")
+"#;
+
+    let catalogue_path = workspace_root().join("patterns");
+    let catalogue =
+        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+
+    use cloudshift_core::domain::ports::PatternRepositoryPort;
+    let python_patterns = catalogue.get_patterns(
+        cloudshift_core::Language::Python,
+        cloudshift_core::SourceCloud::Aws,
+    );
+
+    use cloudshift_core::domain::ports::PatternMatcherPort;
+    let matcher = cloudshift_core::pattern::PatternEngine::new();
+    let matches = matcher.match_patterns(
+        source,
+        cloudshift_core::Language::Python,
+        cloudshift_core::SourceCloud::Aws,
+        &python_patterns,
+    );
+
+    let put_match = matches
+        .iter()
+        .find(|m| m.pattern_id.as_str().contains("put_object"));
+    assert!(
+        put_match.is_some(),
+        "Expected to find a put_object pattern match"
+    );
+    let put_match = put_match.unwrap();
+
+    // Key should contain the full string including the comma
+    assert!(
+        put_match.replacement_text.contains("\"path/to/file, with comma.txt\""),
+        "Key binding should preserve string with comma, got: {}",
+        put_match.replacement_text
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Before/after fixture consistency tests
 // ---------------------------------------------------------------------------
 

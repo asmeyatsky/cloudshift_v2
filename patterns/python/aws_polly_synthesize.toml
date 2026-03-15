@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.polly.synthesize_speech -> gcp.texttospeech.synthesize_speech"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["ai", "tts", "polly", "texttospeech", "speech"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "synthesize_speech"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''texttospeech.TextToSpeechClient().synthesize_speech(input=texttospeech.SynthesisInput(text={text_expr}), voice={voice_expr}, audio_config={audio_expr})'''
+import_add = ["from google.cloud import texttospeech"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+text_expr = "args.Text"
+voice_expr = "args.VoiceId"
+audio_expr = "args.OutputFormat"
+
+[pattern.notes]
+description = "Polly uses VoiceId (e.g., 'Joanna') and OutputFormat (mp3/ogg_vorbis/pcm). GCP Text-to-Speech uses VoiceSelectionParams with language_code and name, and AudioConfig with audio_encoding enum. Voice and audio config objects must be constructed from the Polly parameters."

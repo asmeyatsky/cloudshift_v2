@@ -1,0 +1,28 @@
+[pattern]
+id = "aws.s3.S3Client.copyObject -> gcp.storage.Storage.copy"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.93
+tags = ["storage", "s3", "gcs", "copy"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "copyObject")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.s3"]
+
+[pattern.transform]
+template = '''StorageOptions.getDefaultInstance().getService().copy(Storage.CopyRequest.newBuilder().setSource(BlobId.of({source_bucket}, {source_key})).setTarget(BlobId.of({dest_bucket}, {dest_key})).build()).getResult()'''
+import_add = ["import com.google.cloud.storage.BlobId", "import com.google.cloud.storage.Storage", "import com.google.cloud.storage.StorageOptions"]
+import_remove = ["import software.amazon.awssdk.services.s3.S3Client", "import software.amazon.awssdk.services.s3.model.CopyObjectRequest"]
+
+[pattern.bindings]
+source_bucket = "request.sourceBucket()"
+source_key = "request.sourceKey()"
+dest_bucket = "request.destinationBucket()"
+dest_key = "request.destinationKey()"

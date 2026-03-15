@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.dynamodb.update_item -> gcp.firestore.document.update"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.83
+tags = ["database", "dynamodb", "firestore", "nosql", "update"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "update_item"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''firestore.Client().collection({table_expr}).document({key_expr}).update({update_expr})'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+table_expr = "args.TableName"
+key_expr = "args.Key.__key__"
+update_expr = "args.ExpressionAttributeValues"
+
+[pattern.notes]
+description = "DynamoDB update_item uses UpdateExpression with ExpressionAttributeNames/Values. Firestore update() takes a flat dict of field-value pairs. Complex update expressions (SET, REMOVE, ADD, DELETE) need manual decomposition into Firestore field transforms."

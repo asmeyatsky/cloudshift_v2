@@ -1,0 +1,26 @@
+[pattern]
+id = "aws.s3.S3Client.deleteObject -> gcp.storage.Storage.delete"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.95
+tags = ["storage", "s3", "gcs", "delete"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "deleteObject")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.s3"]
+
+[pattern.transform]
+template = '''StorageOptions.getDefaultInstance().getService().delete(BlobId.of({bucket_name}, {key}))'''
+import_add = ["import com.google.cloud.storage.BlobId", "import com.google.cloud.storage.Storage", "import com.google.cloud.storage.StorageOptions"]
+import_remove = ["import software.amazon.awssdk.services.s3.S3Client", "import software.amazon.awssdk.services.s3.model.DeleteObjectRequest"]
+
+[pattern.bindings]
+bucket_name = "request.bucket()"
+key = "request.key()"

@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.bedrock.BedrockRuntimeClient.invokeModel -> gcp.vertex_ai.GenerativeModel.generateContent"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.80
+tags = ["ml", "ai", "bedrock", "vertex-ai", "generative"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "invokeModel")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.bedrockruntime"]
+
+[pattern.transform]
+template = '''new VertexAI({project_id}, {region}).getModel({model_name}).generateContent({prompt})'''
+import_add = ["import com.google.cloud.vertexai.VertexAI", "import com.google.cloud.vertexai.generativeai.GenerativeModel", "import com.google.cloud.vertexai.api.GenerateContentResponse"]
+import_remove = ["import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient", "import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest", "import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse"]
+
+[pattern.bindings]
+model_name = "request.modelId()"
+prompt = "request.body()"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Bedrock invokeModel takes model-specific JSON payload via SdkBytes body. Vertex AI has a unified GenerativeModel API. Model ID mapping is required (e.g., anthropic.claude-v2 -> gemini-pro). Request/response formats differ significantly between Bedrock model providers and Vertex AI."

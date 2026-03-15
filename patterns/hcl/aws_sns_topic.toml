@@ -1,0 +1,57 @@
+[pattern]
+id = "aws.sns_topic -> gcp.pubsub_topic"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.88
+tags = ["terraform", "messaging", "sns", "pubsub", "notifications"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_sns_topic\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_pubsub_topic" {resource_name} {
+    name    = {topic_name}
+    project = {project_id}
+
+    message_retention_duration = "604800s"
+
+    labels = {tags}
+
+    # SNS delivery_policy: {delivery_policy}
+    # Pub/Sub uses subscription-level retry policies instead
+
+    # SNS KMS key: {kms_key}
+    # Uncomment to enable CMEK encryption:
+    # message_storage_policy {
+    #   allowed_persistence_regions = [{region}]
+    # }
+  }
+
+  # NOTE: SNS subscriptions (aws_sns_topic_subscription) must be mapped
+  # separately to google_pubsub_subscription resources.
+  # SNS supports email, SMS, HTTP, Lambda, SQS targets.
+  # Pub/Sub supports push (HTTP) and pull subscriptions.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+topic_name = "resource_body.name"
+delivery_policy = "resource_body.delivery_policy"
+kms_key = "resource_body.kms_master_key_id"
+tags = "resource_body.tags"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "SNS is a push-based notification service. Pub/Sub supports both push and pull delivery. SNS topics fan out to multiple subscriber types (email, SMS, HTTP, Lambda, SQS). Pub/Sub subscriptions support push endpoints and pull. SNS FIFO topics map to Pub/Sub topics with ordering_key. SNS message filtering maps to Pub/Sub subscription filters."

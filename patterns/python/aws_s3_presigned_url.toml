@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.s3.generate_presigned_url -> gcp.gcs.blob.generate_signed_url"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.93
+tags = ["storage", "s3", "gcs", "presigned", "signed-url"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "generate_presigned_url"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''storage.Client().bucket({bucket_expr}).blob({key_expr}).generate_signed_url(expiration={expiration_expr})'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+bucket_expr = "args.Params.Bucket"
+key_expr = "args.Params.Key"
+expiration_expr = "args.ExpiresIn"
+
+[pattern.notes]
+description = "S3 presigned URLs use ExpiresIn (seconds). GCS signed URLs accept a timedelta or datetime for expiration. S3 ClientMethod parameter (get_object/put_object) determines HTTP method; GCS uses the method parameter on generate_signed_url."

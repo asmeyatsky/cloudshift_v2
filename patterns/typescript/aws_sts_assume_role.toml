@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.sts.AssumeRoleCommand -> gcp.auth.workloadIdentity"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.72
+tags = ["auth", "sts", "iam", "identity", "workload-identity"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "AssumeRoleCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-sts"]
+
+[pattern.transform]
+template = '''new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"], clientOptions: { subject: {session_name} } }).getClient()'''
+import_add = ["import {GoogleAuth} from \"google-auth-library\""]
+import_remove = ["import {STSClient, AssumeRoleCommand} from \"@aws-sdk/client-sts\""]
+
+[pattern.bindings]
+role_arn = "params.RoleArn"
+session_name = "params.RoleSessionName"
+
+[pattern.notes]
+description = "AWS STS AssumeRole returns temporary credentials for cross-account or elevated access. GCP uses Workload Identity Federation or service account impersonation via GoogleAuth. The role-based model differs: AWS uses IAM roles with trust policies while GCP uses service accounts with IAM bindings. Manual configuration of workload identity pool and provider is required."

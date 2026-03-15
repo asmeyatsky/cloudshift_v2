@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.dynamodb.delete_item -> gcp.firestore.document.delete"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["database", "dynamodb", "firestore", "nosql", "delete"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "delete_item"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''firestore.Client().collection({table_expr}).document({key_expr}).delete()'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+table_expr = "args.TableName"
+key_expr = "args.Key.__key__"
+
+[pattern.notes]
+description = "DynamoDB delete_item uses a Key dict with typed attributes. Firestore delete uses the document path. ConditionExpression on DynamoDB deletes has no direct Firestore equivalent; use transactions for conditional deletes."

@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.stepfunctions.start_execution -> gcp.workflows.create_execution"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["orchestration", "step-functions", "workflows", "serverless"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "start_execution"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''workflows.ExecutionsClient().create_execution(parent={workflow_expr}, execution=workflows.Execution(argument={input_expr}))'''
+import_add = ["from google.cloud import workflows_v1 as workflows"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+workflow_expr = "args.stateMachineArn"
+input_expr = "args.input"
+
+[pattern.notes]
+description = "Step Functions uses state machine ARNs and JSON input strings. GCP Workflows uses workflow resource paths and Execution objects. State machine definitions (ASL) differ from Workflows YAML syntax and require separate migration."

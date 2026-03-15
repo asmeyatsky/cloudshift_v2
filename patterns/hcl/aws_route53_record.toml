@@ -1,0 +1,59 @@
+[pattern]
+id = "aws.route53_record -> gcp.dns_record_set"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.91
+tags = ["terraform", "dns", "route53", "cloud-dns", "records"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_route53_record\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_dns_record_set" {resource_name} {
+    name         = {record_name}
+    type         = {record_type}
+    ttl          = {ttl}
+    managed_zone = {managed_zone}
+    project      = {project_id}
+
+    rrdatas = {records}
+
+    # Route 53 alias records: use routing_policy for equivalent behavior
+    # Route 53 weighted routing: {weight}
+    # routing_policy {
+    #   wrr {
+    #     weight  = {weight}
+    #     rrdatas = {records}
+    #   }
+    # }
+
+    # Route 53 failover/latency routing requires Cloud DNS routing policies
+    # Route 53 health_check_id: {health_check_id}
+    # GCP does not attach health checks to DNS records directly
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+record_name = "resource_body.name"
+record_type = "resource_body.type"
+ttl = "resource_body.ttl"
+records = "resource_body.records"
+weight = "resource_body.weighted_routing_policy.weight"
+health_check_id = "resource_body.health_check_id"
+managed_zone = "__managed_zone__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Route 53 records map to Cloud DNS record sets. Route 53 alias records (pointing to AWS resources) must be converted to CNAME or A records with actual IPs. Weighted routing maps to Cloud DNS WRR routing policy. Failover routing maps to Cloud DNS failover routing policy. Geolocation routing maps to geo routing policy. Route 53 health checks do not attach to Cloud DNS records - use GCP health checks with load balancers instead."

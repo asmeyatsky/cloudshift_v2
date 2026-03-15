@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.translate.translate_text -> gcp.translate.translate"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.93
+tags = ["ai", "translation", "translate", "nlp"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "translate_text"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''translate.Client().translate({text_expr}, target_language={target_expr})'''
+import_add = ["from google.cloud import translate_v2 as translate"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+text_expr = "args.Text"
+target_expr = "args.TargetLanguageCode"
+
+[pattern.notes]
+description = "AWS Translate uses SourceLanguageCode and TargetLanguageCode. GCP Translate v2 auto-detects source language by default. Response format differs: AWS returns TranslatedText, GCP returns a dict with translatedText, detectedSourceLanguage, and input keys."

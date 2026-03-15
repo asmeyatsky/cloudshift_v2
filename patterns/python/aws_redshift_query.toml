@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.redshift.execute_statement -> gcp.bigquery.query"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["data", "warehouse", "redshift", "bigquery", "sql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "execute_statement"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''bigquery.Client().query({query_expr})'''
+import_add = ["from google.cloud import bigquery"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+query_expr = "args.Sql"
+
+[pattern.notes]
+description = "Redshift Data API execute_statement uses ClusterIdentifier, Database, and Sql parameters. BigQuery client.query() accepts a SQL string directly. Redshift SQL syntax (PostgreSQL-based) may need adjustments for BigQuery Standard SQL. Result retrieval also differs: Redshift uses get_statement_result, BigQuery returns a QueryJob with .result() iterator."

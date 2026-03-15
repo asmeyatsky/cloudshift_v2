@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.ses.SendEmailCommand -> gcp.sendgrid.send"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.80
+tags = ["email", "ses", "sendgrid", "notification"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "SendEmailCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-ses"]
+
+[pattern.transform]
+template = '''await sgMail.send({ to: {to_address}, from: {from_address}, subject: {subject}, html: {body_html} })'''
+import_add = ["import sgMail from \"@sendgrid/mail\""]
+import_remove = ["import {SESClient, SendEmailCommand} from \"@aws-sdk/client-ses\""]
+
+[pattern.bindings]
+to_address = "params.Destination.ToAddresses"
+from_address = "params.Source"
+subject = "params.Message.Subject.Data"
+body_html = "params.Message.Body.Html.Data"
+
+[pattern.notes]
+description = "AWS SES is a managed email service. GCP does not have a direct equivalent; SendGrid (available via GCP Marketplace) is the recommended replacement. Requires SendGrid API key configuration. SES features like bounce handling, complaint tracking, and sending statistics need alternative implementations."

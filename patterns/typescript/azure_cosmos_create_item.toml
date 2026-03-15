@@ -1,0 +1,33 @@
+[pattern]
+id = "azure.cosmos.item.create -> gcp.firestore.doc.set"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.85
+tags = ["database", "cosmos", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (member_expression
+        object: (identifier) @container
+        property: (property_identifier) @items (#eq? @items "items"))
+      property: (property_identifier) @method (#eq? @method "create"))
+    arguments: (arguments
+      (object) @item_body))
+'''
+imports = ["@azure/cosmos"]
+
+[pattern.transform]
+template = '''await new Firestore().collection({collection_name}).doc({item_id}).set({item_body})'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {CosmosClient, Container} from \"@azure/cosmos\""]
+
+[pattern.bindings]
+collection_name = "container.__name__"
+item_id = "item_body.id"
+item_body = "item_body"
+
+[pattern.notes]
+description = "Cosmos DB containers map to Firestore collections. Cosmos uses partition keys for distribution; Firestore uses document paths. Cosmos items have automatic 'id' field; Firestore uses document IDs. Cosmos SQL API queries need rewriting to Firestore query syntax."

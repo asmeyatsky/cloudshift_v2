@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.dynamodb.scan -> gcp.firestore.collection.stream"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["database", "dynamodb", "firestore", "nosql", "scan"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "scan"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''list(firestore.Client().collection({table_expr}).stream())'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+table_expr = "args.TableName"
+
+[pattern.notes]
+description = "DynamoDB scan reads every item and supports FilterExpression, ProjectionExpression, and pagination via ExclusiveStartKey. Firestore stream() returns all documents but filtering must be done with .where() chains before .stream(). Large collections may require pagination with limit/offset."

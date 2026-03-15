@@ -108,7 +108,7 @@ pub fn match_pattern(
         };
 
         // Resolve bindings: map pattern binding variables to captured text
-        let resolved = resolve_bindings(pattern, &captures);
+        let resolved = resolve_bindings(pattern, &captures, source, language);
 
         // Apply bindings to the template to produce replacement text
         let replacement = apply_template(&pattern.transform_template, &resolved);
@@ -173,9 +173,15 @@ pub fn match_all_patterns(
 }
 
 /// Resolve pattern bindings against captured AST node text.
+///
+/// Uses tree-sitter-based extraction for dot-notation bindings (e.g. `args.Bucket`)
+/// to correctly handle complex expressions containing commas, nested calls, and
+/// string literals. Falls back to string-based extraction if tree-sitter parsing fails.
 fn resolve_bindings(
     pattern: &CompiledPattern,
     captures: &HashMap<String, (String, SourceSpan)>,
+    source: &[u8],
+    language: Language,
 ) -> HashMap<String, String> {
     let mut resolved = HashMap::new();
 
@@ -194,8 +200,10 @@ fn resolve_bindings(
             let base_capture = &capture_path[..dot_pos];
             let field_name = &capture_path[dot_pos + 1..];
 
-            if let Some((args_text, _)) = captures.get(base_capture) {
-                if let Some(value) = extract_named_arg(args_text, field_name) {
+            if let Some((args_text, args_span)) = captures.get(base_capture) {
+                if let Some(value) =
+                    extract_named_arg_from_node(source, args_text, args_span, field_name, language)
+                {
                     resolved.insert(binding.variable.clone(), value);
                     continue;
                 }
@@ -217,8 +225,64 @@ fn resolve_bindings(
     resolved
 }
 
-/// Extract a named argument value from an argument list text.
-fn extract_named_arg(args_text: &str, field_name: &str) -> Option<String> {
+/// Extract a named argument value from an argument_list using tree-sitter.
+/// Falls back to string-based extraction if tree-sitter parsing fails.
+fn extract_named_arg_from_node(
+    source: &[u8],
+    args_text: &str,
+    args_span: &SourceSpan,
+    field_name: &str,
+    language: Language,
+) -> Option<String> {
+    // Try tree-sitter based extraction first
+    if let Ok(tree) = crate::analyser::treesitter::parse_source(source, language) {
+        let root = tree.root_node();
+        // Find the node at the args span
+        if let Some(args_node) =
+            root.descendant_for_byte_range(args_span.start_byte, args_span.end_byte)
+        {
+            // Walk children looking for keyword_argument nodes
+            let mut cursor = args_node.walk();
+            for child in args_node.children(&mut cursor) {
+                // Python: keyword_argument, TypeScript: pair, Java: various
+                if child.kind() == "keyword_argument" || child.kind() == "pair" {
+                    let mut child_cursor = child.walk();
+                    let mut name_node = None;
+                    let mut value_node = None;
+                    for grandchild in child.children(&mut child_cursor) {
+                        if grandchild.kind() == "identifier" && name_node.is_none() {
+                            name_node = Some(grandchild);
+                        } else if name_node.is_some()
+                            && grandchild.kind() != "="
+                            && grandchild.kind() != ":"
+                        {
+                            value_node = Some(grandchild);
+                        }
+                    }
+                    if let (Some(name), Some(value)) = (name_node, value_node) {
+                        let name_text = crate::analyser::treesitter::node_text(name, source);
+                        if name_text == field_name {
+                            return Some(
+                                crate::analyser::treesitter::node_text(value, source).to_string(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to string-based extraction for non-Python languages
+    extract_named_arg_string(args_text, field_name)
+}
+
+/// Extract a named argument value from an argument list text (string-based fallback).
+///
+/// This is a naive splitter that breaks on commas. It works for simple cases like
+/// `Bucket='my-bucket', Key='file.txt'` but fails on complex expressions containing
+/// commas inside strings, nested calls, or f-strings. Used only as a fallback when
+/// tree-sitter-based extraction is not available.
+fn extract_named_arg_string(args_text: &str, field_name: &str) -> Option<String> {
     let pattern_eq = format!("{field_name}=");
     let pattern_colon = format!("{field_name}:");
 
@@ -264,20 +328,88 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_named_arg() {
+    fn test_extract_named_arg_string_simple() {
         let args = "(Bucket='my-bucket', Key='file.txt', Body=data)";
         assert_eq!(
-            extract_named_arg(args, "Bucket"),
+            extract_named_arg_string(args, "Bucket"),
             Some("'my-bucket'".to_string())
         );
         assert_eq!(
-            extract_named_arg(args, "Key"),
+            extract_named_arg_string(args, "Key"),
             Some("'file.txt'".to_string())
         );
         assert_eq!(
-            extract_named_arg(args, "Body"),
+            extract_named_arg_string(args, "Body"),
             Some("data".to_string())
         );
-        assert_eq!(extract_named_arg(args, "Missing"), None);
+        assert_eq!(extract_named_arg_string(args, "Missing"), None);
+    }
+
+    #[test]
+    fn test_extract_named_arg_treesitter_simple() {
+        let source = b"s3.put_object(Bucket='my-bucket', Key='file.txt', Body=data)\n";
+        let args_text = "(Bucket='my-bucket', Key='file.txt', Body=data)";
+        // The argument_list spans from byte 13 (the '(') to byte 60 (the ')')
+        let args_start = source.windows(args_text.len())
+            .position(|w| w == args_text.as_bytes())
+            .unwrap();
+        let args_span = SourceSpan {
+            start_byte: args_start,
+            end_byte: args_start + args_text.len(),
+            start_row: 0,
+            start_col: args_start,
+            end_row: 0,
+            end_col: args_start + args_text.len(),
+        };
+
+        assert_eq!(
+            extract_named_arg_from_node(source, args_text, &args_span, "Bucket", Language::Python),
+            Some("'my-bucket'".to_string())
+        );
+        assert_eq!(
+            extract_named_arg_from_node(source, args_text, &args_span, "Key", Language::Python),
+            Some("'file.txt'".to_string())
+        );
+        assert_eq!(
+            extract_named_arg_from_node(source, args_text, &args_span, "Body", Language::Python),
+            Some("data".to_string())
+        );
+        assert_eq!(
+            extract_named_arg_from_node(source, args_text, &args_span, "Missing", Language::Python),
+            None
+        );
+    }
+
+    #[test]
+    fn test_extract_named_arg_treesitter_complex_expressions() {
+        // Commas inside string arguments
+        let source = b"s3.put_object(Bucket=get_name(\"foo, bar\"), Key=f\"{prefix}/file.txt\", Body=json.dumps({\"key\": \"value\"}))\n";
+        let source_str = std::str::from_utf8(source).unwrap();
+        let args_start = source_str.find('(').unwrap();
+        let args_end = source_str.rfind(')').unwrap() + 1;
+        let args_text = &source_str[args_start..args_end];
+        let args_span = SourceSpan {
+            start_byte: args_start,
+            end_byte: args_end,
+            start_row: 0,
+            start_col: args_start,
+            end_row: 0,
+            end_col: args_end,
+        };
+
+        let bucket = extract_named_arg_from_node(
+            source, args_text, &args_span, "Bucket", Language::Python,
+        );
+        assert_eq!(bucket, Some("get_name(\"foo, bar\")".to_string()));
+
+        let key = extract_named_arg_from_node(
+            source, args_text, &args_span, "Key", Language::Python,
+        );
+        assert_eq!(key, Some("f\"{prefix}/file.txt\"".to_string()));
+
+        let body = extract_named_arg_from_node(
+            source, args_text, &args_span, "Body", Language::Python,
+        );
+        assert_eq!(body, Some("json.dumps({\"key\": \"value\"})".to_string()));
     }
 }

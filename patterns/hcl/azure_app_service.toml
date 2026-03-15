@@ -1,0 +1,102 @@
+[pattern]
+id = "azure.app_service -> gcp.cloud_run_v2_service"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.83
+tags = ["terraform", "compute", "app-service", "cloud-run", "containers", "paas"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_app_service\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_cloud_run_v2_service" {resource_name} {
+    name     = {app_service_name}
+    location = {location}
+    project  = {project_id}
+
+    template {
+      containers {
+        image = {container_image}
+
+        ports {
+          container_port = 8080
+        }
+
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "512Mi"
+          }
+        }
+
+        # Azure app_settings map to environment variables
+        env {
+          name  = "ASPNETCORE_URLS"
+          value = "http://+:8080"
+        }
+
+        # Azure connection_string entries map to env vars or Secret Manager
+        # connection_strings: {connection_strings}
+
+        # Map additional app_settings: {app_settings}
+      }
+
+      scaling {
+        min_instance_count = {min_instance_count}
+        max_instance_count = {max_instance_count}
+      }
+
+      service_account = {service_account}
+
+      # Azure VNET integration: {vnet_integration}
+      # vpc_access {
+      #   connector = "projects/{project_id}/locations/{location}/connectors/CONNECTOR"
+      #   egress    = "ALL_TRAFFIC"
+      # }
+    }
+
+    traffic {
+      type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+      percent = 100
+    }
+
+    # Azure app_service_plan_id: {app_service_plan_id}
+    # Cloud Run pricing is per-request, no plan equivalent.
+    # For always-on workloads, set min_instance_count >= 1.
+
+    # Azure site_config: {site_config}
+    # Map always_on, linux_fx_version, health_check_path, etc.
+
+    labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+app_service_name = "resource_body.name"
+location = "resource_body.location"
+container_image = "resource_body.site_config.linux_fx_version"
+app_settings = "resource_body.app_settings"
+connection_strings = "resource_body.connection_string"
+app_service_plan_id = "resource_body.app_service_plan_id"
+site_config = "resource_body.site_config"
+vnet_integration = "resource_body.site_config.vnet_route_all_enabled"
+min_instance_count = "__min_instances__"
+max_instance_count = "__max_instances__"
+tags = "resource_body.tags"
+service_account = "__service_account__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Azure App Service is a PaaS for web apps. Cloud Run is a serverless container platform. App Service Plans (Basic, Standard, Premium) have no direct equivalent - Cloud Run scales per-request. App Service deployment slots map to Cloud Run traffic splitting with revisions. App Service managed identity maps to Cloud Run service account. App Service custom domains map to Cloud Run domain mappings. App Service VNET integration maps to Cloud Run VPC connectors. Application Insights maps to Cloud Trace and Cloud Logging."

@@ -1,0 +1,46 @@
+[pattern]
+id = "aws.kinesis.PutRecordInput -> gcp.pubsub.Topic.Publish"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.84
+tags = ["streaming", "kinesis", "pubsub", "event"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "PutRecord"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "kinesis")
+            name: (type_identifier) @type (#eq? @type "PutRecordInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/kinesis"]
+
+[pattern.transform]
+template = '''
+result := topic.Publish(ctx, &pubsub.Message{
+    Data:        {data},
+    OrderingKey: {partition_key},
+})
+msgID, err := result.Get(ctx)
+if err != nil {
+    return fmt.Errorf("Topic.Publish: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/pubsub"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/kinesis"]
+
+[pattern.bindings]
+stream_name = "params.StreamName"
+data = "params.Data"
+partition_key = "params.PartitionKey"
+
+[pattern.notes]
+description = "Kinesis PutRecord sends a record to a shard determined by PartitionKey. Pub/Sub uses OrderingKey for ordered delivery within a key (requires topic.EnableMessageOrdering = true). Kinesis Data is []byte; Pub/Sub Data is also []byte. Kinesis SequenceNumber maps loosely to Pub/Sub message ID. Kinesis shard-level throughput limits differ from Pub/Sub topic-level quotas."

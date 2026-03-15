@@ -1,0 +1,33 @@
+[pattern]
+id = "azure.servicebus.send_messages -> gcp.pubsub.publish"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.88
+tags = ["messaging", "servicebus", "pubsub", "queue"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "send_messages"))
+    arguments: (argument_list
+      (_) @message_arg
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.servicebus"]
+
+[pattern.transform]
+template = '''pubsub_v1.PublisherClient().publish({topic_expr}, {message_expr}.encode("utf-8"))'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["from azure.servicebus import ServiceBusClient", "from azure.servicebus import ServiceBusMessage"]
+
+[pattern.bindings]
+topic_expr = "client.__topic_path__"
+message_expr = "args[0]"
+
+[pattern.notes]
+description = "Azure Service Bus send_messages accepts ServiceBusMessage objects with body, properties, and session support. Pub/Sub publish accepts bytes data with optional attributes dict. Service Bus sessions, dead-letter queues, and scheduled delivery require alternative patterns on GCP."

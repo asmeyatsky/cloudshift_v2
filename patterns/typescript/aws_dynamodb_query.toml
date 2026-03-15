@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.dynamodb.QueryCommand -> gcp.firestore.collection.where"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.78
+tags = ["database", "dynamodb", "firestore", "nosql", "query"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "QueryCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-dynamodb"]
+
+[pattern.transform]
+template = '''await new Firestore().collection({table_name}).where({key_condition_field}, "==", {key_condition_value}).get()'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {DynamoDBClient, QueryCommand} from \"@aws-sdk/client-dynamodb\""]
+
+[pattern.bindings]
+table_name = "params.TableName"
+key_condition_field = "params.ExpressionAttributeNames.__first_key__"
+key_condition_value = "params.ExpressionAttributeValues.__first_value__"
+
+[pattern.notes]
+description = "DynamoDB QueryCommand uses KeyConditionExpression with ExpressionAttributeNames/Values. Firestore uses chained where() calls. Complex DynamoDB expressions with AND/OR, between, begins_with need manual decomposition into Firestore where/orderBy/limit chains. Index requirements differ significantly."

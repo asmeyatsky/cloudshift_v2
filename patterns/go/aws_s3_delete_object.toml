@@ -1,0 +1,38 @@
+[pattern]
+id = "aws.s3.DeleteObjectInput -> gcp.storage.ObjectHandle.Delete"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.95
+tags = ["storage", "s3", "gcs", "delete"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "DeleteObject"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "s3")
+            name: (type_identifier) @type (#eq? @type "DeleteObjectInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.transform]
+template = '''
+err = client.Bucket({bucket}).Object({key}).Delete(ctx)
+if err != nil {
+    return fmt.Errorf("Object.Delete: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/storage"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.bindings]
+bucket = "params.Bucket"
+key = "params.Key"

@@ -1,0 +1,59 @@
+[pattern]
+id = "aws.ecr_repository -> gcp.artifact_registry_repository"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.90
+tags = ["terraform", "containers", "ecr", "artifact-registry", "docker"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_ecr_repository\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_artifact_registry_repository" {resource_name} {
+    location      = {region}
+    repository_id = {repo_name}
+    description   = "Migrated from AWS ECR"
+    format        = "DOCKER"
+    project       = {project_id}
+
+    # ECR image_tag_mutability: {image_tag_mutability}
+    # For IMMUTABLE tags, use:
+    # docker_config {
+    #   immutable_tags = true
+    # }
+
+    # ECR image_scanning_configuration: {scan_on_push}
+    # Artifact Registry supports automatic vulnerability scanning
+    # via Container Analysis API (enabled separately)
+
+    # ECR encryption: {encryption_configuration}
+    # Uncomment for CMEK:
+    # kms_key_name = "projects/{project_id}/locations/{region}/keyRings/KEYRING/cryptoKeys/KEY"
+
+    labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+repo_name = "resource_body.name"
+image_tag_mutability = "resource_body.image_tag_mutability"
+scan_on_push = "resource_body.image_scanning_configuration.scan_on_push"
+encryption_configuration = "resource_body.encryption_configuration"
+tags = "resource_body.tags"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "ECR repositories are regional Docker registries. Artifact Registry supports Docker plus other formats (Maven, npm, Python). ECR lifecycle policies map to Artifact Registry cleanup policies. ECR image scanning maps to Container Analysis vulnerability scanning. ECR cross-account access via resource policies maps to Artifact Registry IAM. Image URLs change from ACCOUNT.dkr.ecr.REGION.amazonaws.com/REPO to REGION-docker.pkg.dev/PROJECT/REPO/IMAGE."

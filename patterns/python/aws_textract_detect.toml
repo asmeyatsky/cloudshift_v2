@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.textract.detect_document_text -> gcp.vision.document_text_detection"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.91
+tags = ["ai", "ocr", "textract", "vision", "document"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "detect_document_text"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''vision.ImageAnnotatorClient().document_text_detection(image={image_expr})'''
+import_add = ["from google.cloud import vision"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+image_expr = "args.Document"
+
+[pattern.notes]
+description = "Textract Document field accepts S3Object or Bytes. Vision API accepts image as content bytes or a GCS URI via vision.Image(). Response structures differ: Textract returns Blocks with geometry, Vision returns text_annotations and full_text_annotation with bounding polys."

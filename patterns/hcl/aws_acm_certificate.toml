@@ -1,0 +1,54 @@
+[pattern]
+id = "aws.acm_certificate -> gcp.compute_managed_ssl_certificate"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.87
+tags = ["terraform", "security", "ssl", "tls", "certificate", "acm"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_acm_certificate\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_managed_ssl_certificate" {resource_name} {
+    name    = {cert_name}
+    project = {project_id}
+
+    managed {
+      domains = [{domain_name}]
+    }
+
+    # ACM validation_method: {validation_method}
+    # GCP managed certificates are automatically validated via DNS
+    # Ensure the domain points to the GCP load balancer IP before provisioning
+
+    # ACM subject_alternative_names: {san}
+    # Add all SANs to the domains list above
+  }
+
+  # NOTE: GCP managed SSL certificates can only be used with
+  # Google Cloud load balancers (HTTPS proxy / SSL proxy).
+  # For other use cases, use google_certificate_manager_certificate instead.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+cert_name = "resource_body.domain_name"
+domain_name = "resource_body.domain_name"
+san = "resource_body.subject_alternative_names"
+validation_method = "resource_body.validation_method"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "ACM certificates support DNS and email validation. GCP managed SSL certificates are automatically validated when the domain resolves to the load balancer. ACM supports wildcard certificates; GCP managed certs support up to 100 domains per certificate. For Certificate Manager (newer API), use google_certificate_manager_certificate instead. ACM certificates are regional; GCP managed SSL certs are global."

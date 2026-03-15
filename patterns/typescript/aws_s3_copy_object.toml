@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.s3.CopyObjectCommand -> gcp.gcs.file.copy"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.93
+tags = ["storage", "s3", "gcs", "copy"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "CopyObjectCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-s3"]
+
+[pattern.transform]
+template = '''await new Storage().bucket({source_bucket}).file({source_key}).copy(new Storage().bucket({dest_bucket}).file({dest_key}))'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {S3Client, CopyObjectCommand} from \"@aws-sdk/client-s3\""]
+
+[pattern.bindings]
+source_bucket = "params.CopySource.__bucket__"
+source_key = "params.CopySource.__key__"
+dest_bucket = "params.Bucket"
+dest_key = "params.Key"
+
+[pattern.notes]
+description = "S3 CopySource is a string in 'bucket/key' format. GCS uses separate bucket and file references. The CopySource string needs to be parsed to extract bucket and key components."

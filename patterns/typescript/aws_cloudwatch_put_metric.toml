@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.cloudwatch.PutMetricDataCommand -> gcp.monitoring.createTimeSeries"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.83
+tags = ["monitoring", "cloudwatch", "cloud-monitoring", "metrics"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "PutMetricDataCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-cloudwatch"]
+
+[pattern.transform]
+template = '''await new MetricServiceClient().createTimeSeries({ name: `projects/${project_id}`, timeSeries: [{ metric: { type: `custom.googleapis.com/${namespace}/${metric_name}` }, resource: { type: "global" }, points: [{ interval: { endTime: { seconds: Date.now() / 1000 } }, value: { doubleValue: {metric_value} } }] }] })'''
+import_add = ["import {MetricServiceClient} from \"@google-cloud/monitoring\""]
+import_remove = ["import {CloudWatchClient, PutMetricDataCommand} from \"@aws-sdk/client-cloudwatch\""]
+
+[pattern.bindings]
+namespace = "params.Namespace"
+metric_name = "params.MetricData[0].MetricName"
+metric_value = "params.MetricData[0].Value"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "CloudWatch uses Namespace/MetricName/Dimensions. Cloud Monitoring uses metric type paths (custom.googleapis.com/...) and MonitoredResource labels. CloudWatch Dimensions map to Monitoring metric labels. CloudWatch supports Statistics; Monitoring uses separate MQL or aggregation queries. Batch metric data entries need to be mapped to individual TimeSeries."

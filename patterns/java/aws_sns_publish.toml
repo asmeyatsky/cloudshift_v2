@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.sns.SnsClient.publish -> gcp.pubsub.Publisher.publish"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.91
+tags = ["messaging", "sns", "pubsub", "notification"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "publish")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.sns"]
+
+[pattern.transform]
+template = '''Publisher.newBuilder(TopicName.of({project_id}, {topic_name})).build().publish(PubsubMessage.newBuilder().setData(ByteString.copyFromUtf8({message})).putAttributes("subject", {subject}).build()).get()'''
+import_add = ["import com.google.api.core.ApiFuture", "import com.google.cloud.pubsub.v1.Publisher", "import com.google.protobuf.ByteString", "import com.google.pubsub.v1.PubsubMessage", "import com.google.pubsub.v1.TopicName"]
+import_remove = ["import software.amazon.awssdk.services.sns.SnsClient", "import software.amazon.awssdk.services.sns.model.PublishRequest"]
+
+[pattern.bindings]
+topic_name = "request.topicArn()"
+message = "request.message()"
+subject = "request.subject()"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "SNS publish is a push-based notification to a topic with subscribers. Pub/Sub publish is similar but subscriptions are pull-based or push-based. SNS message attributes map to Pub/Sub message attributes. SNS subject can be stored as a Pub/Sub attribute."

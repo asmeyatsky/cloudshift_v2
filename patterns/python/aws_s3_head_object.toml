@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.s3.head_object -> gcp.gcs.blob.reload"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["storage", "s3", "gcs", "metadata", "head"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "head_object"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''storage.Client().bucket({bucket_expr}).blob({key_expr}).reload()'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+bucket_expr = "args.Bucket"
+key_expr = "args.Key"
+
+[pattern.notes]
+description = "S3 head_object returns metadata as a dict (ContentLength, ContentType, etc.). GCS blob.reload() populates the blob's properties in place. Access metadata via blob.size, blob.content_type, etc. after reload."

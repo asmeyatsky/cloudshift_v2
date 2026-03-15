@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.eventbridge.PutEventsCommand -> gcp.pubsub.topic.publishMessage"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.82
+tags = ["events", "eventbridge", "pubsub", "eventing"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "PutEventsCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-eventbridge"]
+
+[pattern.transform]
+template = '''await new PubSub().topic({event_bus}).publishMessage({ data: Buffer.from(JSON.stringify({detail})), attributes: { source: {source}, detailType: {detail_type} } })'''
+import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
+import_remove = ["import {EventBridgeClient, PutEventsCommand} from \"@aws-sdk/client-eventbridge\""]
+
+[pattern.bindings]
+event_bus = "params.Entries[0].EventBusName"
+source = "params.Entries[0].Source"
+detail_type = "params.Entries[0].DetailType"
+detail = "params.Entries[0].Detail"
+
+[pattern.notes]
+description = "EventBridge supports complex event routing with rules and targets. Pub/Sub uses topic-based routing with subscription filters. EventBridge content-based filtering maps to Pub/Sub message attribute filters. Batch PutEvents with multiple entries should be mapped to multiple publishMessage calls or use topic.publishMany()."

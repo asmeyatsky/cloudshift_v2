@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.s3.ListObjectsV2Command -> gcp.gcs.bucket.getFiles"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.92
+tags = ["storage", "s3", "gcs", "list"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "ListObjectsV2Command")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-s3"]
+
+[pattern.transform]
+template = '''await new Storage().bucket({bucket_name}).getFiles({ prefix: {prefix}, maxResults: {max_keys} })'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {S3Client, ListObjectsV2Command} from \"@aws-sdk/client-s3\""]
+
+[pattern.bindings]
+bucket_name = "params.Bucket"
+prefix = "params.Prefix"
+max_keys = "params.MaxKeys"
+
+[pattern.notes]
+description = "S3 ListObjectsV2 returns Contents array with Key, Size, LastModified. GCS getFiles returns [File[]] where each File has name, metadata. Pagination differs: S3 uses ContinuationToken, GCS uses autoPaginate option or pageToken."

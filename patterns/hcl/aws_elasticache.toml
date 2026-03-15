@@ -1,0 +1,57 @@
+[pattern]
+id = "aws.elasticache_cluster -> gcp.redis_instance"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.85
+tags = ["terraform", "caching", "elasticache", "redis", "memorystore"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_elasticache_cluster\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_redis_instance" {resource_name} {
+    name           = {cluster_id}
+    tier           = "STANDARD_HA"
+    memory_size_gb = {memory_size_gb}
+    region         = {region}
+    project        = {project_id}
+
+    redis_version  = {redis_version}
+
+    authorized_network = {network}
+
+    labels = {tags}
+
+    # ElastiCache num_cache_nodes: {num_cache_nodes}
+    # Memorystore Redis scales via memory_size_gb, not node count
+    # ElastiCache parameter group: {parameter_group}
+    # Map custom parameters to redis_configs below
+    # redis_configs = {}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+cluster_id = "resource_body.cluster_id"
+memory_size_gb = "resource_body.node_type.__memory_gb__"
+num_cache_nodes = "resource_body.num_cache_nodes"
+redis_version = "resource_body.engine_version"
+parameter_group = "resource_body.parameter_group_name"
+network = "resource_body.subnet_group_name"
+tags = "resource_body.tags"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "ElastiCache supports Redis and Memcached engines. Memorystore for Redis supports only Redis. ElastiCache uses node types (cache.t3.micro) while Memorystore uses memory_size_gb. ElastiCache cluster mode with multiple shards maps to Memorystore Redis Cluster (separate resource). Subnet groups map to authorized_network. Parameter groups map to redis_configs."

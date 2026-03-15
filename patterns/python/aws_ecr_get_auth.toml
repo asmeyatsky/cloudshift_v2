@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.ecr.get_authorization_token -> gcp.artifactregistry.get_repository"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.72
+tags = ["containers", "ecr", "artifact-registry", "docker", "auth"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get_authorization_token"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''artifactregistry.ArtifactRegistryClient().get_repository(name={repo_expr})'''
+import_add = ["from google.cloud import artifactregistry_v1 as artifactregistry"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+repo_expr = "args.registryIds"
+
+[pattern.notes]
+description = "ECR get_authorization_token returns base64-encoded Docker credentials. Artifact Registry uses gcloud auth configure-docker or Application Default Credentials for Docker authentication. This is not a direct API-level equivalent; container auth on GCP is typically configured at the environment level rather than via API calls."

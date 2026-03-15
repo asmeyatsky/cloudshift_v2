@@ -1,0 +1,41 @@
+[pattern]
+id = "aws.sts.AssumeRoleInput -> gcp.auth.DefaultCredentials"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.70
+tags = ["auth", "sts", "iam", "identity", "credentials"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "AssumeRole"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "sts")
+            name: (type_identifier) @type (#eq? @type "AssumeRoleInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/sts"]
+
+[pattern.transform]
+template = '''
+creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+if err != nil {
+    return nil, fmt.Errorf("FindDefaultCredentials: %%w", err)
+}
+'''
+import_add = ["golang.org/x/oauth2/google"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/sts"]
+
+[pattern.bindings]
+role_arn = "params.RoleArn"
+session_name = "params.RoleSessionName"
+
+[pattern.notes]
+description = "AWS STS AssumeRole returns temporary credentials for cross-account or elevated access. GCP uses Application Default Credentials (ADC) with Workload Identity Federation or service account impersonation via iamcredentials.GenerateAccessToken. The role-based security model differs fundamentally: AWS uses role chaining while GCP uses service account impersonation with IAM bindings. For service account impersonation, use cloud.google.com/go/iam/credentials/apiv1."

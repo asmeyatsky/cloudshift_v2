@@ -1,0 +1,38 @@
+[pattern]
+id = "azure.functions.handler -> gcp.cloud_functions.handler"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["compute", "azure-functions", "cloud-functions", "serverless"]
+
+[pattern.detect]
+query = '''
+  (function_definition
+    name: (identifier) @func_name
+    parameters: (parameters
+      (identifier) @req_param)
+    body: (block) @func_body)
+'''
+imports = ["azure.functions"]
+
+[pattern.detect.constraints]
+param_count = 1
+decorator_hint = "func.route"
+
+[pattern.transform]
+template = '''
+@functions_framework.http
+def {func_name}(request):
+    {func_body}
+'''
+import_add = ["import functions_framework"]
+import_remove = ["import azure.functions as func"]
+
+[pattern.bindings]
+func_name = "func_name"
+func_body = "func_body"
+req_param = "req_param"
+
+[pattern.notes]
+description = "Azure Functions use func.HttpRequest/func.HttpResponse with req.params and req.get_json(). Cloud Functions use Flask request objects with request.args and request.get_json(). Azure function.json bindings must be migrated to Cloud Functions trigger configuration. Azure Functions v2 decorator model (@func.route) differs from Cloud Functions' functions-framework approach."

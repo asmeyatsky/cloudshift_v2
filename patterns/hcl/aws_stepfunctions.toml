@@ -1,0 +1,65 @@
+[pattern]
+id = "aws.sfn_state_machine -> gcp.workflows_workflow"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.74
+tags = ["terraform", "orchestration", "step-functions", "workflows", "serverless"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_sfn_state_machine\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_workflows_workflow" {resource_name} {
+    name            = {state_machine_name}
+    region          = {region}
+    project         = {project_id}
+    description     = "Migrated from AWS Step Functions"
+    service_account = {service_account}
+
+    # NOTE: The Step Functions ASL definition must be manually converted
+    # to Workflows YAML/JSON syntax.
+    # ASL definition: {definition}
+    #
+    # Key differences:
+    # - ASL Task states -> Workflows call steps (http.post, googleapis.*, etc.)
+    # - ASL Choice states -> Workflows switch blocks
+    # - ASL Wait states -> Workflows sys.sleep()
+    # - ASL Parallel states -> Workflows parallel branches
+    # - ASL Map states -> Workflows for loops
+    source_contents = <<-EOF
+    main:
+      steps:
+        - init:
+            assign:
+              - project_id: "{project_id}"
+        # TODO: Convert ASL definition to Workflows syntax
+        - placeholder:
+            return: "Workflow needs manual conversion from ASL"
+    EOF
+
+    labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+state_machine_name = "resource_body.name"
+definition = "resource_body.definition"
+tags = "resource_body.tags"
+service_account = "__service_account__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Step Functions uses Amazon States Language (ASL) JSON definitions. GCP Workflows uses YAML or JSON with a different syntax. ASL states must be manually converted to Workflows steps. Lambda task integrations map to Cloud Functions HTTP calls. Express workflows (synchronous) map to standard Workflows (always synchronous). Standard workflows (asynchronous, long-running) also map to Workflows but may need Cloud Tasks for very long executions. Step Functions IAM role maps to Workflows service account."

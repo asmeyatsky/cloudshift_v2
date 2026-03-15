@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.kinesis.PutRecordCommand -> gcp.pubsub.topic.publishMessage"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.85
+tags = ["streaming", "kinesis", "pubsub", "event"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "PutRecordCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-kinesis"]
+
+[pattern.transform]
+template = '''await new PubSub().topic({stream_name}).publishMessage({ data: Buffer.from({data}), orderingKey: {partition_key} })'''
+import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
+import_remove = ["import {KinesisClient, PutRecordCommand} from \"@aws-sdk/client-kinesis\""]
+
+[pattern.bindings]
+stream_name = "params.StreamName"
+data = "params.Data"
+partition_key = "params.PartitionKey"
+
+[pattern.notes]
+description = "Kinesis uses PartitionKey for shard routing. Pub/Sub uses orderingKey for ordered delivery within a key. Kinesis shard-level ordering maps conceptually to Pub/Sub ordering keys. Kinesis Data is a Uint8Array; Pub/Sub data is a Buffer."

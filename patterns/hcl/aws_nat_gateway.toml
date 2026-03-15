@@ -1,0 +1,74 @@
+[pattern]
+id = "aws.nat_gateway -> gcp.compute_router_nat"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.88
+tags = ["terraform", "networking", "nat", "vpc"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_nat_gateway\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_router" "{resource_name}_router" {
+    name    = "{nat_name}-router"
+    network = {network}
+    region  = {region}
+    project = {project_id}
+  }
+
+  resource "google_compute_router_nat" {resource_name} {
+    name                               = {nat_name}
+    router                             = google_compute_router.{resource_name}_router.name
+    region                             = {region}
+    project                            = {project_id}
+    nat_ip_allocate_option             = "AUTO_ONLY"
+    source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+    # AWS NAT Gateway uses an Elastic IP: {allocation_id}
+    # For static IP in GCP, change nat_ip_allocate_option to MANUAL_ONLY:
+    # nat_ip_allocate_option = "MANUAL_ONLY"
+    # nat_ips                = [google_compute_address.{resource_name}_ip.self_link]
+
+    # To NAT only specific subnets:
+    # source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+    # subnetwork {
+    #   name                    = google_compute_subnetwork.SUBNET.id
+    #   source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+    # }
+
+    log_config {
+      enable = true
+      filter = "ERRORS_ONLY"
+    }
+  }
+
+  # AWS Elastic IP for NAT: {allocation_id}
+  # resource "google_compute_address" "{resource_name}_ip" {
+  #   name    = "{nat_name}-ip"
+  #   region  = {region}
+  #   project = {project_id}
+  # }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+nat_name = "resource_body.tags.Name"
+allocation_id = "resource_body.allocation_id"
+subnet_id = "resource_body.subnet_id"
+network = "__network__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS NAT Gateway is a standalone resource placed in a public subnet. GCP Cloud NAT requires a Cloud Router resource. AWS NAT is per-AZ; GCP Cloud NAT is per-region. AWS uses Elastic IPs; GCP can auto-allocate or use static IPs. AWS routes traffic via route tables; GCP Cloud NAT automatically applies to instances without external IPs. AWS NAT Gateway pricing is per-hour plus per-GB; GCP Cloud NAT pricing is per-VM plus per-GB."

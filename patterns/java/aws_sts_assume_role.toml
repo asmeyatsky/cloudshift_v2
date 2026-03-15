@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.sts.StsClient.assumeRole -> gcp.auth.ServiceAccountCredentials"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.72
+tags = ["auth", "sts", "iam", "identity", "service-account"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "assumeRole")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.sts"]
+
+[pattern.transform]
+template = '''ServiceAccountCredentials.fromStream(new FileInputStream({key_file_path})).createScoped(List.of("https://www.googleapis.com/auth/cloud-platform"))'''
+import_add = ["import com.google.auth.oauth2.ServiceAccountCredentials", "import java.io.FileInputStream", "import java.util.List"]
+import_remove = ["import software.amazon.awssdk.services.sts.StsClient", "import software.amazon.awssdk.services.sts.model.AssumeRoleRequest", "import software.amazon.awssdk.services.sts.model.AssumeRoleResponse"]
+
+[pattern.bindings]
+role_arn = "request.roleArn()"
+session_name = "request.roleSessionName()"
+key_file_path = "__service_account_key_path__"
+
+[pattern.notes]
+description = "AWS STS AssumeRole returns temporary credentials for a role. GCP uses service account impersonation or Workload Identity Federation. For cross-project access, use IAM bindings and service account impersonation via IamCredentialsClient.generateAccessToken(). This pattern uses file-based credentials as a baseline; prefer Application Default Credentials in production."

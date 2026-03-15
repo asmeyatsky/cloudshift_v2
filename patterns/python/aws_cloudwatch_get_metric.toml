@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.cloudwatch.get_metric_data -> gcp.monitoring.list_time_series"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.84
+tags = ["monitoring", "cloudwatch", "stackdriver", "metrics", "query"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get_metric_data"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''monitoring_v3.MetricServiceClient().list_time_series(name={project_expr}, filter={filter_expr}, interval={interval_expr}, view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL)'''
+import_add = ["from google.cloud import monitoring_v3"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+project_expr = "__project_path__"
+filter_expr = "args.MetricDataQueries"
+interval_expr = "args.StartTime,args.EndTime"
+
+[pattern.notes]
+description = "CloudWatch get_metric_data uses MetricDataQueries with MetricStat and Period. GCP Monitoring list_time_series uses a filter string, TimeInterval, and optional aggregation. Query structure differs significantly; CloudWatch metric math expressions have no direct equivalent."

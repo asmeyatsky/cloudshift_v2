@@ -1,0 +1,34 @@
+[pattern]
+id = "azure.blob.uploadBlockBlob -> gcp.gcs.file.save"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.93
+tags = ["storage", "blob", "gcs", "upload"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "uploadBlockBlob"))
+    arguments: (arguments
+      (string) @container
+      (string) @blob_name
+      (_) @body
+      (_) @content_length) @args)
+'''
+imports = ["@azure/storage-blob"]
+
+[pattern.transform]
+template = '''await new Storage().bucket({container}).file({blob_name}).save({body})'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {BlobServiceClient, BlockBlobClient} from \"@azure/storage-blob\""]
+
+[pattern.bindings]
+container = "container"
+blob_name = "blob_name"
+body = "body"
+
+[pattern.notes]
+description = "Azure Blob Storage containers map to GCS buckets. Azure block blobs map to GCS objects. Azure uploadBlockBlob requires content length; GCS save() determines it automatically. Azure connection strings map to GCS application default credentials."

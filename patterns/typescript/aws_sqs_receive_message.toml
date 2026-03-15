@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.sqs.ReceiveMessageCommand -> gcp.pubsub.subscription.pull"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.85
+tags = ["messaging", "sqs", "pubsub", "queue", "receive"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "ReceiveMessageCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-sqs"]
+
+[pattern.transform]
+template = '''await new PubSub().subscription({subscription_name}).pull({ maxMessages: {max_messages} })'''
+import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
+import_remove = ["import {SQSClient, ReceiveMessageCommand} from \"@aws-sdk/client-sqs\""]
+
+[pattern.bindings]
+subscription_name = "params.QueueUrl"
+max_messages = "params.MaxNumberOfMessages"
+
+[pattern.notes]
+description = "SQS ReceiveMessage polls for messages and returns them directly. Pub/Sub pull() also returns messages but requires explicit acknowledgment via message.ack(). SQS uses visibility timeout and manual deletion; Pub/Sub uses ack deadline. Consider using Pub/Sub streaming pull for long-polling equivalence."

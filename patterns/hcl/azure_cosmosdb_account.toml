@@ -1,0 +1,65 @@
+[pattern]
+id = "azure.cosmosdb_account -> gcp.firestore_database"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.73
+tags = ["terraform", "database", "cosmosdb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_cosmosdb_account\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_firestore_database" {resource_name} {
+    project     = {project_id}
+    name        = {account_name}
+    location_id = {location}
+    type        = "FIRESTORE_NATIVE"
+
+    # Cosmos DB offer_type: {offer_type}
+    # Cosmos DB kind: {kind}
+    # Firestore does not have throughput provisioning in the resource block.
+    # Throughput is managed automatically or via App Engine settings.
+
+    # Cosmos DB consistency_level: {consistency_level}
+    # Firestore provides strong consistency for single-document operations
+    # and eventual consistency for queries across documents.
+
+    # Cosmos DB capabilities: {capabilities}
+    # For MongoDB API compatibility, consider MongoDB Atlas instead.
+    # For Cassandra API, consider Bigtable.
+
+    # NOTE: Cosmos DB geo_location replication: {geo_locations}
+    # Firestore supports multi-region locations (nam5, eur3)
+    # but does not have per-account replication configuration.
+  }
+
+  # Cosmos DB SQL databases map to Firestore collections.
+  # Cosmos DB containers map to Firestore subcollections.
+  # Data model migration requires manual review.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+account_name = "resource_body.name"
+location = "resource_body.location"
+offer_type = "resource_body.offer_type"
+kind = "resource_body.kind"
+consistency_level = "resource_body.consistency_policy.consistency_level"
+capabilities = "resource_body.capabilities"
+geo_locations = "resource_body.geo_location"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Cosmos DB is a multi-model database supporting SQL, MongoDB, Cassandra, Gremlin, and Table APIs. Firestore is a document database. Only Cosmos DB SQL API maps reasonably to Firestore. MongoDB API workloads may be better served by MongoDB Atlas. Cassandra API maps better to Bigtable. Cosmos DB throughput (RU/s) has no direct Firestore equivalent. Cosmos DB partition keys map conceptually to Firestore collection group structure. Multi-region replication differs significantly."

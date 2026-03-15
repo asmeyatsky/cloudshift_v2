@@ -1,0 +1,41 @@
+[pattern]
+id = "aws.dynamodb.GetItemInput -> gcp.firestore.DocumentRef.Get"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.83
+tags = ["database", "dynamodb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "GetItem"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "dynamodb")
+            name: (type_identifier) @type (#eq? @type "GetItemInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.transform]
+template = '''
+docSnap, err := client.Collection({table_name}).Doc({item_key}).Get(ctx)
+if err != nil {
+    return nil, fmt.Errorf("Doc.Get: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/firestore"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.bindings]
+table_name = "params.TableName"
+item_key = "params.Key.__key__"
+
+[pattern.notes]
+description = "DynamoDB GetItem returns GetItemOutput with Item as map[string]types.AttributeValue. Firestore Doc.Get returns *DocumentSnapshot. Use docSnap.DataTo(&struct) to unmarshal. Check docSnap.Exists() for missing documents. DynamoDB AttributeValue types need conversion to native Go types."

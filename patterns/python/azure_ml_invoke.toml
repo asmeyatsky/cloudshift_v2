@@ -1,0 +1,32 @@
+[pattern]
+id = "azure.ml.invoke -> gcp.aiplatform.predict"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.81
+tags = ["ai", "ml", "azure-ml", "vertex-ai", "inference"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "invoke"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.ai.ml"]
+
+[pattern.transform]
+template = '''aiplatform.Endpoint({endpoint_expr}).predict(instances={data_expr})'''
+import_add = ["from google.cloud import aiplatform"]
+import_remove = ["from azure.ai.ml import MLClient"]
+
+[pattern.bindings]
+endpoint_expr = "args.endpoint_name"
+data_expr = "args.request_file"
+
+[pattern.notes]
+description = "Azure ML invoke calls a managed endpoint with a request payload. Vertex AI Endpoint.predict() accepts instances as a list of dicts. Request/response formats differ between providers. Azure ML uses MLClient with workspace context; Vertex AI uses project/location initialization via aiplatform.init()."

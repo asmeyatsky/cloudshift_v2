@@ -1,0 +1,67 @@
+[pattern]
+id = "aws.apigatewayv2_api -> gcp.api_gateway_api"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.76
+tags = ["terraform", "api", "api-gateway", "serverless"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_apigatewayv2_api\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_api_gateway_api" {resource_name} {
+    provider = google-beta
+    api_id   = {api_name}
+    project  = {project_id}
+  }
+
+  resource "google_api_gateway_api_config" "{resource_name}_config" {
+    provider      = google-beta
+    api           = google_api_gateway_api.{resource_name}.api_id
+    api_config_id = "{api_name}-config"
+    project       = {project_id}
+
+    openapi_documents {
+      document {
+        path = "openapi.yaml"
+        # NOTE: API Gateway v2 routes must be converted to an OpenAPI spec.
+        # AWS protocol_type: {protocol_type}
+        # AWS routes and integrations must be defined in the OpenAPI document.
+        contents = filebase64("openapi.yaml")
+      }
+    }
+
+    # AWS CORS configuration: {cors_configuration}
+    # CORS must be defined in the OpenAPI spec for GCP API Gateway
+  }
+
+  resource "google_api_gateway_gateway" "{resource_name}_gw" {
+    provider   = google-beta
+    api_config = google_api_gateway_api_config.{resource_name}_config.id
+    gateway_id = "{api_name}-gw"
+    region     = {region}
+    project    = {project_id}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+api_name = "resource_body.name"
+protocol_type = "resource_body.protocol_type"
+cors_configuration = "resource_body.cors_configuration"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "API Gateway v2 uses routes, integrations, and stages defined as separate Terraform resources. GCP API Gateway uses an OpenAPI specification document. Routes and Lambda integrations must be converted into OpenAPI paths and x-google-backend extensions. WebSocket APIs (protocol_type = WEBSOCKET) have no direct GCP API Gateway equivalent - consider Cloud Run or Cloud Functions with WebSocket support. Custom domain names map to google_api_gateway_gateway with a custom domain."

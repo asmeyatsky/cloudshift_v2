@@ -1,0 +1,58 @@
+[pattern]
+id = "aws.route53_zone -> gcp.dns_managed_zone"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.92
+tags = ["terraform", "dns", "route53", "cloud-dns"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_route53_zone\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_dns_managed_zone" {resource_name} {
+    name        = {zone_name}
+    dns_name    = {domain_name}
+    description = {comment}
+    project     = {project_id}
+
+    visibility = {visibility}
+
+    # For private zones, configure:
+    # private_visibility_config {
+    #   networks {
+    #     network_url = google_compute_network.{vpc_ref}.id
+    #   }
+    # }
+
+    labels = {tags}
+
+    # DNSSEC configuration - uncomment if needed:
+    # dnssec_config {
+    #   state = "on"
+    # }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+zone_name = "resource_body.name"
+domain_name = "resource_body.name"
+comment = "resource_body.comment"
+visibility = "resource_body.vpc.__private__"
+tags = "resource_body.tags"
+vpc_ref = "resource_body.vpc.vpc_id"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Route 53 hosted zones map directly to Cloud DNS managed zones. Private zones in Route 53 (associated with VPCs) map to Cloud DNS zones with private visibility_config. DNSSEC is supported on both platforms. Route 53 health checks do not have a direct Cloud DNS equivalent - use GCP uptime checks instead. Delegation sets have no Cloud DNS equivalent."

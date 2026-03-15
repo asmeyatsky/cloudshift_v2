@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.dynamodb.DeleteItemCommand -> gcp.firestore.doc.delete"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.90
+tags = ["database", "dynamodb", "firestore", "nosql", "delete"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "DeleteItemCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-dynamodb"]
+
+[pattern.transform]
+template = '''await new Firestore().collection({table_name}).doc({key_value}).delete()'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {DynamoDBClient, DeleteItemCommand} from \"@aws-sdk/client-dynamodb\""]
+
+[pattern.bindings]
+table_name = "params.TableName"
+key_value = "params.Key.__key__"

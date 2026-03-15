@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.s3.S3Client.listObjectsV2 -> gcp.storage.Storage.list"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.92
+tags = ["storage", "s3", "gcs", "list"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "listObjectsV2")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.s3"]
+
+[pattern.transform]
+template = '''StorageOptions.getDefaultInstance().getService().list({bucket_name}, Storage.BlobListOption.prefix({prefix}), Storage.BlobListOption.pageSize({max_keys}))'''
+import_add = ["import com.google.cloud.storage.Blob", "import com.google.cloud.storage.Storage", "import com.google.cloud.storage.StorageOptions", "import com.google.api.gax.paging.Page"]
+import_remove = ["import software.amazon.awssdk.services.s3.S3Client", "import software.amazon.awssdk.services.s3.model.ListObjectsV2Request", "import software.amazon.awssdk.services.s3.model.ListObjectsV2Response"]
+
+[pattern.bindings]
+bucket_name = "request.bucket()"
+prefix = "request.prefix()"
+max_keys = "request.maxKeys()"
+
+[pattern.notes]
+description = "S3 listObjectsV2 returns ListObjectsV2Response with contents(). GCS list() returns Page<Blob> with iterateAll(). S3 uses continuation tokens; GCS uses Page.getNextPage(). S3 maxKeys maps to GCS pageSize."

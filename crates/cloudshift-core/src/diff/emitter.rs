@@ -101,6 +101,7 @@ pub fn sarif_output(results: &[TransformResult]) -> String {
     let mut sarif_results = Vec::new();
 
     for result in results {
+        let safe_path = sanitize_diff_path(&result.path);
         for pattern_match in &result.patterns {
             sarif_results.push(serde_json::json!({
                 "ruleId": pattern_match.pattern_id.as_str(),
@@ -121,7 +122,7 @@ pub fn sarif_output(results: &[TransformResult]) -> String {
                 "locations": [{
                     "physicalLocation": {
                         "artifactLocation": {
-                            "uri": result.path,
+                            "uri": safe_path,
                         },
                         "region": {
                             "startLine": pattern_match.span.start_row + 1,
@@ -133,11 +134,11 @@ pub fn sarif_output(results: &[TransformResult]) -> String {
                 }],
                 "fixes": [{
                     "description": {
-                        "text": format!("Replace with GCP equivalent"),
+                        "text": "Replace with GCP equivalent",
                     },
                     "artifactChanges": [{
                         "artifactLocation": {
-                            "uri": result.path,
+                            "uri": safe_path,
                         },
                         "replacements": [{
                             "deletedRegion": {

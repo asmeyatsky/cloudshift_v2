@@ -1,0 +1,75 @@
+[pattern]
+id = "aws.wafv2_web_acl -> gcp.compute_security_policy"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.78
+tags = ["terraform", "security", "waf", "cloud-armor", "firewall"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_wafv2_web_acl\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_security_policy" {resource_name} {
+    name        = {acl_name}
+    description = {description}
+    project     = {project_id}
+
+    # Default action maps from WAF default_action
+    rule {
+      action   = {default_action}
+      priority = 2147483647
+      match {
+        versioned_expr = "SRC_IPS_V1"
+        config {
+          src_ip_ranges = ["*"]
+        }
+      }
+      description = "Default rule"
+    }
+
+    # WAF managed rule groups map to Cloud Armor preconfigured rules
+    # Example: AWS AWSManagedRulesCommonRuleSet -> Cloud Armor OWASP rules
+    # rule {
+    #   action   = "deny(403)"
+    #   priority = 1000
+    #   match {
+    #     expr {
+    #       expression = "evaluatePreconfiguredExpr('xss-v33-stable')"
+    #     }
+    #   }
+    #   description = "XSS protection"
+    # }
+
+    # WAF rules: {rules}
+    # NOTE: Each WAF rule/rule group must be manually mapped to
+    # Cloud Armor rules with appropriate match expressions
+
+    adaptive_protection_config {
+      layer_7_ddos_defense_config {
+        enable = true
+      }
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+acl_name = "resource_body.name"
+description = "resource_body.description"
+default_action = "resource_body.default_action.type"
+rules = "resource_body.rule"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "WAFv2 web ACLs map to Cloud Armor security policies. WAF managed rule groups (OWASP, Bot Control) map to Cloud Armor preconfigured WAF rules. WAF custom rules map to Cloud Armor rules with CEL expressions. WAF rate-based rules map to Cloud Armor rate limiting. WAF IP sets map to Cloud Armor IP allowlist/denylist rules. WAF is attached to CloudFront/ALB; Cloud Armor is attached to backend services."

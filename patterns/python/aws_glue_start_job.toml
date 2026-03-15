@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.glue.start_job_run -> gcp.dataproc.submit_job"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.73
+tags = ["data", "etl", "glue", "dataproc", "batch"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "start_job_run"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''dataproc.JobControllerClient().submit_job(project_id={project_expr}, region={region_expr}, job={job_expr})'''
+import_add = ["from google.cloud import dataproc_v1 as dataproc"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+project_expr = "__project_id__"
+region_expr = "__region__"
+job_expr = "args.JobName"
+
+[pattern.notes]
+description = "AWS Glue is a managed ETL service with its own job definition format. Dataproc is a managed Spark/Hadoop service. Glue jobs (PySpark/Python shell) need to be converted to Dataproc job definitions. Glue crawlers, data catalog, and job bookmarks have no direct Dataproc equivalent; consider Dataproc Metastore or BigQuery for catalog features."

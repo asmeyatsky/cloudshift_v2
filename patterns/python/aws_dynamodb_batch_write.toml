@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.dynamodb.batch_write_item -> gcp.firestore.batch"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.75
+tags = ["database", "dynamodb", "firestore", "nosql", "batch"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "batch_write_item"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''firestore.Client().batch()'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+request_items = "args.RequestItems"
+
+[pattern.notes]
+description = "DynamoDB batch_write_item accepts a RequestItems dict with PutRequest/DeleteRequest lists per table. Firestore batch() returns a WriteBatch; individual set/update/delete calls must be added manually. Maximum 500 operations per Firestore batch vs 25 for DynamoDB. This pattern requires significant manual restructuring."

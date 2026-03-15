@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.kinesis.KinesisClient.putRecord -> gcp.pubsub.Publisher.publish"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.84
+tags = ["streaming", "kinesis", "pubsub", "event"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "putRecord")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.kinesis"]
+
+[pattern.transform]
+template = '''Publisher.newBuilder(TopicName.of({project_id}, {stream_name})).setEnableMessageOrdering(true).build().publish(PubsubMessage.newBuilder().setData({data}).setOrderingKey({partition_key}).build()).get()'''
+import_add = ["import com.google.api.core.ApiFuture", "import com.google.cloud.pubsub.v1.Publisher", "import com.google.protobuf.ByteString", "import com.google.pubsub.v1.PubsubMessage", "import com.google.pubsub.v1.TopicName"]
+import_remove = ["import software.amazon.awssdk.services.kinesis.KinesisClient", "import software.amazon.awssdk.services.kinesis.model.PutRecordRequest"]
+
+[pattern.bindings]
+stream_name = "request.streamName()"
+data = "request.data()"
+partition_key = "request.partitionKey()"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Kinesis putRecord sends a single record to a shard determined by PartitionKey. Pub/Sub uses orderingKey for ordered delivery. Kinesis Data is SdkBytes; Pub/Sub data is ByteString. Kinesis sequence numbers map to Pub/Sub message IDs. Enable message ordering on the Publisher for partition key semantics."

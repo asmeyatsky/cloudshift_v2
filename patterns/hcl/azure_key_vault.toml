@@ -1,0 +1,87 @@
+[pattern]
+id = "azure.key_vault -> gcp.secret_manager_secret"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.82
+tags = ["terraform", "security", "secrets", "key-vault", "secret-manager", "kms"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_key_vault\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_secret_manager_secret" {resource_name} {
+    secret_id = {vault_name}
+    project   = {project_id}
+
+    replication {
+      auto {}
+    }
+
+    labels = {tags}
+
+    # Azure Key Vault access policies: {access_policies}
+    # Map to google_secret_manager_secret_iam_member resources:
+    # resource "google_secret_manager_secret_iam_member" "{resource_name}_access" {
+    #   secret_id = google_secret_manager_secret.{resource_name}.id
+    #   role      = "roles/secretmanager.secretAccessor"
+    #   member    = "serviceAccount:SA@PROJECT.iam.gserviceaccount.com"
+    # }
+  }
+
+  resource "google_secret_manager_secret_version" "{resource_name}_version" {
+    secret      = google_secret_manager_secret.{resource_name}.id
+    secret_data = "PLACEHOLDER_VALUE"
+
+    # NOTE: Replace PLACEHOLDER_VALUE with actual secret data.
+    # Consider using a data source or variable for sensitive values.
+  }
+
+  # Azure Key Vault stores secrets, keys, and certificates in one resource.
+  # GCP separates these concerns:
+  # - Secrets -> Secret Manager (google_secret_manager_secret)
+  # - Encryption keys -> Cloud KMS (google_kms_crypto_key)
+  # - Certificates -> Certificate Manager (google_certificate_manager_certificate)
+
+  # For Key Vault keys, create Cloud KMS resources:
+  # resource "google_kms_key_ring" "{resource_name}_keyring" {
+  #   name     = "{vault_name}-keyring"
+  #   location = {location}
+  #   project  = {project_id}
+  # }
+  #
+  # resource "google_kms_crypto_key" "{resource_name}_key" {
+  #   name     = "{vault_name}-key"
+  #   key_ring = google_kms_key_ring.{resource_name}_keyring.id
+  #
+  #   # Azure key properties: {sku_name}
+  #   purpose = "ENCRYPT_DECRYPT"
+  # }
+
+  # Azure soft_delete and purge_protection: {purge_protection}
+  # Secret Manager versions can be disabled/destroyed but not soft-deleted.
+  # Cloud KMS keys support destroy_scheduled_duration for similar protection.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+vault_name = "resource_body.name"
+location = "resource_body.location"
+sku_name = "resource_body.sku_name"
+access_policies = "resource_body.access_policy"
+purge_protection = "resource_body.purge_protection_enabled"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Azure Key Vault is a unified service for secrets, encryption keys, and certificates. GCP separates these: Secret Manager for secrets, Cloud KMS for encryption keys, Certificate Manager for certificates. Key Vault access policies map to IAM bindings on each GCP resource. Key Vault soft delete maps to KMS key destroy_scheduled_duration. Key Vault SKU (standard/premium) maps to KMS protection level (SOFTWARE/HSM). Network ACLs map to VPC Service Controls or IAM conditions."

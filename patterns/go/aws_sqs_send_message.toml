@@ -1,0 +1,44 @@
+[pattern]
+id = "aws.sqs.SendMessageInput -> gcp.pubsub.Topic.Publish"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.90
+tags = ["messaging", "sqs", "pubsub", "queue"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "SendMessage"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "sqs")
+            name: (type_identifier) @type (#eq? @type "SendMessageInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/sqs"]
+
+[pattern.transform]
+template = '''
+result := topic.Publish(ctx, &pubsub.Message{
+    Data: []byte({message_body}),
+})
+msgID, err := result.Get(ctx)
+if err != nil {
+    return fmt.Errorf("Topic.Publish: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/pubsub"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/sqs"]
+
+[pattern.bindings]
+message_body = "params.MessageBody"
+queue_url = "params.QueueUrl"
+
+[pattern.notes]
+description = "SQS SendMessage is synchronous and returns a message ID. Pub/Sub Publish returns a PublishResult; call .Get(ctx) to block for the server-assigned message ID. SQS message attributes map to Pub/Sub message attributes. SQS delay seconds can be emulated with Pub/Sub subscription-level delivery delay."

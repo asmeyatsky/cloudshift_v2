@@ -1,0 +1,46 @@
+[pattern]
+id = "aws.sns.PublishInput -> gcp.pubsub.Topic.Publish"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.91
+tags = ["messaging", "sns", "pubsub", "notification"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "Publish"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "sns")
+            name: (type_identifier) @type (#eq? @type "PublishInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/sns"]
+
+[pattern.transform]
+template = '''
+result := topic.Publish(ctx, &pubsub.Message{
+    Data:       []byte({message}),
+    Attributes: map[string]string{"subject": {subject}},
+})
+msgID, err := result.Get(ctx)
+if err != nil {
+    return fmt.Errorf("Topic.Publish: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/pubsub"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/sns"]
+
+[pattern.bindings]
+topic_arn = "params.TopicArn"
+message = "params.Message"
+subject = "params.Subject"
+
+[pattern.notes]
+description = "SNS Publish pushes messages to all subscribers. Pub/Sub Publish stores messages for pull or push delivery. SNS MessageAttributes map to Pub/Sub message Attributes. SNS supports SMS and email protocols directly; Pub/Sub requires separate integrations for those delivery channels."

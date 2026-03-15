@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.eventbridge.put_events -> gcp.eventarc.publish_events"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["eventing", "eventbridge", "eventarc", "messaging"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "put_events"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''eventarc.PublisherClient().publish_events(channel={channel_expr}, events={events_expr})'''
+import_add = ["from google.cloud import eventarc_v1 as eventarc"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+channel_expr = "args.EventBusName"
+events_expr = "args.Entries"
+
+[pattern.notes]
+description = "EventBridge put_events sends entries with Source, DetailType, and Detail fields. Eventarc uses CloudEvents format with different structure. EventBridge rules and targets have no direct Eventarc equivalent and require separate Eventarc trigger configuration."

@@ -1,0 +1,76 @@
+[pattern]
+id = "aws.cloudfront_distribution -> gcp.compute_url_map"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.75
+tags = ["terraform", "cdn", "cloudfront", "cloud-cdn", "load-balancing"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_cloudfront_distribution\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_backend_bucket" "{resource_name}_backend" {
+    name        = "{distribution_name}-backend"
+    bucket_name = {origin_bucket}
+    enable_cdn  = true
+
+    cdn_policy {
+      cache_mode        = "CACHE_ALL_STATIC"
+      default_ttl       = {default_ttl}
+      max_ttl           = {max_ttl}
+      signed_url_cache_max_age = 3600
+    }
+  }
+
+  resource "google_compute_url_map" {resource_name} {
+    name            = {distribution_name}
+    default_service = google_compute_backend_bucket.{resource_name}_backend.id
+
+    # CloudFront cache behaviors map to path_matcher rules
+    # host_rule {
+    #   hosts        = [{aliases}]
+    #   path_matcher = "default"
+    # }
+    # path_matcher {
+    #   name            = "default"
+    #   default_service = google_compute_backend_bucket.{resource_name}_backend.id
+    # }
+  }
+
+  resource "google_compute_target_https_proxy" "{resource_name}_proxy" {
+    name    = "{distribution_name}-proxy"
+    url_map = google_compute_url_map.{resource_name}.id
+
+    # ssl_certificates = [google_compute_managed_ssl_certificate.{resource_name}_cert.id]
+    # NOTE: Map aws_acm_certificate to google_compute_managed_ssl_certificate
+  }
+
+  resource "google_compute_global_forwarding_rule" "{resource_name}_fwd" {
+    name       = "{distribution_name}-fwd"
+    target     = google_compute_target_https_proxy.{resource_name}_proxy.id
+    port_range = "443"
+    ip_protocol = "TCP"
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+distribution_name = "resource_body.comment"
+origin_bucket = "resource_body.origin.domain_name"
+aliases = "resource_body.aliases"
+default_ttl = "resource_body.default_cache_behavior.default_ttl"
+max_ttl = "resource_body.default_cache_behavior.max_ttl"
+
+[pattern.notes]
+description = "CloudFront is a standalone CDN. GCP equivalent requires multiple resources: backend bucket/service with Cloud CDN enabled, URL map, HTTPS proxy, and forwarding rule. CloudFront behaviors map to URL map path_matcher rules. CloudFront functions/Lambda@Edge have no direct Cloud CDN equivalent. Origin access identity maps to signed URLs or IAP. CloudFront invalidations map to cache invalidation API calls."

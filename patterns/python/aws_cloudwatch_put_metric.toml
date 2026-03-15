@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.cloudwatch.put_metric_data -> gcp.monitoring.create_time_series"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["monitoring", "cloudwatch", "stackdriver", "metrics"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "put_metric_data"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''monitoring_v3.MetricServiceClient().create_time_series(name={project_expr}, time_series={series_expr})'''
+import_add = ["from google.cloud import monitoring_v3"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+project_expr = "__project_path__"
+series_expr = "args.MetricData"
+
+[pattern.notes]
+description = "CloudWatch put_metric_data uses Namespace and MetricData with Dimensions. GCP Monitoring create_time_series requires a project path and TimeSeries objects with metric descriptors, resource labels, and data points. Metric data structures differ significantly and require manual mapping."

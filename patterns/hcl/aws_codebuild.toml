@@ -1,0 +1,85 @@
+[pattern]
+id = "aws.codebuild_project -> gcp.cloudbuild_trigger"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.77
+tags = ["terraform", "ci-cd", "codebuild", "cloud-build"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_codebuild_project\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_cloudbuild_trigger" {resource_name} {
+    name        = {project_name}
+    description = {description}
+    project     = {project_id}
+    location    = {region}
+
+    # CodeBuild source: {source_type}
+    # Configure the appropriate source below
+
+    # For GitHub source:
+    # github {
+    #   owner = "OWNER"
+    #   name  = "REPO"
+    #   push {
+    #     branch = "^main$"
+    #   }
+    # }
+
+    # For Cloud Source Repositories:
+    # trigger_template {
+    #   repo_name   = "REPO"
+    #   branch_name = "main"
+    # }
+
+    # CodeBuild buildspec maps to Cloud Build cloudbuild.yaml
+    # buildspec: {buildspec}
+    filename = "cloudbuild.yaml"
+
+    # CodeBuild environment: {environment}
+    # Cloud Build uses Docker images for build steps.
+    # Compute type and image map to build step images and machine_type.
+    # substitutions = {
+    #   _COMPUTE_TYPE = "{compute_type}"
+    # }
+
+    # CodeBuild service role: {service_role}
+    service_account = {service_account}
+
+    # CodeBuild artifacts: {artifacts}
+    # Cloud Build artifacts are defined in cloudbuild.yaml
+  }
+
+  # NOTE: CodeBuild buildspec.yml must be converted to cloudbuild.yaml format.
+  # CodeBuild phases (install, pre_build, build, post_build) map to
+  # Cloud Build steps. Each step runs in a separate container.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+project_name = "resource_body.name"
+description = "resource_body.description"
+source_type = "resource_body.source.type"
+buildspec = "resource_body.source.buildspec"
+environment = "resource_body.environment"
+compute_type = "resource_body.environment.compute_type"
+artifacts = "resource_body.artifacts"
+service_role = "resource_body.service_role"
+service_account = "__service_account__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "CodeBuild projects are standalone build environments. Cloud Build uses triggers connected to source repositories. buildspec.yml must be converted to cloudbuild.yaml (different syntax). CodeBuild environment images map to Cloud Build step images. CodeBuild compute types (BUILD_GENERAL1_SMALL/MEDIUM/LARGE) map to Cloud Build machine_type (E2_MEDIUM, E2_HIGHCPU_8, etc.). CodeBuild VPC config maps to Cloud Build private pool. CodeBuild cache maps to Cloud Build kaniko cache or explicit GCS caching."

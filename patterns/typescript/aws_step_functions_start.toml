@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.sfn.StartExecutionCommand -> gcp.workflows.executions.create"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.82
+tags = ["orchestration", "step-functions", "workflows", "serverless"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "StartExecutionCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-sfn"]
+
+[pattern.transform]
+template = '''await new ExecutionsClient().createExecution({ parent: `projects/${project_id}/locations/${location}/workflows/${workflow_name}`, execution: { argument: JSON.stringify({input}) } })'''
+import_add = ["import {ExecutionsClient} from \"@google-cloud/workflows\""]
+import_remove = ["import {SFNClient, StartExecutionCommand} from \"@aws-sdk/client-sfn\""]
+
+[pattern.bindings]
+workflow_name = "params.stateMachineArn"
+input = "params.input"
+project_id = "__project_id__"
+location = "__region__"
+
+[pattern.notes]
+description = "AWS Step Functions uses ASL (Amazon States Language) for workflow definitions. GCP Workflows uses YAML/JSON-based syntax. The workflow definitions themselves need separate migration. StartExecution is async; Workflows createExecution can be polled or awaited. State machine ARN maps to a Workflows resource path."

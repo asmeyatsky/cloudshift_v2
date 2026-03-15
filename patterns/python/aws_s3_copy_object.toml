@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.s3.copy_object -> gcp.gcs.copy_blob"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.92
+tags = ["storage", "s3", "gcs", "copy"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "copy_object"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''storage.Client().bucket({src_bucket}).copy_blob(storage.Client().bucket({src_bucket}).blob({src_key}), storage.Client().bucket({dest_bucket}), {dest_key})'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+src_bucket = "args.CopySource.Bucket"
+src_key = "args.CopySource.Key"
+dest_bucket = "args.Bucket"
+dest_key = "args.Key"
+
+[pattern.notes]
+description = "S3 copy_object uses CopySource dict with Bucket/Key. GCS copy_blob takes source blob, destination bucket, and new name. Cross-region copies may behave differently between providers."

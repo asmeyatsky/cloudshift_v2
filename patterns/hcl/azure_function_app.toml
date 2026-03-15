@@ -1,0 +1,84 @@
+[pattern]
+id = "azure.function_app -> gcp.cloudfunctions2_function"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.84
+tags = ["terraform", "compute", "functions", "serverless", "azure-functions", "cloud-functions"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_function_app\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_cloudfunctions2_function" {resource_name} {
+    name     = {function_app_name}
+    location = {location}
+    project  = {project_id}
+
+    build_config {
+      runtime     = {runtime}
+      entry_point = {entry_point}
+      source {
+        storage_source {
+          bucket = {source_bucket}
+          object = {source_object}
+        }
+      }
+    }
+
+    service_config {
+      max_instance_count    = {max_instance_count}
+      min_instance_count    = 0
+      available_memory      = "256M"
+      timeout_seconds       = 60
+      service_account_email = {service_account}
+
+      environment_variables = {app_settings}
+    }
+
+    # Azure app_service_plan_id: {app_service_plan_id}
+    # Cloud Functions v2 scales automatically (no plan concept)
+
+    # Azure storage_account: {storage_account}
+    # Cloud Functions uses GCS for source code storage
+
+    # Azure connection_string: {connection_strings}
+    # Map to environment_variables or Secret Manager references
+
+    # Azure site_config: {site_config}
+    # Map always_on, linux_fx_version, etc. to service_config
+
+    labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+function_app_name = "resource_body.name"
+location = "resource_body.location"
+runtime = "resource_body.site_config.linux_fx_version"
+entry_point = "__entry_point__"
+app_settings = "resource_body.app_settings"
+app_service_plan_id = "resource_body.app_service_plan_id"
+storage_account = "resource_body.storage_account_name"
+connection_strings = "resource_body.connection_string"
+site_config = "resource_body.site_config"
+max_instance_count = "resource_body.site_config.app_scale_limit"
+tags = "resource_body.tags"
+source_bucket = "__source_bucket__"
+source_object = "__source_object__"
+service_account = "__service_account__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Azure Functions use App Service Plans (Consumption, Premium, Dedicated). Cloud Functions v2 scales automatically with no plan concept. Azure runtime names (dotnet, node, python, java) must be mapped to Cloud Functions runtime identifiers. Azure function bindings (HTTP, Timer, Queue, Blob triggers) map to Cloud Functions event triggers. Durable Functions have no direct equivalent - use Workflows. Azure connection strings map to environment variables or Secret Manager. Application Insights maps to Cloud Trace and Cloud Logging."
