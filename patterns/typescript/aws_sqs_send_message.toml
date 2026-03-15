@@ -21,15 +21,7 @@ query = '''
 imports = ["@aws-sdk/client-sqs"]
 
 [pattern.transform]
-template = '''
-  import {PubSub} from "@google-cloud/pubsub";
-
-  const pubsub = new PubSub();
-  const topic = pubsub.topic({topic_name});
-  const messageId = await topic.publishMessage({
-      data: Buffer.from({message_body}),
-  });
-'''
+template = '''await new PubSub().topic({topic_name}).publishMessage({ data: Buffer.from({message_body}) })'''
 import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
 import_remove = ["import {SQSClient, SendMessageCommand} from \"@aws-sdk/client-sqs\""]
 

@@ -23,15 +23,10 @@ param_count = 2
 
 [pattern.transform]
 template = '''
-  import functions_framework
-
-  @functions_framework.http
-  def {func_name}(request):
-      """HTTP Cloud Function."""
-      request_json = request.get_json(silent=True)
-      request_args = request.args
-
-      {func_body}
+@functions_framework.http
+def {func_name}(request):
+    request_json = request.get_json(silent=True)
+    {func_body}
 '''
 import_add = ["import functions_framework"]
 import_remove = []

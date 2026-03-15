@@ -25,22 +25,10 @@ imports = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
 
 [pattern.transform]
 template = '''
-  import (
-      "cloud.google.com/go/firestore"
-      "context"
-  )
-
-  ctx := context.Background()
-  client, err := firestore.NewClient(ctx, {project_id})
-  if err != nil {
-      return fmt.Errorf("firestore.NewClient: %w", err)
-  }
-  defer client.Close()
-
-  _, err = client.Collection({table_name}).Doc({item_key}).Set(ctx, {item_data})
-  if err != nil {
-      return fmt.Errorf("Doc.Set: %w", err)
-  }
+_, err = client.Collection({table_name}).Doc({item_key}).Set(ctx, {item_data})
+if err != nil {
+    return fmt.Errorf("Doc.Set: %%w", err)
+}
 '''
 import_add = ["cloud.google.com/go/firestore"]
 import_remove = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]

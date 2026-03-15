@@ -20,20 +20,7 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''
-  from google.cloud import language_v1
-
-  _client = language_v1.LanguageServiceClient()
-  _document = language_v1.Document(
-      content={text},
-      type_=language_v1.Document.Type.PLAIN_TEXT,
-      language={language_code}
-  )
-  _response = _client.analyze_sentiment(request={"document": _document})
-  _sentiment = _response.document_sentiment
-  _score = _sentiment.score
-  _magnitude = _sentiment.magnitude
-'''
+template = '''language_v1.LanguageServiceClient().analyze_sentiment(document={text})'''
 import_add = ["from google.cloud import language_v1"]
 import_remove = ["import boto3"]
 

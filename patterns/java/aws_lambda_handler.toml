@@ -29,19 +29,15 @@ imports = ["com.amazonaws.services.lambda.runtime"]
 
 [pattern.transform]
 template = '''
-  import com.google.cloud.functions.HttpFunction;
-  import com.google.cloud.functions.HttpRequest;
-  import com.google.cloud.functions.HttpResponse;
-
-  public class {class_name} implements HttpFunction {
-      @Override
-      public void service(HttpRequest request, HttpResponse response) throws Exception {
-          String body = request.getReader().lines().collect(java.util.stream.Collectors.joining());
-          {method_body}
-          response.setStatusCode(200);
-          response.getWriter().write(result);
-      }
-  }
+public class {class_name} implements HttpFunction {
+    @Override
+    public void service(HttpRequest request, HttpResponse response) throws Exception {
+        String body = request.getReader().lines().collect(java.util.stream.Collectors.joining());
+        {method_body}
+        response.setStatusCode(200);
+        response.getWriter().write(result);
+    }
+}
 '''
 import_add = ["import com.google.cloud.functions.HttpFunction", "import com.google.cloud.functions.HttpRequest", "import com.google.cloud.functions.HttpResponse"]
 import_remove = ["import com.amazonaws.services.lambda.runtime.Context", "import com.amazonaws.services.lambda.runtime.RequestHandler"]

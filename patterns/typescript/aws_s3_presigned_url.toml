@@ -21,18 +21,7 @@ query = '''
 imports = ["@aws-sdk/s3-request-presigner"]
 
 [pattern.transform]
-template = '''
-  import {Storage} from "@google-cloud/storage";
-
-  const storage = new Storage();
-  const bucket = storage.bucket({bucket_name});
-  const file = bucket.file({key});
-  const [url] = await file.getSignedUrl({
-      version: "v4",
-      action: {action},
-      expires: Date.now() + {expires_in} * 1000,
-  });
-'''
+template = '''await new Storage().bucket({bucket_name}).file({key}).getSignedUrl({ version: "v4", action: {action}, expires: Date.now() + {expires_in} * 1000 })'''
 import_add = ["import {Storage} from \"@google-cloud/storage\""]
 import_remove = ["import {getSignedUrl} from \"@aws-sdk/s3-request-presigner\""]
 

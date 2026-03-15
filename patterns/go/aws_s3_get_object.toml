@@ -25,29 +25,15 @@ imports = ["github.com/aws/aws-sdk-go-v2/service/s3"]
 
 [pattern.transform]
 template = '''
-  import (
-      "cloud.google.com/go/storage"
-      "context"
-      "io"
-  )
-
-  ctx := context.Background()
-  client, err := storage.NewClient(ctx)
-  if err != nil {
-      return nil, fmt.Errorf("storage.NewClient: %w", err)
-  }
-  defer client.Close()
-
-  rc, err := client.Bucket({bucket}).Object({key}).NewReader(ctx)
-  if err != nil {
-      return nil, fmt.Errorf("Object.NewReader: %w", err)
-  }
-  defer rc.Close()
-
-  data, err := io.ReadAll(rc)
-  if err != nil {
-      return nil, fmt.Errorf("io.ReadAll: %w", err)
-  }
+rc, err := client.Bucket({bucket}).Object({key}).NewReader(ctx)
+if err != nil {
+    return nil, fmt.Errorf("Object.NewReader: %%w", err)
+}
+defer rc.Close()
+data, err := io.ReadAll(rc)
+if err != nil {
+    return nil, fmt.Errorf("io.ReadAll: %%w", err)
+}
 '''
 import_add = ["cloud.google.com/go/storage"]
 import_remove = ["github.com/aws/aws-sdk-go-v2/service/s3"]

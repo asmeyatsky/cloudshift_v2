@@ -20,14 +20,7 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''
-  from google.cloud import bigquery
-
-  _client = bigquery.Client()
-  _query_job = _client.query({query_string})
-  _results = _query_job.result()
-  _rows = [dict(row) for row in _results]
-'''
+template = '''bigquery.Client().query({query_string})'''
 import_add = ["from google.cloud import bigquery"]
 import_remove = ["import boto3"]
 

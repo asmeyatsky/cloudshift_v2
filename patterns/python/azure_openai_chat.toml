@@ -24,15 +24,7 @@ query = '''
 imports = ["openai"]
 
 [pattern.transform]
-template = '''
-  import vertexai
-  from vertexai.generative_models import GenerativeModel
-
-  vertexai.init(project={project_id}, location={region})
-  _model = GenerativeModel({model_name})
-  _response = _model.generate_content({prompt})
-  _result = _response.text
-'''
+template = '''GenerativeModel({model_name}).generate_content({prompt})'''
 import_add = ["import vertexai", "from vertexai.generative_models import GenerativeModel"]
 import_remove = ["from openai import AzureOpenAI", "import openai"]
 

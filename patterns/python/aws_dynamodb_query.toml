@@ -20,14 +20,7 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''
-  from google.cloud import firestore
-
-  _db = firestore.Client()
-  _collection_ref = _db.collection({table_name})
-  _query = _collection_ref.where({key_condition_field}, "==", {key_condition_value})
-  _results = [doc.to_dict() for doc in _query.stream()]
-'''
+template = '''firestore.Client().collection({table_name}).where({key_condition_field}, "==", {key_condition_value}).stream()'''
 import_add = ["from google.cloud import firestore"]
 import_remove = ["import boto3"]
 

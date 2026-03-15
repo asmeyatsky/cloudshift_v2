@@ -20,26 +20,7 @@ query = '''
 imports = ["psycopg2"]
 
 [pattern.transform]
-template = '''
-  from google.cloud.sql.connector import Connector
-  import sqlalchemy
-
-  _connector = Connector()
-
-  def _getconn():
-      return _connector.connect(
-          {instance_connection_name},
-          "pg8000",
-          user={user},
-          password={password},
-          db={database},
-      )
-
-  _pool = sqlalchemy.create_engine(
-      "postgresql+pg8000://",
-      creator=_getconn,
-  )
-'''
+template = '''Connector().connect({instance_connection_name}, "pg8000")'''
 import_add = ["from google.cloud.sql.connector import Connector", "import sqlalchemy"]
 import_remove = ["import psycopg2"]
 

@@ -21,18 +21,7 @@ query = '''
 imports = ["@aws-sdk/client-sns"]
 
 [pattern.transform]
-template = '''
-  import {PubSub} from "@google-cloud/pubsub";
-
-  const pubsub = new PubSub();
-  const topic = pubsub.topic({topic_name});
-  const messageId = await topic.publishMessage({
-      data: Buffer.from({message}),
-      attributes: {
-          subject: {subject},
-      },
-  });
-'''
+template = '''await new PubSub().topic({topic_name}).publishMessage({ data: Buffer.from({message}), attributes: { subject: {subject} } })'''
 import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
 import_remove = ["import {SNSClient, PublishCommand} from \"@aws-sdk/client-sns\""]
 

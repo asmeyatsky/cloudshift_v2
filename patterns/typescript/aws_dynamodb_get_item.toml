@@ -21,14 +21,7 @@ query = '''
 imports = ["@aws-sdk/client-dynamodb"]
 
 [pattern.transform]
-template = '''
-  import {Firestore} from "@google-cloud/firestore";
-
-  const firestore = new Firestore();
-  const docRef = firestore.collection({table_name}).doc({key_value});
-  const doc = await docRef.get();
-  const item = doc.exists ? doc.data() : null;
-'''
+template = '''await new Firestore().collection({table_name}).doc({key_value}).get()'''
 import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
 import_remove = ["import {DynamoDBClient, GetItemCommand} from \"@aws-sdk/client-dynamodb\""]
 

@@ -17,15 +17,7 @@ query = '''
 imports = ["software.amazon.awssdk.services.dynamodb"]
 
 [pattern.transform]
-template = '''
-  import com.google.cloud.firestore.DocumentReference;
-  import com.google.cloud.firestore.Firestore;
-  import com.google.cloud.firestore.FirestoreOptions;
-
-  Firestore firestore = FirestoreOptions.getDefaultInstance().getService();
-  DocumentReference docRef = firestore.collection({table_name}).document({item_key});
-  docRef.set({item_data}).get();
-'''
+template = '''FirestoreOptions.getDefaultInstance().getService().collection({table_name}).document({item_key}).set({item_data}).get()'''
 import_add = ["import com.google.cloud.firestore.DocumentReference", "import com.google.cloud.firestore.Firestore", "import com.google.cloud.firestore.FirestoreOptions"]
 import_remove = ["import software.amazon.awssdk.services.dynamodb.DynamoDbClient", "import software.amazon.awssdk.services.dynamodb.model.PutItemRequest"]
 

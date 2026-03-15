@@ -21,14 +21,7 @@ query = '''
 imports = ["@aws-sdk/client-s3"]
 
 [pattern.transform]
-template = '''
-  import {Storage} from "@google-cloud/storage";
-
-  const storage = new Storage();
-  const bucket = storage.bucket({bucket_name});
-  const file = bucket.file({key});
-  const [contents] = await file.download();
-'''
+template = '''await new Storage().bucket({bucket_name}).file({key}).download()'''
 import_add = ["import {Storage} from \"@google-cloud/storage\""]
 import_remove = ["import {S3Client, GetObjectCommand} from \"@aws-sdk/client-s3\""]
 

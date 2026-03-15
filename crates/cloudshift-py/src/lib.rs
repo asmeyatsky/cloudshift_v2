@@ -354,7 +354,7 @@ impl PyPatternInfo {
 /// The core implementation is a stub that will panic (todo!) until the
 /// pipeline is fully implemented. The GIL is released during the Rust call.
 #[pyfunction]
-#[pyo3(signature = (path, source_cloud=None, threshold=None, dry_run=None))]
+#[pyo3(name = "transform_file", signature = (path, source_cloud=None, threshold=None, dry_run=None))]
 fn transform_file_py(
     py: Python<'_>,
     path: String,
@@ -384,7 +384,7 @@ fn transform_file_py(
 /// The core implementation is a stub that will panic (todo!) until the
 /// pipeline is fully implemented. The GIL is released during the Rust call.
 #[pyfunction]
-#[pyo3(signature = (path, source_cloud=None, auto_apply_threshold=None, dry_run=None))]
+#[pyo3(name = "transform_repo", signature = (path, source_cloud=None, auto_apply_threshold=None, dry_run=None))]
 fn transform_repo_py(
     py: Python<'_>,
     path: String,
@@ -414,7 +414,7 @@ fn transform_repo_py(
 /// In the future this will yield results lazily via a Python iterator.
 /// Currently returns a list (simplified implementation).
 #[pyfunction]
-#[pyo3(signature = (path))]
+#[pyo3(name = "transform_repo_stream", signature = (path))]
 fn transform_repo_stream_py(
     py: Python<'_>,
     path: String,
@@ -449,7 +449,7 @@ fn transform_repo_stream_py(
 /// Returns a list of matching PatternInfo objects. Currently returns an
 /// empty list since the catalogue search is not yet implemented.
 #[pyfunction]
-#[pyo3(signature = (query))]
+#[pyo3(name = "catalogue_search", signature = (query))]
 fn catalogue_search_py(
     _py: Python<'_>,
     query: String,

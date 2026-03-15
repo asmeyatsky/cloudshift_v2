@@ -20,15 +20,7 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''
-  import vertexai
-  from vertexai.generative_models import GenerativeModel
-
-  vertexai.init(project={project_id}, location={region})
-  _model = GenerativeModel({model_id})
-  _response = _model.generate_content({prompt})
-  _result = _response.text
-'''
+template = '''GenerativeModel({model_id}).generate_content({prompt})'''
 import_add = ["import vertexai", "from vertexai.generative_models import GenerativeModel"]
 import_remove = ["import boto3", "import json"]
 

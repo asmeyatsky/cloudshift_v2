@@ -17,26 +17,7 @@ query = '''
 imports = ["software.amazon.awssdk.services.sqs"]
 
 [pattern.transform]
-template = '''
-  import com.google.api.core.ApiFuture;
-  import com.google.cloud.pubsub.v1.Publisher;
-  import com.google.protobuf.ByteString;
-  import com.google.pubsub.v1.PubsubMessage;
-  import com.google.pubsub.v1.TopicName;
-
-  TopicName topicName = TopicName.of({project_id}, {topic_name});
-  Publisher publisher = Publisher.newBuilder(topicName).build();
-  try {
-      ByteString data = ByteString.copyFromUtf8({message_body});
-      PubsubMessage pubsubMessage = PubsubMessage.newBuilder()
-          .setData(data)
-          .build();
-      ApiFuture<String> messageIdFuture = publisher.publish(pubsubMessage);
-      String messageId = messageIdFuture.get();
-  } finally {
-      publisher.shutdown();
-  }
-'''
+template = '''Publisher.newBuilder(TopicName.of({project_id}, {topic_name})).build().publish(PubsubMessage.newBuilder().setData(ByteString.copyFromUtf8({message_body})).build()).get()'''
 import_add = ["import com.google.api.core.ApiFuture", "import com.google.cloud.pubsub.v1.Publisher", "import com.google.protobuf.ByteString", "import com.google.pubsub.v1.PubsubMessage", "import com.google.pubsub.v1.TopicName"]
 import_remove = ["import software.amazon.awssdk.services.sqs.SqsClient", "import software.amazon.awssdk.services.sqs.model.SendMessageRequest"]
 

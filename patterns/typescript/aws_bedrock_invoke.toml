@@ -21,15 +21,7 @@ query = '''
 imports = ["@aws-sdk/client-bedrock-runtime"]
 
 [pattern.transform]
-template = '''
-  import {VertexAI} from "@google-cloud/vertexai";
-
-  const vertexAI = new VertexAI({project: {project_id}, location: {region}});
-  const model = vertexAI.getGenerativeModel({model: {model_name}});
-  const result = await model.generateContent({prompt});
-  const response = result.response;
-  const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
-'''
+template = '''await new VertexAI({project: {project_id}, location: {region}}).getGenerativeModel({model: {model_name}}).generateContent({prompt})'''
 import_add = ["import {VertexAI} from \"@google-cloud/vertexai\""]
 import_remove = ["import {BedrockRuntimeClient, InvokeModelCommand} from \"@aws-sdk/client-bedrock-runtime\""]
 

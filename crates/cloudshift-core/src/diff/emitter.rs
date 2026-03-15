@@ -35,18 +35,11 @@ pub fn unified_diff(path: &str, original: &str, transformed: &str) -> String {
 
     let safe_path = sanitize_diff_path(path);
     let diff = TextDiff::from_lines(original, transformed);
-    let mut output = String::new();
 
-    // Header
-    output.push_str(&format!("--- a/{safe_path}\n"));
-    output.push_str(&format!("+++ b/{safe_path}\n"));
-
-    // Generate hunks with 3 lines of context
-    for hunk in diff.unified_diff().context_radius(3).iter_hunks() {
-        output.push_str(&format!("{hunk}"));
-    }
-
-    output
+    diff.unified_diff()
+        .context_radius(3)
+        .header(&format!("a/{safe_path}"), &format!("b/{safe_path}"))
+        .to_string()
 }
 
 /// Generate a JSON-format diff.

@@ -18,17 +18,7 @@ query = '''
 imports = ["software.amazon.awssdk.services.s3"]
 
 [pattern.transform]
-template = '''
-  import com.google.cloud.storage.BlobId;
-  import com.google.cloud.storage.BlobInfo;
-  import com.google.cloud.storage.Storage;
-  import com.google.cloud.storage.StorageOptions;
-
-  Storage storage = StorageOptions.getDefaultInstance().getService();
-  BlobId blobId = BlobId.of({bucket_name}, {key});
-  BlobInfo blobInfo = BlobInfo.newBuilder(blobId).build();
-  storage.create(blobInfo, {body});
-'''
+template = '''StorageOptions.getDefaultInstance().getService().create(BlobInfo.newBuilder(BlobId.of({bucket_name}, {key})).build(), {body})'''
 import_add = ["import com.google.cloud.storage.BlobId", "import com.google.cloud.storage.BlobInfo", "import com.google.cloud.storage.Storage", "import com.google.cloud.storage.StorageOptions"]
 import_remove = ["import software.amazon.awssdk.services.s3.S3Client", "import software.amazon.awssdk.services.s3.model.PutObjectRequest"]
 

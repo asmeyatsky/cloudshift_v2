@@ -20,13 +20,7 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''
-  from google.cloud import storage
-
-  _client = storage.Client()
-  _bucket = _client.bucket({bucket_expr})
-  _blobs = list(_bucket.list_blobs(prefix={prefix_expr}))
-'''
+template = '''list(storage.Client().bucket({bucket_expr}).list_blobs(prefix={prefix_expr}))'''
 import_add = ["from google.cloud import storage"]
 import_remove = ["import boto3"]
 

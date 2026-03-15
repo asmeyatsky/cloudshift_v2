@@ -13,9 +13,7 @@ pub fn print_transform_result(result: &TransformResult, format: &TransformOutput
             if result.diff.is_empty() {
                 println!("No changes detected in {}", result.path);
             } else {
-                println!("--- a/{}", result.path);
-                println!("+++ b/{}", result.path);
-                println!("{}", result.diff);
+                print!("{}", result.diff);
             }
 
             if !result.warnings.is_empty() {
@@ -45,9 +43,7 @@ pub fn print_repo_report(report: &RepoReport, format: &TransformOutputFormat) {
         TransformOutputFormat::Diff => {
             for change in &report.changes {
                 if !change.diff.is_empty() {
-                    println!("--- a/{}", change.file);
-                    println!("+++ b/{}", change.file);
-                    println!("{}", change.diff);
+                    print!("{}", change.diff);
                     println!();
                 }
             }

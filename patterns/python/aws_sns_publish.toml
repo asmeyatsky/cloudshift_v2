@@ -20,18 +20,7 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''
-  from google.cloud import pubsub_v1
-
-  _publisher = pubsub_v1.PublisherClient()
-  _topic_path = _publisher.topic_path({project_id}, {topic_name})
-  _future = _publisher.publish(
-      _topic_path,
-      {message}.encode("utf-8"),
-      subject={subject}
-  )
-  _future.result()
-'''
+template = '''pubsub_v1.PublisherClient().publish(pubsub_v1.PublisherClient().topic_path({project_id}, {topic_name}), {message}.encode("utf-8"), subject={subject})'''
 import_add = ["from google.cloud import pubsub_v1"]
 import_remove = ["import boto3"]
 

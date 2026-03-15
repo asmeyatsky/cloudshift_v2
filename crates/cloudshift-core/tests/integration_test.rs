@@ -207,10 +207,14 @@ fn test_parse_s3_put_object_pattern() {
     assert!(!query.is_empty());
     assert!(query.contains("put_object"));
 
-    // Verify transform template exists
+    // Verify transform template exists and contains the GCP replacement expression
     let transform = pattern.get("transform").expect("Missing [pattern.transform]");
     let template = transform.get("template").and_then(|v| v.as_str()).unwrap();
-    assert!(template.contains("google.cloud"));
+    assert!(template.contains("storage.Client()"));
+
+    // Verify imports are handled separately from the template
+    let import_add = transform.get("import_add").and_then(|v| v.as_array()).unwrap();
+    assert!(import_add.iter().any(|v| v.as_str().unwrap().contains("google.cloud")));
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +378,174 @@ fn test_all_fixtures_have_required_files() {
         "Expected at least 10 test fixtures, found {fixture_count}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Full pipeline integration tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_full_pipeline_with_catalogue() {
+    // Load the actual pattern catalogue from patterns/
+    let catalogue_path = workspace_root().join("patterns");
+
+    let catalogue =
+        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+
+    // Verify we loaded a substantial number of patterns (62 expected)
+    assert!(
+        catalogue.all_patterns().len() >= 50,
+        "Expected at least 50 patterns, got {}",
+        catalogue.all_patterns().len()
+    );
+
+    // Verify patterns can be queried by language
+    use cloudshift_core::domain::ports::PatternRepositoryPort;
+    let python_aws = catalogue.get_patterns(
+        cloudshift_core::Language::Python,
+        cloudshift_core::SourceCloud::Aws,
+    );
+    assert!(
+        python_aws.len() >= 15,
+        "Expected at least 15 Python AWS patterns, got {}",
+        python_aws.len()
+    );
+
+    let hcl_patterns = catalogue.get_patterns(
+        cloudshift_core::Language::Hcl,
+        cloudshift_core::SourceCloud::Aws,
+    );
+    assert!(
+        hcl_patterns.len() >= 10,
+        "Expected at least 10 HCL AWS patterns, got {}",
+        hcl_patterns.len()
+    );
+}
+
+#[test]
+fn test_transform_file_with_real_patterns() {
+    // Use the actual pattern catalogue and a test fixture.
+    // transform_file validates paths against current_dir(), so we need
+    // to set the working directory to the workspace root.
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("Failed to set working directory");
+
+    let catalogue_path = root.join("patterns");
+    let fixture_path = root.join("tests/patterns/python/aws_s3_to_gcs/before.py");
+
+    let config = cloudshift_core::TransformConfig {
+        source_cloud: cloudshift_core::SourceCloud::Aws,
+        catalogue_path: Some(catalogue_path.to_string_lossy().to_string()),
+        threshold: 0.0,
+        ..Default::default()
+    };
+
+    let result = cloudshift_core::transform_file(
+        &fixture_path.to_string_lossy(),
+        &config,
+    );
+
+    // The transform should succeed
+    assert!(result.is_ok(), "transform_file failed: {:?}", result.err());
+    let result = result.unwrap();
+    assert_eq!(result.language, cloudshift_core::Language::Python);
+}
+
+#[test]
+fn test_transform_repo_with_real_patterns() {
+    // Point at the test fixtures directory and run a repo transform.
+    // transform_repo uses validate_path internally; set cwd to workspace root.
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("Failed to set working directory");
+
+    let fixtures_dir = root.join("tests/patterns/python/aws_s3_to_gcs");
+    let catalogue_path = root.join("patterns");
+
+    let config = cloudshift_core::TransformConfig {
+        source_cloud: cloudshift_core::SourceCloud::Aws,
+        catalogue_path: Some(catalogue_path.to_string_lossy().to_string()),
+        ..Default::default()
+    };
+
+    let result = cloudshift_core::transform_repo(
+        &fixtures_dir.to_string_lossy(),
+        &config,
+    );
+
+    assert!(result.is_ok(), "transform_repo failed: {:?}", result.err());
+    let report = result.unwrap();
+    // Should have emitted at least one domain event (the RepoScanCompleted event)
+    assert!(
+        !report.domain_events.is_empty(),
+        "Expected at least 1 domain event"
+    );
+}
+
+#[test]
+fn test_all_pattern_toml_files_compile() {
+    // Verify EVERY pattern TOML file in the catalogue can be compiled
+    let catalogue_path = workspace_root().join("patterns");
+
+    let catalogue =
+        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+    let warnings = catalogue.warnings();
+
+    // No pattern file should fail to compile
+    if !warnings.is_empty() {
+        let msgs: Vec<String> = warnings
+            .iter()
+            .map(|w| format!("{}: {}", w.file, w.message))
+            .collect();
+        panic!("Pattern compilation warnings:\n{}", msgs.join("\n"));
+    }
+}
+
+#[test]
+fn test_pattern_matching_on_boto3_code() {
+    // Test that the pattern matcher can find boto3 patterns in real Python code
+    let source = b"import boto3\n\ns3 = boto3.client('s3')\ns3.put_object(Bucket='mybucket', Key='mykey', Body=b'data')\n";
+
+    let catalogue_path = workspace_root().join("patterns");
+    let catalogue =
+        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+
+    use cloudshift_core::domain::ports::PatternRepositoryPort;
+    let python_patterns = catalogue.get_patterns(
+        cloudshift_core::Language::Python,
+        cloudshift_core::SourceCloud::Aws,
+    );
+
+    // Test the analyser finds constructs
+    use cloudshift_core::domain::ports::SemanticAnalyserPort;
+    let analyser = cloudshift_core::analyser::SemanticAnalyser::new();
+    let constructs = analyser
+        .analyse(source, cloudshift_core::Language::Python)
+        .unwrap();
+    assert!(
+        !constructs.is_empty(),
+        "Analyser should find boto3 constructs"
+    );
+
+    // Test the pattern engine can match
+    use cloudshift_core::domain::ports::PatternMatcherPort;
+    let matcher = cloudshift_core::pattern::PatternEngine::new();
+    let matches = matcher.match_patterns(
+        source,
+        cloudshift_core::Language::Python,
+        cloudshift_core::SourceCloud::Aws,
+        &python_patterns,
+    );
+
+    // Log results for debugging
+    println!(
+        "Found {} constructs and {} pattern matches",
+        constructs.len(),
+        matches.len()
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Before/after fixture consistency tests
+// ---------------------------------------------------------------------------
 
 #[test]
 fn test_before_after_files_are_not_identical() {

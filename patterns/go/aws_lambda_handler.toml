@@ -19,32 +19,14 @@ imports = ["github.com/aws/aws-lambda-go/lambda"]
 
 [pattern.transform]
 template = '''
-  import (
-      "net/http"
+func init() {
+    functions.HTTP("{func_name}", {handler_func_adapted})
+}
 
-      "github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
-      "github.com/GoogleCloudPlatform/functions-framework-go/functions"
-  )
-
-  func init() {
-      functions.HTTP("{func_name}", {handler_func_adapted})
-  }
-
-  func {handler_func_adapted}(w http.ResponseWriter, r *http.Request) {
-      // Adapted from Lambda handler: {handler_func}
-      // TODO: Convert event/context parameters to http.Request reading
-      w.WriteHeader(http.StatusOK)
-  }
-
-  func main() {
-      port := "8080"
-      if envPort := os.Getenv("PORT"); envPort != "" {
-          port = envPort
-      }
-      if err := funcframework.Start(port); err != nil {
-          log.Fatalf("funcframework.Start: %v\n", err)
-      }
-  }
+func {handler_func_adapted}(w http.ResponseWriter, r *http.Request) {
+    // Adapted from Lambda handler: {handler_func}
+    w.WriteHeader(http.StatusOK)
+}
 '''
 import_add = ["github.com/GoogleCloudPlatform/functions-framework-go/funcframework", "github.com/GoogleCloudPlatform/functions-framework-go/functions"]
 import_remove = ["github.com/aws/aws-lambda-go/lambda"]

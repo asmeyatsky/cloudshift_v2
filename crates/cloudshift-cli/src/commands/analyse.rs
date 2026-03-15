@@ -56,6 +56,7 @@ pub fn run(args: AnalyseArgs) -> Result<()> {
         source_cloud: source,
         output_format: OutputFormat::Json,
         dry_run: true,
+        catalogue_path: crate::commands::discover_catalogue_path(),
         ..TransformConfig::default()
     };
 

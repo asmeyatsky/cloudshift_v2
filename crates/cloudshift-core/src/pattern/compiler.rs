@@ -245,6 +245,47 @@ body_expr = "args.Body"
     }
 
     #[test]
+    fn compile_pattern_with_target_and_notes() {
+        let toml = r#"
+[pattern]
+id = "aws.s3.create_bucket -> gcp.gcs.client.create_bucket"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.93
+tags = ["storage"]
+
+[pattern.detect]
+query = "(identifier)"
+imports = ["boto3"]
+
+[pattern.transform]
+template = "x"
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+bucket_name_expr = "args.Bucket"
+
+[pattern.notes]
+description = "Some migration notes here."
+"#;
+        let result = compile_pattern(toml);
+        assert!(result.is_ok(), "Pattern with target and notes should compile, got: {:?}", result.err());
+    }
+
+    #[test]
+    fn compile_real_pattern_toml_file() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent().unwrap().parent().unwrap();
+        let pattern_path = root.join("patterns/python/aws_s3_create_bucket.toml");
+        let content = std::fs::read_to_string(&pattern_path)
+            .unwrap_or_else(|e| panic!("Failed to read {}: {}", pattern_path.display(), e));
+        let result = compile_pattern(&content);
+        assert!(result.is_ok(), "Real pattern file should compile, got: {:?}", result.err());
+    }
+
+    #[test]
     fn compile_invalid_confidence() {
         let toml = r#"
 [pattern]

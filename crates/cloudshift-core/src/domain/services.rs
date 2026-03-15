@@ -43,9 +43,46 @@ impl TransformApplicator {
         Some(result)
     }
 
-    /// Apply all pattern matches to source text in reverse order (to preserve offsets).
-    pub fn apply_all(source: &str, matches: &mut [PatternMatch]) -> String {
-        // Sort by start position descending so we can apply from end to start
+    /// Apply all pattern matches to source text, deduplicating overlapping spans.
+    ///
+    /// When matches overlap, keeps the highest-confidence match and discards
+    /// lower-confidence ones that touch the same byte range. This prevents
+    /// garbled output from conflicting pattern transformations.
+    ///
+    /// Returns the transformed text and the matches that were actually applied
+    /// (filtered to non-overlapping). The caller should only use import changes
+    /// from the returned matches.
+    pub fn apply_all(source: &str, matches: &mut Vec<PatternMatch>) -> String {
+        // Sort by confidence descending, then by span start ascending
+        matches.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.span.start_byte.cmp(&b.span.start_byte))
+        });
+
+        // Greedily select non-overlapping matches (highest confidence first)
+        let mut keep = vec![false; matches.len()];
+        let mut occupied: Vec<(usize, usize)> = Vec::new();
+        for (i, m) in matches.iter().enumerate() {
+            let overlaps = occupied.iter().any(|&(start, end)| {
+                m.span.start_byte < end && m.span.end_byte > start
+            });
+            if !overlaps {
+                keep[i] = true;
+                occupied.push((m.span.start_byte, m.span.end_byte));
+            }
+        }
+
+        // Filter matches to only those that were kept
+        let mut i = 0;
+        matches.retain(|_| {
+            let k = keep[i];
+            i += 1;
+            k
+        });
+
+        // Sort by start position descending to apply from end to start
         matches.sort_by(|a, b| b.span.start_byte.cmp(&a.span.start_byte));
 
         let mut result = source.to_string();

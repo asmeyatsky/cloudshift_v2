@@ -23,13 +23,7 @@ query = '''
 imports = ["azure.cosmos"]
 
 [pattern.transform]
-template = '''
-  from google.cloud import firestore
-
-  _db = firestore.Client()
-  _doc_ref = _db.collection({collection_name}).document({item_id})
-  _doc_ref.set({item_body})
-'''
+template = '''firestore.Client().collection({collection_name}).document({item_id}).set({item_body})'''
 import_add = ["from google.cloud import firestore"]
 import_remove = ["from azure.cosmos import CosmosClient", "from azure.cosmos import exceptions"]
 

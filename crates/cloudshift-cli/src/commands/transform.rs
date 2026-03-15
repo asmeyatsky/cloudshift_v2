@@ -103,7 +103,8 @@ impl TransformArgs {
             report_path: self.report_path.clone(),
             include_globs: self.include.iter().cloned().collect(),
             exclude_globs: self.exclude.iter().cloned().collect(),
-            ..TransformConfig::default()
+            catalogue_path: crate::commands::discover_catalogue_path(),
+            language_filter: None,
         }
     }
 }

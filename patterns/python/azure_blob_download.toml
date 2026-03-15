@@ -20,14 +20,7 @@ query = '''
 imports = ["azure.storage.blob"]
 
 [pattern.transform]
-template = '''
-  from google.cloud import storage
-
-  _client = storage.Client()
-  _bucket = _client.bucket({container_name})
-  _blob = _bucket.blob({blob_name})
-  _data = _blob.download_as_bytes()
-'''
+template = '''storage.Client().bucket({container_name}).blob({blob_name}).download_as_bytes()'''
 import_add = ["from google.cloud import storage"]
 import_remove = ["from azure.storage.blob import BlobServiceClient", "from azure.storage.blob import BlobClient", "from azure.storage.blob import ContainerClient"]
 

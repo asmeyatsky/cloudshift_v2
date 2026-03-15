@@ -50,6 +50,7 @@ pub fn run(args: DiffArgs) -> Result<()> {
         source_cloud: args.source_cloud.to_core(),
         output_format: args.output_format.to_core(),
         dry_run: true, // diff is always dry-run
+        catalogue_path: crate::commands::discover_catalogue_path(),
         ..TransformConfig::default()
     };
 

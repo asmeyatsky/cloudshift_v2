@@ -30,14 +30,11 @@ imports = ["aws-lambda"]
 
 [pattern.transform]
 template = '''
-  import {Request, Response} from "@google-cloud/functions-framework";
-  import * as functions from "@google-cloud/functions-framework";
-
-  functions.http("{handler_name}", (req: Request, res: Response) => {
-      const body = req.body;
-      {func_body}
-      res.status(200).send(result);
-  });
+functions.http("{handler_name}", (req: Request, res: Response) => {
+    const body = req.body;
+    {func_body}
+    res.status(200).send(result);
+})
 '''
 import_add = ["import {Request, Response} from \"@google-cloud/functions-framework\"", "import * as functions from \"@google-cloud/functions-framework\""]
 import_remove = ["import {APIGatewayProxyEvent, APIGatewayProxyResult, Context} from \"aws-lambda\""]
