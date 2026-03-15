@@ -30,6 +30,11 @@ uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
 streaming-iterator = "0.1"
+reqwest = { workspace = true, optional = true }
+
+[features]
+default = []
+llm-fallback = ["reqwest"]
 
 [dev-dependencies]
 pretty_assertions = "1"

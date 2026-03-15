@@ -69,6 +69,12 @@ pub struct TransformConfig {
     pub report_path: Option<String>,
     /// Path to the pattern catalogue directory.
     pub catalogue_path: Option<String>,
+    /// Enable LLM-assisted fallback for remaining cloud references.
+    pub llm_fallback: bool,
+    /// API key for the LLM service (Claude API).
+    pub llm_api_key: Option<String>,
+    /// LLM model to use for fallback.
+    pub llm_model: Option<String>,
 }
 
 impl Default for TransformConfig {
@@ -87,6 +93,9 @@ impl Default for TransformConfig {
             no_ci: false,
             report_path: None,
             catalogue_path: None,
+            llm_fallback: false,
+            llm_api_key: None,
+            llm_model: None,
         }
     }
 }
@@ -122,7 +131,7 @@ fn validate_path(path: &Path, root: &Path) -> anyhow::Result<PathBuf> {
 ///
 /// This function operates on file content provided as a string. For file-path
 /// based transformation, use `transform_file` which handles I/O.
-#[tracing::instrument(skip(source, patterns), level = "debug")]
+#[tracing::instrument(skip(source, patterns, llm_fallback), level = "debug")]
 fn transform_source(
     path: &str,
     source: &str,
@@ -131,6 +140,7 @@ fn transform_source(
     patterns: &[crate::domain::entities::CompiledPattern],
     output_format: OutputFormat,
     threshold: f64,
+    llm_fallback: Option<&dyn crate::domain::ports::LlmFallbackPort>,
 ) -> TransformResult {
     let analyser = SemanticAnalyser::new();
     let matcher = PatternEngine::new();
@@ -212,6 +222,54 @@ fn transform_source(
     // Stage 5: Post-transform fixups — make output runnable on GCP
     let final_source = crate::fixup::apply_fixups(&final_source, language);
 
+    // Stage 5b: LLM fallback — if code still has cloud references, invoke LLM
+    let mut llm_warnings: Vec<Warning> = Vec::new();
+    let final_source = match llm_fallback {
+        Some(llm)
+            if crate::llm_fallback::detector::needs_llm_fallback(&final_source, language) =>
+        {
+            let remaining =
+                crate::llm_fallback::detector::detect_remaining_cloud_refs(&final_source, language);
+            tracing::info!(
+                "LLM fallback: {} remaining cloud references",
+                remaining.len()
+            );
+
+            let context = crate::domain::ports::LlmFallbackContext {
+                applied_patterns: matches
+                    .iter()
+                    .map(|m| m.pattern_id.to_string())
+                    .collect(),
+                remaining_references: remaining.iter().map(|r| r.line_content.clone()).collect(),
+                original_source: source.to_string(),
+            };
+
+            match llm.complete_migration(&final_source, language, source_cloud, &context) {
+                Ok(completed) => {
+                    tracing::info!("LLM fallback completed successfully");
+                    llm_warnings.push(Warning {
+                        message: "LLM-assisted fallback was used to complete this migration. Review carefully.".into(),
+                        span: None,
+                        severity: WarningSeverity::Info,
+                    });
+                    completed
+                }
+                Err(e) => {
+                    tracing::warn!("LLM fallback failed: {e}");
+                    llm_warnings.push(Warning {
+                        message: format!(
+                            "LLM fallback failed: {e}. Remaining cloud references may need manual migration."
+                        ),
+                        span: None,
+                        severity: WarningSeverity::Warning,
+                    });
+                    final_source
+                }
+            }
+        }
+        _ => final_source,
+    };
+
     // Stage 6: Generate diff
     let diff = match output_format {
         OutputFormat::Diff => differ.emit_unified_diff(path, source, &final_source),
@@ -289,6 +347,9 @@ fn transform_source(
         }
     }
 
+    // Append LLM fallback warnings
+    warnings.extend(llm_warnings);
+
     TransformResult::new(
         path.to_string(),
         language,
@@ -365,6 +426,7 @@ pub fn transform_file(
         patterns,
         config.output_format,
         config.threshold,
+        None, // LLM fallback is wired at CLI level
     );
 
     Ok(result)
@@ -473,6 +535,7 @@ pub fn transform_repo(
                 &all_patterns,
                 config.output_format,
                 config.threshold,
+                None, // LLM fallback is wired at CLI level
             );
 
             Some((result, file.clone()))

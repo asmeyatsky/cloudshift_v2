@@ -89,6 +89,44 @@ pub trait PatternMatcherPort: Send + Sync {
     ) -> Vec<PatternMatch>;
 }
 
+/// Port: LLM-assisted fallback for completing transformations
+/// that patterns couldn't fully handle.
+pub trait LlmFallbackPort: Send + Sync {
+    /// Given partially-transformed source code with remaining cloud references,
+    /// use an LLM to complete the GCP migration.
+    /// Returns the fully-transformed source code.
+    fn complete_migration(
+        &self,
+        source: &str,
+        language: Language,
+        source_cloud: SourceCloud,
+        context: &LlmFallbackContext,
+    ) -> Result<String, LlmFallbackError>;
+}
+
+/// Context provided to the LLM for completing the migration.
+#[derive(Debug, Clone)]
+pub struct LlmFallbackContext {
+    /// What patterns were already applied.
+    pub applied_patterns: Vec<String>,
+    /// What cloud references remain.
+    pub remaining_references: Vec<String>,
+    /// The original source before any transforms.
+    pub original_source: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LlmFallbackError {
+    #[error("LLM API error: {0}")]
+    ApiError(String),
+    #[error("LLM response could not be parsed: {0}")]
+    ParseError(String),
+    #[error("LLM fallback not configured")]
+    NotConfigured,
+    #[error("LLM fallback disabled")]
+    Disabled,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AnalysisError {
     #[error("Parse error in {language} file: {message}")]

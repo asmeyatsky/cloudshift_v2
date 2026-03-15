@@ -31,10 +31,12 @@ pub mod diff;
 pub mod catalogue;
 pub mod fixup;
 pub mod ingestion;
+pub mod llm_fallback;
 pub mod pipeline;
 
 // Re-export key public types for ergonomic usage
 pub use domain::entities::{TransformResult, FileAnalysis, PatternMatch, RepoReport, FileChange};
 pub use domain::value_objects::{SourceCloud, Language, Confidence, PatternId, OutputFormat};
 pub use domain::ports::{FileSystemPort, PatternRepositoryPort, DiffEmitterPort};
+pub use domain::ports::{LlmFallbackPort, LlmFallbackContext, LlmFallbackError};
 pub use pipeline::{TransformConfig, transform_file, transform_repo};

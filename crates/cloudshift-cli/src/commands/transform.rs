@@ -86,6 +86,10 @@ pub struct TransformArgs {
     /// Exclude files matching glob pattern.
     #[arg(long)]
     pub exclude: Option<String>,
+
+    /// Enable LLM-assisted fallback for remaining cloud references.
+    #[arg(long)]
+    pub llm_fallback: bool,
 }
 
 impl TransformArgs {
@@ -105,6 +109,9 @@ impl TransformArgs {
             exclude_globs: self.exclude.iter().cloned().collect(),
             catalogue_path: crate::commands::discover_catalogue_path(),
             language_filter: None,
+            llm_fallback: self.llm_fallback,
+            llm_api_key: std::env::var("ANTHROPIC_API_KEY").ok(),
+            llm_model: None,
         }
     }
 }

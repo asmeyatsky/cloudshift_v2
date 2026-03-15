@@ -10,6 +10,10 @@ description = "CLI interface for CloudShift"
 name = "cloudshift"
 path = "src/main.rs"
 
+[features]
+default = []
+llm-fallback = ["cloudshift-core/llm-fallback"]
+
 [dependencies]
 cloudshift-core = { path = "../cloudshift-core" }
 clap.workspace = true
