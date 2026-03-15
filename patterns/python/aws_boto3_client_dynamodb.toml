@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.resource.dynamodb -> gcp.firestore.Client"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["database", "dynamodb", "firestore", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "resource"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "dynamodb"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''firestore.Client()'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Replaces boto3.resource('dynamodb') with Firestore client. DynamoDB and Firestore have different data models — review document structure after migration."

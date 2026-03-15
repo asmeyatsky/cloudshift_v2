@@ -27,3 +27,6 @@ import_remove = ["import boto3"]
 [pattern.bindings]
 bucket_expr = "args.Bucket"
 key_expr = "args.Key"
+
+[pattern.notes]
+description = "GCS download_as_bytes() returns bytes directly, not a response dict. Code following the transformed call that accesses response['Body'].read() will be dead code and must be updated. The pipeline emits a warning when this pattern matches."

@@ -209,7 +209,10 @@ fn transform_source(
         ImportManager::update_imports(&transformed, language, &imports_to_add, &imports_to_remove)
     };
 
-    // Stage 5: Generate diff
+    // Stage 5: Post-transform fixups — make output runnable on GCP
+    let final_source = crate::fixup::apply_fixups(&final_source, language);
+
+    // Stage 6: Generate diff
     let diff = match output_format {
         OutputFormat::Diff => differ.emit_unified_diff(path, source, &final_source),
         OutputFormat::Json => differ.emit_json_diff(path, source, &final_source),
@@ -225,7 +228,7 @@ fn transform_source(
     };
 
     // Collect warnings for low-confidence matches
-    let warnings: Vec<Warning> = matches
+    let mut warnings: Vec<Warning> = matches
         .iter()
         .filter(|m| m.confidence.is_low())
         .map(|m| Warning {
@@ -238,6 +241,53 @@ fn transform_source(
             severity: WarningSeverity::Warning,
         })
         .collect();
+
+    // Add warnings for patterns with known semantic gaps.
+    // These patterns produce syntactically valid output but the surrounding
+    // code often needs manual updates (e.g. response dict access after a call
+    // that now returns bytes directly).
+    let known_gaps: &[(&str, &str)] = &[
+        (
+            "aws.s3.get_object",
+            "GCS download_as_bytes() returns bytes directly \u{2014} update code that accesses response['Body'].read()",
+        ),
+        (
+            "aws.s3.list_objects",
+            "GCS list_blobs() returns Blob objects \u{2014} update code that accesses response['Contents']",
+        ),
+        (
+            "aws.s3.generate_presigned_url",
+            "Review presigned URL parameters \u{2014} GCS uses different method signature; replace BUCKET_NAME/KEY placeholders",
+        ),
+        (
+            "aws.s3.copy_object",
+            "Review copy_blob() arguments \u{2014} GCS uses different parameter structure for copy operations",
+        ),
+        (
+            "azure.blob.download_blob",
+            "Azure download_blob().readall() chain is only partially transformed \u{2014} review surrounding .readall() calls",
+        ),
+        (
+            "azure.blob.upload_blob",
+            "Replace CONTAINER_NAME and BLOB_NAME placeholders with actual values from the original container/blob client",
+        ),
+        (
+            "azure.keyvault.get_secret",
+            "GCP Secret Manager returns payload.data bytes \u{2014} update code that accesses .value property",
+        ),
+    ];
+
+    for pattern_match in &matches {
+        for &(pattern_prefix, message) in known_gaps {
+            if pattern_match.pattern_id.as_str().starts_with(pattern_prefix) {
+                warnings.push(Warning {
+                    message: message.to_string(),
+                    span: Some(pattern_match.span),
+                    severity: WarningSeverity::Warning,
+                });
+            }
+        }
+    }
 
     TransformResult::new(
         path.to_string(),

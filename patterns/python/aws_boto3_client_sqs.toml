@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.sqs -> gcp.pubsub.PublisherClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["messaging", "sqs", "pubsub", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "sqs"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''pubsub_v1.PublisherClient()'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Replaces boto3.client('sqs') with Pub/Sub PublisherClient. SQS is a queue while Pub/Sub is pub-sub — review message handling semantics."

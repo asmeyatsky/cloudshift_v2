@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.sns -> gcp.pubsub.PublisherClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["messaging", "sns", "pubsub", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "sns"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''pubsub_v1.PublisherClient()'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Replaces boto3.client('sns') with Pub/Sub PublisherClient. SNS topics map to Pub/Sub topics — review subscription configuration."

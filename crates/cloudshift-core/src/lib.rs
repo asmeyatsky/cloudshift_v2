@@ -29,6 +29,7 @@ pub mod analyser;
 pub mod pattern;
 pub mod diff;
 pub mod catalogue;
+pub mod fixup;
 pub mod ingestion;
 pub mod pipeline;
 

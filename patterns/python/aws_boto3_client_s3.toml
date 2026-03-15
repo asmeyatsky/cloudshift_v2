@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.s3 -> gcp.storage.Client"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.95
+tags = ["storage", "s3", "gcs", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "s3"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''storage.Client()'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Replaces boto3.client('s3') with GCS storage.Client(). GCP uses Application Default Credentials instead of explicit AWS credentials."

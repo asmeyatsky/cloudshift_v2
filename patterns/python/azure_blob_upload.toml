@@ -13,22 +13,17 @@ query = '''
       object: (identifier) @client
       attribute: (identifier) @method (#eq? @method "upload_blob"))
     arguments: (argument_list
-      (_) @data
-      (keyword_argument
-        name: (identifier) @param_name
-        value: (_) @param_value)*) @args)
+      (_) @data) @args)
 '''
 imports = ["azure.storage.blob"]
 
 [pattern.transform]
-template = '''storage.Client().bucket({container_name}).blob({blob_name}).upload_from_string({data})'''
+template = '''storage.Client().bucket(CONTAINER_NAME).blob(BLOB_NAME).upload_from_string({data})  # TODO: set CONTAINER_NAME and BLOB_NAME from original container/blob client'''
 import_add = ["from google.cloud import storage"]
 import_remove = ["from azure.storage.blob import BlobServiceClient", "from azure.storage.blob import BlobClient", "from azure.storage.blob import ContainerClient"]
 
 [pattern.bindings]
-container_name = "client.__container_name__"
-blob_name = "client.__blob_name__"
-data = "args[0]"
+data = "data"
 
 [pattern.notes]
 description = "Azure Blob Storage uses BlobClient.upload_blob(). The container maps to a GCS bucket and blob name maps directly. Azure uses connection strings for auth while GCP uses Application Default Credentials."

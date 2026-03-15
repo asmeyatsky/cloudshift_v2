@@ -3,7 +3,7 @@ id = "aws.s3.generate_presigned_url -> gcp.gcs.blob.generate_signed_url"
 source = "aws"
 target = "gcp"
 language = "python"
-confidence = 0.93
+confidence = 0.80
 tags = ["storage", "s3", "gcs", "presigned", "signed-url"]
 
 [pattern.detect]
@@ -20,14 +20,12 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''storage.Client().bucket({bucket_expr}).blob({key_expr}).generate_signed_url(expiration={expiration_expr})'''
+template = '''storage.Client().bucket(BUCKET_NAME).blob(KEY).generate_signed_url(expiration={expiration_expr})  # TODO: extract Bucket and Key from Params dict'''
 import_add = ["from google.cloud import storage"]
 import_remove = ["import boto3"]
 
 [pattern.bindings]
-bucket_expr = "args.Params.Bucket"
-key_expr = "args.Params.Key"
 expiration_expr = "args.ExpiresIn"
 
 [pattern.notes]
-description = "S3 presigned URLs use ExpiresIn (seconds). GCS signed URLs accept a timedelta or datetime for expiration. S3 ClientMethod parameter (get_object/put_object) determines HTTP method; GCS uses the method parameter on generate_signed_url."
+description = "S3 presigned URLs pass Bucket and Key inside a nested Params dict which cannot be auto-extracted. The generated code uses BUCKET_NAME and KEY placeholders that must be replaced with the actual values from the original Params={'Bucket': ..., 'Key': ...} argument. Confidence lowered to 0.80 to flag for manual review. GCS signed URLs accept a timedelta or integer seconds for expiration."

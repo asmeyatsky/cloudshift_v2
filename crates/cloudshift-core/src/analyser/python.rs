@@ -18,6 +18,20 @@ const AWS_IMPORTS: &[&str] = &[
     "awscli",
 ];
 
+/// Azure Python SDK import patterns we look for.
+const AZURE_IMPORTS: &[&str] = &[
+    "azure.storage.blob",
+    "azure.identity",
+    "azure.keyvault",
+    "azure.cosmos",
+    "azure.servicebus",
+    "azure.ai",
+    "azure.cognitiveservices",
+    "azure.functions",
+    "azure.mgmt",
+    "azure.core",
+];
+
 /// AWS service client method calls we detect.
 const AWS_SDK_METHODS: &[&str] = &[
     "put_object",
@@ -58,7 +72,7 @@ const AWS_ENV_VARS: &[&str] = &[
     "AWS_EXECUTION_ENV",
 ];
 
-/// Analyse Python source code for AWS cloud constructs.
+/// Analyse Python source code for cloud constructs (AWS and Azure).
 #[tracing::instrument(skip(source), level = "debug")]
 pub fn analyse_python(source: &[u8]) -> Result<Vec<CloudConstruct>, AnalysisError> {
     let tree = treesitter::parse_source(source, Language::Python)?;
@@ -68,6 +82,8 @@ pub fn analyse_python(source: &[u8]) -> Result<Vec<CloudConstruct>, AnalysisErro
     detect_sdk_calls(source, &tree, &mut constructs)?;
     detect_env_vars(source, &tree, &mut constructs)?;
     detect_client_creation(source, &tree, &mut constructs)?;
+    detect_azure_imports(source, &tree, &mut constructs)?;
+    detect_azure_sdk_calls(source, &tree, &mut constructs)?;
 
     Ok(constructs)
 }
@@ -288,4 +304,96 @@ fn broadest_span(m: &treesitter::OwnedMatch) -> crate::domain::value_objects::So
         end_row,
         end_col,
     }
+}
+
+/// Azure SDK method calls we detect.
+const AZURE_SDK_METHODS: &[&str] = &[
+    "upload_blob",
+    "download_blob",
+    "delete_blob",
+    "get_blob_client",
+    "get_container_client",
+    "get_secret",
+    "set_secret",
+    "create_item",
+    "read_item",
+    "query_items",
+    "send_messages",
+    "receive_messages",
+];
+
+/// Detect Azure SDK import statements.
+fn detect_azure_imports(
+    source: &[u8],
+    tree: &tree_sitter::Tree,
+    constructs: &mut Vec<CloudConstruct>,
+) -> Result<(), AnalysisError> {
+    let query_src = r#"
+        (import_statement
+          name: (dotted_name) @import_name)
+        (import_from_statement
+          module_name: (dotted_name) @from_module)
+    "#;
+
+    let query = treesitter::compile_query(Language::Python, query_src)?;
+    let matches = treesitter::run_query(&query, tree, source);
+
+    for m in &matches {
+        for capture in &m.captures {
+            let text = &capture.text;
+            let is_azure = AZURE_IMPORTS.iter().any(|imp| {
+                text.as_str() == *imp || text.starts_with(&format!("{imp}."))
+            });
+
+            if is_azure {
+                constructs.push(CloudConstruct {
+                    kind: ConstructKind::SdkImport,
+                    source_cloud: SourceCloud::Azure,
+                    span: capture.span,
+                    description: format!("Azure SDK import: {text}"),
+                    sdk_import: Some(text.clone()),
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Detect Azure SDK function/method calls (e.g., `blob_client.upload_blob(...)`).
+fn detect_azure_sdk_calls(
+    source: &[u8],
+    tree: &tree_sitter::Tree,
+    constructs: &mut Vec<CloudConstruct>,
+) -> Result<(), AnalysisError> {
+    let query_src = r#"
+        (call
+          function: (attribute
+            object: (_) @client_obj
+            attribute: (identifier) @method_name)
+          arguments: (argument_list) @args)
+    "#;
+
+    let query = treesitter::compile_query(Language::Python, query_src)?;
+    let matches = treesitter::run_query(&query, tree, source);
+
+    for m in &matches {
+        for capture in &m.captures {
+            if capture.name == "method_name" {
+                let method = &capture.text;
+                if AZURE_SDK_METHODS.contains(&method.as_str()) {
+                    let span = broadest_span(m);
+                    constructs.push(CloudConstruct {
+                        kind: ConstructKind::SdkFunctionCall,
+                        source_cloud: SourceCloud::Azure,
+                        span,
+                        description: format!("Azure SDK call: {method}"),
+                        sdk_import: None,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
