@@ -1,0 +1,66 @@
+# Test and deploy to Google Cloud Run (project: emea-mas).
+# Triggered on every push to main. Uses service account key (no WIF). Access via IAP.
+
+name: Test and Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  GCP_PROJECT_ID: emea-mas
+  GCP_REGION: europe-west1
+  CLOUD_RUN_SERVICE: cloudshift
+
+jobs:
+  test:
+    name: Test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Check
+        run: cargo check --workspace
+      - name: Test
+        run: cargo test --workspace
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Python bindings
+        run: |
+          pip install maturin
+          maturin build -m crates/cloudshift-py/Cargo.toml
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --source . \
+            --region ${{ env.GCP_REGION }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --no-allow-unauthenticated \
+            --quiet
+        env:
+          CLOUDSDK_CORE_PROJECT: ${{ env.GCP_PROJECT_ID }}

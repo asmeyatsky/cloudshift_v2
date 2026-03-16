@@ -1,0 +1,17 @@
+[package]
+name = "cloudshift-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Minimal HTTP server for Cloud Run"
+
+[[bin]]
+name = "cloudshift-server"
+path = "src/main.rs"
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
