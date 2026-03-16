@@ -9,7 +9,7 @@ mod output;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
-use commands::{analyse, apply, catalogue, diff, report, transform, validate};
+use commands::{analyse, apply, catalogue, diff, learn, report, transform, validate};
 
 /// CloudShift v2 — Universal GCP code refactoring engine.
 ///
@@ -51,6 +51,10 @@ enum Command {
     /// Generate a migration report from a previous run.
     #[command(about = "Generate a human-readable migration report from a previous run")]
     Report(report::ReportArgs),
+
+    /// Learn new patterns from before/after code pairs.
+    #[command(about = "Learn new patterns by comparing before/after code transformations")]
+    Learn(learn::LearnArgs),
 }
 
 fn main() {
@@ -72,6 +76,7 @@ fn main() {
         Command::Catalogue(args) => catalogue::run(args),
         Command::Validate(args) => validate::run(args),
         Command::Report(args) => report::run(args),
+        Command::Learn(args) => learn::run(args),
     };
 
     if let Err(err) = result {

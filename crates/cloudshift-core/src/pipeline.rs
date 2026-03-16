@@ -131,6 +131,7 @@ fn validate_path(path: &Path, root: &Path) -> anyhow::Result<PathBuf> {
 ///
 /// This function operates on file content provided as a string. For file-path
 /// based transformation, use `transform_file` which handles I/O.
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip(source, patterns, llm_fallback), level = "debug")]
 fn transform_source(
     path: &str,
@@ -141,6 +142,7 @@ fn transform_source(
     output_format: OutputFormat,
     threshold: f64,
     llm_fallback: Option<&dyn crate::domain::ports::LlmFallbackPort>,
+    project_root: Option<&Path>,
 ) -> TransformResult {
     let analyser = SemanticAnalyser::new();
     let matcher = PatternEngine::new();
@@ -224,6 +226,8 @@ fn transform_source(
 
     // Stage 5b: LLM fallback — if code still has cloud references, invoke LLM
     let mut llm_warnings: Vec<Warning> = Vec::new();
+    let pre_llm_source = final_source.clone();
+    let mut llm_was_used = false;
     let final_source = match llm_fallback {
         Some(llm)
             if crate::llm_fallback::detector::needs_llm_fallback(&final_source, language) =>
@@ -252,6 +256,7 @@ fn transform_source(
                         span: None,
                         severity: WarningSeverity::Info,
                     });
+                    llm_was_used = true;
                     completed
                 }
                 Err(e) => {
@@ -269,6 +274,59 @@ fn transform_source(
         }
         _ => final_source,
     };
+
+    // Stage 5c: Pattern learning — extract what the LLM did and generate candidates
+    // This runs ONLY when LLM fallback was used and produced different output
+    if llm_was_used {
+        let deltas = crate::learning::extract_llm_delta(&pre_llm_source, &final_source);
+        if !deltas.is_empty() {
+            let analyzed = crate::learning::analyze_changes(&deltas, language);
+            let candidates: Vec<_> = analyzed
+                .iter()
+                .filter(|a| a.change_type != crate::learning::analyzer::ChangeType::Unknown)
+                .map(|a| crate::learning::generate_candidate_pattern(a, language, path))
+                .collect();
+
+            if !candidates.is_empty() {
+                tracing::info!(
+                    "Generated {} candidate patterns from LLM fallback",
+                    candidates.len()
+                );
+
+                // Persist candidates to the learned/ directory
+                if let Some(root) = project_root {
+                    let store = crate::learning::PatternStore::from_root(root);
+                    let results = store.save_candidates(&candidates);
+                    let saved = results.iter().filter(|r| r.is_ok()).count();
+                    let failed = results.iter().filter(|r| r.is_err()).count();
+                    if failed > 0 {
+                        tracing::warn!(
+                            "Failed to save {} of {} candidate patterns",
+                            failed,
+                            candidates.len()
+                        );
+                    }
+                    llm_warnings.push(Warning {
+                        message: format!(
+                            "Saved {} candidate pattern(s) from LLM fallback. Run 'cloudshift catalogue pending' to review.",
+                            saved
+                        ),
+                        span: None,
+                        severity: WarningSeverity::Info,
+                    });
+                } else {
+                    llm_warnings.push(Warning {
+                        message: format!(
+                            "Generated {} candidate pattern(s) from LLM fallback (not persisted — no project root). Run with --project-root to enable learning.",
+                            candidates.len()
+                        ),
+                        span: None,
+                        severity: WarningSeverity::Info,
+                    });
+                }
+            }
+        }
+    }
 
     // Stage 6: Generate diff
     let diff = match output_format {
@@ -427,6 +485,7 @@ pub fn transform_file(
         config.output_format,
         config.threshold,
         None, // LLM fallback is wired at CLI level
+        Some(&root),
     );
 
     Ok(result)
@@ -536,6 +595,7 @@ pub fn transform_repo(
                 config.output_format,
                 config.threshold,
                 None, // LLM fallback is wired at CLI level
+                Some(root),
             );
 
             Some((result, file.clone()))
@@ -609,6 +669,48 @@ pub fn transform_repo(
     );
 
     Ok(report)
+}
+
+/// Run the learning pipeline on a before/after pair of code.
+///
+/// This is the public API for manual learning — given the pattern engine's output
+/// and the LLM's corrected output, it extracts deltas, analyzes them, generates
+/// candidate patterns, and persists them to the `learned/` directory.
+///
+/// Returns the number of candidate patterns saved.
+pub fn learn_from_diff(
+    pattern_output: &str,
+    llm_output: &str,
+    language: Language,
+    source_file: &str,
+    project_root: &Path,
+) -> anyhow::Result<usize> {
+    let deltas = crate::learning::extract_llm_delta(pattern_output, llm_output);
+    if deltas.is_empty() {
+        return Ok(0);
+    }
+
+    let analyzed = crate::learning::analyze_changes(&deltas, language);
+    let candidates: Vec<_> = analyzed
+        .iter()
+        .filter(|a| a.change_type != crate::learning::analyzer::ChangeType::Unknown)
+        .map(|a| crate::learning::generate_candidate_pattern(a, language, source_file))
+        .collect();
+
+    if candidates.is_empty() {
+        return Ok(0);
+    }
+
+    let store = crate::learning::PatternStore::from_root(project_root);
+    let results = store.save_candidates(&candidates);
+    let saved = results.iter().filter(|r| r.is_ok()).count();
+    let failed: Vec<_> = results.iter().filter_map(|r| r.as_ref().err()).collect();
+
+    for err in &failed {
+        tracing::warn!("Failed to save candidate pattern: {err}");
+    }
+
+    Ok(saved)
 }
 
 /// Load the pattern catalogue from the configured path or return an empty catalogue.

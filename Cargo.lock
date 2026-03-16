@@ -209,6 +209,7 @@ dependencies = [
  "serde_json",
  "similar",
  "streaming-iterator",
+ "tempfile",
  "thiserror",
  "toml",
  "tracing",
