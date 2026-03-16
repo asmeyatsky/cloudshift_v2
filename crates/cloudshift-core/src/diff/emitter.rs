@@ -7,10 +7,10 @@
 //! Pure transformation functions — takes original and transformed text,
 //! produces formatted output. No I/O, no business logic.
 
-use std::path::{Path, Component};
+use std::path::{Component, Path};
 
-use similar::{ChangeTag, TextDiff};
 use crate::domain::entities::TransformResult;
+use similar::{ChangeTag, TextDiff};
 
 /// Sanitize a path for use in diff headers: strip `..` and `.` components,
 /// keeping only normal path segments. This prevents directory traversal

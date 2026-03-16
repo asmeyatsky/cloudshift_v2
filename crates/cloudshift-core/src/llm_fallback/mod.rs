@@ -10,10 +10,10 @@
 //! - `prompt` -- Builds the LLM prompt with context
 //! - `client` -- HTTP client for Claude API (infrastructure adapter)
 
-pub mod detector;
-pub mod prompt;
 #[cfg(feature = "llm-fallback")]
 pub mod client;
+pub mod detector;
+pub mod prompt;
 
 pub use detector::{detect_remaining_cloud_refs, needs_llm_fallback, RemainingReference};
 pub use prompt::build_fallback_prompt;

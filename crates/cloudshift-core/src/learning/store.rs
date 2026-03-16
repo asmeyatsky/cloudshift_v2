@@ -103,12 +103,10 @@ impl PatternStore {
         );
 
         // Determine the target directory based on language
-        let language = extract_field(&content, "language").ok_or_else(|| {
-            PatternStoreError::InvalidCandidate("Missing language field".into())
-        })?;
+        let language = extract_field(&content, "language")
+            .ok_or_else(|| PatternStoreError::InvalidCandidate("Missing language field".into()))?;
         let target_dir = self.patterns_dir.join(&language);
-        std::fs::create_dir_all(&target_dir)
-            .map_err(|e| PatternStoreError::Io(e.to_string()))?;
+        std::fs::create_dir_all(&target_dir).map_err(|e| PatternStoreError::Io(e.to_string()))?;
 
         // Copy to patterns directory with a clean name
         let filename = candidate_file
@@ -119,8 +117,7 @@ impl PatternStore {
             .map_err(|e| PatternStoreError::Io(e.to_string()))?;
 
         // Remove from learned directory
-        std::fs::remove_file(&candidate_file)
-            .map_err(|e| PatternStoreError::Io(e.to_string()))?;
+        std::fs::remove_file(&candidate_file).map_err(|e| PatternStoreError::Io(e.to_string()))?;
 
         tracing::info!(
             "Promoted candidate {} from {} to {}",
@@ -135,8 +132,7 @@ impl PatternStore {
     /// Reject a candidate pattern (delete it).
     pub fn reject(&self, candidate_id: &str) -> Result<(), PatternStoreError> {
         let candidate_file = self.find_candidate(candidate_id)?;
-        std::fs::remove_file(&candidate_file)
-            .map_err(|e| PatternStoreError::Io(e.to_string()))?;
+        std::fs::remove_file(&candidate_file).map_err(|e| PatternStoreError::Io(e.to_string()))?;
 
         tracing::info!("Rejected candidate {}", candidate_id);
         Ok(())
@@ -155,9 +151,7 @@ impl PatternStore {
             return Err(PatternStoreError::NotFound(candidate_id.to_string()));
         }
 
-        for entry in
-            walkdir(&self.learned_dir).map_err(|e| PatternStoreError::Io(e.to_string()))?
-        {
+        for entry in walkdir(&self.learned_dir).map_err(|e| PatternStoreError::Io(e.to_string()))? {
             if entry.extension().is_some_and(|e| e == "toml") {
                 let content = std::fs::read_to_string(&entry)
                     .map_err(|e| PatternStoreError::Io(e.to_string()))?;

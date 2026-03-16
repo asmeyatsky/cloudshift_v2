@@ -114,7 +114,10 @@ mod tests {
             Language::Python,
             SourceCloud::Aws,
             &[],
-            &["aws.s3.put_object".to_string(), "aws.s3.get_object".to_string()],
+            &[
+                "aws.s3.put_object".to_string(),
+                "aws.s3.get_object".to_string(),
+            ],
         );
         assert!(prompt.contains("aws.s3.put_object"));
         assert!(prompt.contains("aws.s3.get_object"));

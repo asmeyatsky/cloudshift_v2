@@ -6,10 +6,10 @@
 //! language-specific analysers. It maps domain `Language` values to tree-sitter
 //! grammar objects and provides helper functions for parsing and querying.
 
-use streaming_iterator::StreamingIterator;
-use tree_sitter::{Language as TsLanguage, Parser, Query, QueryCursor, Node, Tree};
-use crate::domain::value_objects::{Language, SourceSpan};
 use crate::domain::ports::AnalysisError;
+use crate::domain::value_objects::{Language, SourceSpan};
+use streaming_iterator::StreamingIterator;
+use tree_sitter::{Language as TsLanguage, Node, Parser, Query, QueryCursor, Tree};
 
 /// Convert a domain `Language` to a tree-sitter `Language` grammar.
 ///
@@ -102,11 +102,7 @@ pub struct OwnedMatch {
 /// This function handles the `StreamingIterator` API used by tree-sitter 0.24's
 /// `QueryMatches` type, converting each match into an owned `OwnedMatch` so that
 /// downstream code can iterate freely.
-pub fn run_query(
-    query: &Query,
-    tree: &Tree,
-    source: &[u8],
-) -> Vec<OwnedMatch> {
+pub fn run_query(query: &Query, tree: &Tree, source: &[u8]) -> Vec<OwnedMatch> {
     let root = tree.root_node();
     let mut cursor = QueryCursor::new();
     let mut stream = cursor.matches(query, root, source);
@@ -147,11 +143,7 @@ pub type SimpleMatch = (usize, Vec<(String, String, SourceSpan)>);
 
 /// Run a query and return matches, providing start/end byte info for the
 /// full matched region from each match's first capture.
-pub fn run_query_simple(
-    query: &Query,
-    tree: &Tree,
-    source: &[u8],
-) -> Vec<SimpleMatch> {
+pub fn run_query_simple(query: &Query, tree: &Tree, source: &[u8]) -> Vec<SimpleMatch> {
     run_query(query, tree, source)
         .into_iter()
         .map(|m| {

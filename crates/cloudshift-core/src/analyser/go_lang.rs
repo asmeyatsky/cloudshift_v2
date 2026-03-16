@@ -3,10 +3,10 @@
 //! Detects aws-sdk-go (v1 and v2) imports and AWS service client usage.
 //! Uses tree-sitter-go for AST analysis.
 
+use super::treesitter;
 use crate::domain::entities::{CloudConstruct, ConstructKind};
 use crate::domain::ports::AnalysisError;
 use crate::domain::value_objects::{Language, SourceCloud, SourceSpan};
-use super::treesitter;
 
 /// AWS Go SDK import path patterns.
 const AWS_IMPORT_PATTERNS: &[&str] = &[
@@ -229,9 +229,21 @@ fn broadest_span(m: &treesitter::OwnedMatch) -> SourceSpan {
 
     if start_byte == usize::MAX {
         return SourceSpan {
-            start_byte: 0, end_byte: 0, start_row: 0, start_col: 0, end_row: 0, end_col: 0,
+            start_byte: 0,
+            end_byte: 0,
+            start_row: 0,
+            start_col: 0,
+            end_row: 0,
+            end_col: 0,
         };
     }
 
-    SourceSpan { start_byte, end_byte, start_row, start_col, end_row, end_col }
+    SourceSpan {
+        start_byte,
+        end_byte,
+        start_row,
+        start_col,
+        end_row,
+        end_col,
+    }
 }

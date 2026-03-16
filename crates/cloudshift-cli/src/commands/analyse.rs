@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use tracing::info;
 
-use cloudshift_core::{OutputFormat, TransformConfig, transform_repo};
+use cloudshift_core::{transform_repo, OutputFormat, TransformConfig};
 
 use crate::commands::{LanguageFilter, SourceCloudFilter};
 
@@ -66,8 +66,8 @@ pub fn run(args: AnalyseArgs) -> Result<()> {
     let output_fmt = args.format.as_ref().unwrap_or(&args.output_format);
     match output_fmt {
         AnalyseOutputFormat::Json => {
-            let json = serde_json::to_string_pretty(&report)
-                .context("Failed to serialise analysis")?;
+            let json =
+                serde_json::to_string_pretty(&report).context("Failed to serialise analysis")?;
             println!("{}", json);
         }
         AnalyseOutputFormat::Table => {

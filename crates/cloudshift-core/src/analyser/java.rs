@@ -4,10 +4,10 @@
 //! (com.amazonaws.*), and AWS-specific service calls. Uses tree-sitter-java
 //! for AST analysis.
 
+use super::treesitter;
 use crate::domain::entities::{CloudConstruct, ConstructKind};
 use crate::domain::ports::AnalysisError;
 use crate::domain::value_objects::{Language, SourceCloud, SourceSpan};
-use super::treesitter;
 
 /// AWS Java SDK package prefixes.
 const AWS_PACKAGE_PREFIXES: &[&str] = &[
@@ -231,9 +231,21 @@ fn broadest_span(m: &treesitter::OwnedMatch) -> SourceSpan {
 
     if start_byte == usize::MAX {
         return SourceSpan {
-            start_byte: 0, end_byte: 0, start_row: 0, start_col: 0, end_row: 0, end_col: 0,
+            start_byte: 0,
+            end_byte: 0,
+            start_row: 0,
+            start_col: 0,
+            end_row: 0,
+            end_col: 0,
         };
     }
 
-    SourceSpan { start_byte, end_byte, start_row, start_col, end_row, end_col }
+    SourceSpan {
+        start_byte,
+        end_byte,
+        start_row,
+        start_col,
+        end_row,
+        end_col,
+    }
 }

@@ -120,7 +120,10 @@ fn replace_client_exception_pattern(line: &str, client_name: &str, gcp_exception
             .map(|i| after_pattern + i)
             .unwrap_or(line.len());
         let full_match = &line[start..exception_end];
-        line.replace(full_match, &format!("google.cloud.exceptions.{gcp_exception}"))
+        line.replace(
+            full_match,
+            &format!("google.cloud.exceptions.{gcp_exception}"),
+        )
     } else {
         line.to_string()
     }
@@ -380,8 +383,7 @@ mod tests {
 
     #[test]
     fn test_unresolved_binding_cleanup() {
-        let source =
-            "storage.Client().bucket(/* unresolved: args.CopySource.Bucket */).blob(key)";
+        let source = "storage.Client().bucket(/* unresolved: args.CopySource.Bucket */).blob(key)";
         let fixed = apply_python_fixups(source);
         assert!(
             !fixed.contains("/* unresolved"),
@@ -481,10 +483,7 @@ def upload_json_document(key: str, data: dict) -> str:
             fixed.contains("gs://"),
             "s3:// not replaced with gs://:\n{fixed}"
         );
-        assert!(
-            !fixed.contains("s3://"),
-            "s3:// still present:\n{fixed}"
-        );
+        assert!(!fixed.contains("s3://"), "s3:// still present:\n{fixed}");
 
         // exceptions import should be added
         assert!(

@@ -3,8 +3,8 @@
 //! This crate exposes the core transformation engine to Python
 //! via the maturin/PyO3 bridge.
 
+use cloudshift_core::{OutputFormat, SourceCloud, TransformConfig};
 use pyo3::prelude::*;
-use cloudshift_core::{TransformConfig, SourceCloud, OutputFormat};
 
 // ---------------------------------------------------------------------------
 // Python-visible enum-like classes
@@ -21,11 +21,11 @@ pub struct PySourceCloud {
 impl PySourceCloud {
     #[new]
     fn new(name: &str) -> PyResult<Self> {
-        let inner: SourceCloud = name
-            .parse()
-            .map_err(|e: cloudshift_core::domain::value_objects::DomainError| {
-                pyo3::exceptions::PyValueError::new_err(e.to_string())
-            })?;
+        let inner: SourceCloud =
+            name.parse()
+                .map_err(|e: cloudshift_core::domain::value_objects::DomainError| {
+                    pyo3::exceptions::PyValueError::new_err(e.to_string())
+                })?;
         Ok(Self { inner })
     }
 
@@ -49,11 +49,11 @@ pub struct PyOutputFormat {
 impl PyOutputFormat {
     #[new]
     fn new(name: &str) -> PyResult<Self> {
-        let inner: OutputFormat = name
-            .parse()
-            .map_err(|e: cloudshift_core::domain::value_objects::DomainError| {
-                pyo3::exceptions::PyValueError::new_err(e.to_string())
-            })?;
+        let inner: OutputFormat =
+            name.parse()
+                .map_err(|e: cloudshift_core::domain::value_objects::DomainError| {
+                    pyo3::exceptions::PyValueError::new_err(e.to_string())
+                })?;
         Ok(Self { inner })
     }
 
@@ -179,7 +179,11 @@ impl PyTransformResult {
         Self {
             path: r.path,
             diff: r.diff,
-            patterns: r.patterns.iter().map(|p| p.pattern_id.to_string()).collect(),
+            patterns: r
+                .patterns
+                .iter()
+                .map(|p| p.pattern_id.to_string())
+                .collect(),
             confidence: r.confidence.value(),
             warnings: r.warnings.iter().map(|w| w.message.clone()).collect(),
             applied: r.applied,
@@ -341,7 +345,10 @@ impl PyPatternInfo {
     }
 
     fn __repr__(&self) -> String {
-        format!("PatternInfo(id='{}', description='{}')", self.id, self.description)
+        format!(
+            "PatternInfo(id='{}', description='{}')",
+            self.id, self.description
+        )
     }
 }
 
@@ -415,10 +422,7 @@ fn transform_repo_py(
 /// Currently returns a list (simplified implementation).
 #[pyfunction]
 #[pyo3(name = "transform_repo_stream", signature = (path))]
-fn transform_repo_stream_py(
-    py: Python<'_>,
-    path: String,
-) -> PyResult<Vec<PyTransformResult>> {
+fn transform_repo_stream_py(py: Python<'_>, path: String) -> PyResult<Vec<PyTransformResult>> {
     // For now, delegate to transform_repo and split into per-file results.
     // This is a simplified placeholder — the real streaming implementation
     // will use an async iterator once the pipeline supports it.
@@ -450,10 +454,7 @@ fn transform_repo_stream_py(
 /// empty list since the catalogue search is not yet implemented.
 #[pyfunction]
 #[pyo3(name = "catalogue_search", signature = (query))]
-fn catalogue_search_py(
-    _py: Python<'_>,
-    query: String,
-) -> PyResult<Vec<PyPatternInfo>> {
+fn catalogue_search_py(_py: Python<'_>, query: String) -> PyResult<Vec<PyPatternInfo>> {
     // Catalogue search is not yet implemented in cloudshift-core.
     // Return an empty list as a placeholder.
     let _ = query;

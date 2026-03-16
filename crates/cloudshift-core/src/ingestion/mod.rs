@@ -14,9 +14,9 @@
 //! - File discovery uses rayon's parallel iterator for directory walking.
 //! - Language detection is purely functional and embarrassingly parallel.
 
-use std::path::{Path, PathBuf};
-use rayon::prelude::*;
 use crate::domain::value_objects::Language;
+use rayon::prelude::*;
+use std::path::{Path, PathBuf};
 
 /// A file discovered during ingestion, ready for analysis.
 #[derive(Debug, Clone)]
@@ -128,18 +128,14 @@ impl Ingestion {
 
     /// Process a single file path.
     fn discover_single_file(&self, path: &Path) -> Result<Vec<DiscoveredFile>, IngestionError> {
-        let filename = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         let language = match Language::from_filename(filename) {
             Some(lang) => lang,
             None => return Ok(Vec::new()),
         };
 
-        let metadata = std::fs::metadata(path)
-            .map_err(|e| IngestionError::Io(e.to_string()))?;
+        let metadata = std::fs::metadata(path).map_err(|e| IngestionError::Io(e.to_string()))?;
 
         Ok(vec![DiscoveredFile {
             path: path.display().to_string(),
@@ -162,8 +158,9 @@ impl Ingestion {
         root: &Path,
         files: &mut Vec<PathBuf>,
     ) -> Result<(), IngestionError> {
-        let entries = std::fs::read_dir(current)
-            .map_err(|e| IngestionError::Io(format!("Failed to read {}: {e}", current.display())))?;
+        let entries = std::fs::read_dir(current).map_err(|e| {
+            IngestionError::Io(format!("Failed to read {}: {e}", current.display()))
+        })?;
 
         for entry in entries {
             let entry = entry.map_err(|e| IngestionError::Io(e.to_string()))?;

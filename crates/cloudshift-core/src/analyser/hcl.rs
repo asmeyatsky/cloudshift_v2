@@ -4,10 +4,10 @@
 //! aws_dynamodb_table, etc.), and AWS data source references in Terraform/HCL files.
 //! Uses tree-sitter-hcl for AST analysis.
 
+use super::treesitter;
 use crate::domain::entities::{CloudConstruct, ConstructKind};
 use crate::domain::ports::AnalysisError;
 use crate::domain::value_objects::{Language, SourceCloud};
-use super::treesitter;
 
 /// AWS Terraform resource type prefix.
 const AWS_RESOURCE_PREFIX: &str = "aws_";

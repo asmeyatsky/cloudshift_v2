@@ -121,8 +121,14 @@ data = blob.download_as_bytes()
 ";
 
     let dir = temp_dir();
-    let saved = learn_from_diff(code, code, Language::Python, "already_migrated.py", dir.path())
-        .expect("learn_from_diff should succeed");
+    let saved = learn_from_diff(
+        code,
+        code,
+        Language::Python,
+        "already_migrated.py",
+        dir.path(),
+    )
+    .expect("learn_from_diff should succeed");
 
     assert_eq!(saved, 0, "Identical code should produce no candidates");
 }
@@ -275,8 +281,7 @@ line7
     // The delta should contain the boto3/GCS transformation
     let delta = &deltas[0];
     assert!(
-        delta.pattern_output.contains("boto3")
-            || delta.llm_output.contains("storage"),
+        delta.pattern_output.contains("boto3") || delta.llm_output.contains("storage"),
         "Delta should capture the cloud SDK change"
     );
 }
@@ -298,10 +303,7 @@ fn test_analyzer_classifies_import_delta() {
 
 #[test]
 fn test_analyzer_classifies_client_init_delta() {
-    let deltas = extract_llm_delta(
-        "s3 = boto3.client('s3')\n",
-        "client = storage.Client()\n",
-    );
+    let deltas = extract_llm_delta("s3 = boto3.client('s3')\n", "client = storage.Client()\n");
     let analyzed = analyze_changes(&deltas, Language::Python);
     assert!(!analyzed.is_empty());
     assert_eq!(
@@ -334,7 +336,10 @@ fn test_generated_toml_is_parseable() {
     );
 
     let table = parsed.unwrap();
-    assert!(table.get("pattern").is_some(), "Should have [pattern] section");
+    assert!(
+        table.get("pattern").is_some(),
+        "Should have [pattern] section"
+    );
     assert!(
         table["pattern"].get("metadata").is_some(),
         "Should have [pattern.metadata]"

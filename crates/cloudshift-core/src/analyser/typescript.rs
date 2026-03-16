@@ -4,10 +4,10 @@
 //! and AWS-specific patterns in TypeScript/JavaScript source code.
 //! Uses tree-sitter-typescript for AST analysis.
 
+use super::treesitter;
 use crate::domain::entities::{CloudConstruct, ConstructKind};
 use crate::domain::ports::AnalysisError;
 use crate::domain::value_objects::{Language, SourceCloud, SourceSpan};
-use super::treesitter;
 
 /// AWS SDK v2 and v3 package patterns.
 const AWS_IMPORT_PATTERNS: &[&str] = &[
@@ -107,7 +107,9 @@ fn detect_imports(
     for m in &matches {
         // Handle ES6 imports
         if let Some(capture) = m.captures.iter().find(|c| c.name == "import_source") {
-            let text = capture.text.trim_matches(|c| c == '\'' || c == '"' || c == '`');
+            let text = capture
+                .text
+                .trim_matches(|c| c == '\'' || c == '"' || c == '`');
             if AWS_IMPORT_PATTERNS.iter().any(|pat| text.contains(pat)) {
                 constructs.push(CloudConstruct {
                     kind: ConstructKind::SdkImport,
@@ -126,7 +128,9 @@ fn detect_imports(
             .any(|c| c.name == "require_fn" && c.text == "require");
         if has_require {
             if let Some(capture) = m.captures.iter().find(|c| c.name == "require_source") {
-                let text = capture.text.trim_matches(|c| c == '\'' || c == '"' || c == '`');
+                let text = capture
+                    .text
+                    .trim_matches(|c| c == '\'' || c == '"' || c == '`');
                 if AWS_IMPORT_PATTERNS.iter().any(|pat| text.contains(pat)) {
                     constructs.push(CloudConstruct {
                         kind: ConstructKind::SdkImport,
@@ -171,10 +175,7 @@ fn detect_sdk_instantiation(
                     kind: ConstructKind::SdkFunctionCall,
                     source_cloud: SourceCloud::Aws,
                     span: capture.span,
-                    description: format!(
-                        "AWS SDK instantiation: new {}(...)",
-                        capture.text
-                    ),
+                    description: format!("AWS SDK instantiation: new {}(...)", capture.text),
                     sdk_import: None,
                 });
             }
@@ -244,7 +245,9 @@ fn detect_env_vars(
 
     for m in &matches {
         for capture in &m.captures {
-            let text = capture.text.trim_matches(|c| c == '\'' || c == '"' || c == '`');
+            let text = capture
+                .text
+                .trim_matches(|c| c == '\'' || c == '"' || c == '`');
             if env_vars.contains(&text) {
                 constructs.push(CloudConstruct {
                     kind: ConstructKind::EnvVariable,
@@ -284,9 +287,21 @@ fn broadest_span(m: &treesitter::OwnedMatch) -> SourceSpan {
 
     if start_byte == usize::MAX {
         return SourceSpan {
-            start_byte: 0, end_byte: 0, start_row: 0, start_col: 0, end_row: 0, end_col: 0,
+            start_byte: 0,
+            end_byte: 0,
+            start_row: 0,
+            start_col: 0,
+            end_row: 0,
+            end_col: 0,
         };
     }
 
-    SourceSpan { start_byte, end_byte, start_row, start_col, end_row, end_col }
+    SourceSpan {
+        start_byte,
+        end_byte,
+        start_row,
+        start_col,
+        end_row,
+        end_col,
+    }
 }

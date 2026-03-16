@@ -65,9 +65,9 @@ impl TransformApplicator {
         let mut keep = vec![false; matches.len()];
         let mut occupied: Vec<(usize, usize)> = Vec::new();
         for (i, m) in matches.iter().enumerate() {
-            let overlaps = occupied.iter().any(|&(start, end)| {
-                m.span.start_byte < end && m.span.end_byte > start
-            });
+            let overlaps = occupied
+                .iter()
+                .any(|&(start, end)| m.span.start_byte < end && m.span.end_byte > start);
             if !overlaps {
                 keep[i] = true;
                 occupied.push((m.span.start_byte, m.span.end_byte));
@@ -114,9 +114,7 @@ impl ImportManager {
                 let trimmed = line.trim();
                 match language {
                     Language::Python => trimmed == imp || trimmed.starts_with(&format!("{} ", imp)),
-                    Language::TypeScript | Language::JavaScript => {
-                        trimmed.contains(imp)
-                    }
+                    Language::TypeScript | Language::JavaScript => trimmed.contains(imp),
                     Language::Java => trimmed == format!("{};", imp) || trimmed == imp,
                     Language::Go => trimmed.contains(imp),
                     _ => trimmed == imp,
@@ -130,9 +128,7 @@ impl ImportManager {
         for (i, imp) in imports_to_add.iter().enumerate() {
             let import_line = match language {
                 Language::Python => imp.clone(),
-                Language::TypeScript | Language::JavaScript => {
-                    imp.clone()
-                }
+                Language::TypeScript | Language::JavaScript => imp.clone(),
                 Language::Java => format!("{};", imp),
                 Language::Go => imp.clone(),
                 _ => imp.clone(),

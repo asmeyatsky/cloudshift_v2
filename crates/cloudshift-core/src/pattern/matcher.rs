@@ -92,11 +92,10 @@ pub fn match_pattern(
                                 existing.end_col
                             },
                         };
-                        match_text = std::str::from_utf8(
-                            &source[merged.start_byte..merged.end_byte],
-                        )
-                        .unwrap_or("")
-                        .to_string();
+                        match_text =
+                            std::str::from_utf8(&source[merged.start_byte..merged.end_byte])
+                                .unwrap_or("")
+                                .to_string();
                         match_span = Some(merged);
                     }
                 }
@@ -126,8 +125,7 @@ pub fn match_pattern(
         };
 
         // Calculate match confidence using the domain service
-        let confidence =
-            ConfidenceCalculator::calculate(pattern, binding_completeness, true);
+        let confidence = ConfidenceCalculator::calculate(pattern, binding_completeness, true);
 
         results.push(PatternMatch {
             pattern_id: pattern.id.clone(),
@@ -350,7 +348,8 @@ mod tests {
         let source = b"s3.put_object(Bucket='my-bucket', Key='file.txt', Body=data)\n";
         let args_text = "(Bucket='my-bucket', Key='file.txt', Body=data)";
         // The argument_list spans from byte 13 (the '(') to byte 60 (the ')')
-        let args_start = source.windows(args_text.len())
+        let args_start = source
+            .windows(args_text.len())
             .position(|w| w == args_text.as_bytes())
             .unwrap();
         let args_span = SourceSpan {
@@ -397,19 +396,16 @@ mod tests {
             end_col: args_end,
         };
 
-        let bucket = extract_named_arg_from_node(
-            source, args_text, &args_span, "Bucket", Language::Python,
-        );
+        let bucket =
+            extract_named_arg_from_node(source, args_text, &args_span, "Bucket", Language::Python);
         assert_eq!(bucket, Some("get_name(\"foo, bar\")".to_string()));
 
-        let key = extract_named_arg_from_node(
-            source, args_text, &args_span, "Key", Language::Python,
-        );
+        let key =
+            extract_named_arg_from_node(source, args_text, &args_span, "Key", Language::Python);
         assert_eq!(key, Some("f\"{prefix}/file.txt\"".to_string()));
 
-        let body = extract_named_arg_from_node(
-            source, args_text, &args_span, "Body", Language::Python,
-        );
+        let body =
+            extract_named_arg_from_node(source, args_text, &args_span, "Body", Language::Python);
         assert_eq!(body, Some("json.dumps({\"key\": \"value\"})".to_string()));
     }
 }

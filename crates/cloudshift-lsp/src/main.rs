@@ -206,7 +206,10 @@ fn main() -> Result<()> {
         )
         .init();
 
-    info!("cloudshift-lsp starting (version {})", env!("CARGO_PKG_VERSION"));
+    info!(
+        "cloudshift-lsp starting (version {})",
+        env!("CARGO_PKG_VERSION")
+    );
 
     let stdin = io::stdin();
     let mut reader = stdin.lock();

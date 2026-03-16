@@ -1,6 +1,6 @@
 //! Apply command — apply a previously generated diff.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use clap::Args;
 use tracing::info;
 

@@ -6,9 +6,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use tracing::info;
 
-use cloudshift_core::{
-    OutputFormat, TransformConfig, transform_file, transform_repo,
-};
+use cloudshift_core::{transform_file, transform_repo, OutputFormat, TransformConfig};
 
 use crate::commands::{LanguageFilter, SourceCloudFilter};
 use crate::output;
@@ -131,8 +129,8 @@ pub fn run(args: TransformArgs) -> Result<()> {
         output::print_transform_result(&result, &args.output_format);
 
         if let Some(ref report_path) = args.report_path {
-            let json = serde_json::to_string_pretty(&result)
-                .context("Failed to serialise report")?;
+            let json =
+                serde_json::to_string_pretty(&result).context("Failed to serialise report")?;
             std::fs::write(report_path, json)
                 .with_context(|| format!("Failed to write report to {}", report_path))?;
             info!(path = %report_path, "Report written");
@@ -144,8 +142,8 @@ pub fn run(args: TransformArgs) -> Result<()> {
         output::print_repo_report(&report, &args.output_format);
 
         if let Some(ref report_path) = args.report_path {
-            let json = serde_json::to_string_pretty(&report)
-                .context("Failed to serialise report")?;
+            let json =
+                serde_json::to_string_pretty(&report).context("Failed to serialise report")?;
             std::fs::write(report_path, json)
                 .with_context(|| format!("Failed to write report to {}", report_path))?;
             info!(path = %report_path, "Report written");

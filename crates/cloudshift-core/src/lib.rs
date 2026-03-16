@@ -24,20 +24,20 @@
 //! - Diff generation is per-file and parallelised.
 //! - The pipeline module coordinates via DAG orchestration.
 
-pub mod domain;
 pub mod analyser;
-pub mod pattern;
-pub mod diff;
 pub mod catalogue;
+pub mod diff;
+pub mod domain;
 pub mod fixup;
 pub mod ingestion;
 pub mod learning;
 pub mod llm_fallback;
+pub mod pattern;
 pub mod pipeline;
 
 // Re-export key public types for ergonomic usage
-pub use domain::entities::{TransformResult, FileAnalysis, PatternMatch, RepoReport, FileChange};
-pub use domain::value_objects::{SourceCloud, Language, Confidence, PatternId, OutputFormat};
-pub use domain::ports::{FileSystemPort, PatternRepositoryPort, DiffEmitterPort};
-pub use domain::ports::{LlmFallbackPort, LlmFallbackContext, LlmFallbackError};
-pub use pipeline::{TransformConfig, transform_file, transform_repo};
+pub use domain::entities::{FileAnalysis, FileChange, PatternMatch, RepoReport, TransformResult};
+pub use domain::ports::{DiffEmitterPort, FileSystemPort, PatternRepositoryPort};
+pub use domain::ports::{LlmFallbackContext, LlmFallbackError, LlmFallbackPort};
+pub use domain::value_objects::{Confidence, Language, OutputFormat, PatternId, SourceCloud};
+pub use pipeline::{transform_file, transform_repo, TransformConfig};

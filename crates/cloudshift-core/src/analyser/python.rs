@@ -4,19 +4,13 @@
 //! and AWS environment variable references. Uses tree-sitter-python to walk
 //! the AST and extract `CloudConstruct` instances.
 
+use super::treesitter;
 use crate::domain::entities::{CloudConstruct, ConstructKind};
 use crate::domain::ports::AnalysisError;
 use crate::domain::value_objects::{Language, SourceCloud};
-use super::treesitter;
 
 /// AWS Python SDK import patterns we look for.
-const AWS_IMPORTS: &[&str] = &[
-    "boto3",
-    "botocore",
-    "moto",
-    "aws_cdk",
-    "awscli",
-];
+const AWS_IMPORTS: &[&str] = &["boto3", "botocore", "moto", "aws_cdk", "awscli"];
 
 /// Azure Python SDK import patterns we look for.
 const AZURE_IMPORTS: &[&str] = &[
@@ -107,9 +101,9 @@ fn detect_imports(
     for m in &matches {
         for capture in &m.captures {
             let text = &capture.text;
-            let is_aws = AWS_IMPORTS.iter().any(|imp| {
-                text.as_str() == *imp || text.starts_with(&format!("{imp}."))
-            });
+            let is_aws = AWS_IMPORTS
+                .iter()
+                .any(|imp| text.as_str() == *imp || text.starts_with(&format!("{imp}.")));
 
             if is_aws {
                 constructs.push(CloudConstruct {
@@ -222,22 +216,21 @@ fn detect_client_creation(
         let service_name = find_capture(m, "service_name");
 
         let is_boto = matches!(boto_name.as_deref(), Some("boto3") | Some("botocore"));
-        let is_create =
-            matches!(method_name.as_deref(), Some("client") | Some("resource") | Some("Session"));
+        let is_create = matches!(
+            method_name.as_deref(),
+            Some("client") | Some("resource") | Some("Session")
+        );
 
         if is_boto && is_create {
             if let Some(svc) = &service_name {
-                let span = find_capture_span(m, "service_name")
-                    .unwrap_or_else(|| broadest_span(m));
+                let span = find_capture_span(m, "service_name").unwrap_or_else(|| broadest_span(m));
                 let boto = boto_name.as_deref().unwrap_or("boto3");
                 let method = method_name.as_deref().unwrap_or("client");
                 constructs.push(CloudConstruct {
                     kind: ConstructKind::SdkFunctionCall,
                     source_cloud: SourceCloud::Aws,
                     span,
-                    description: format!(
-                        "AWS service client creation: {boto}.{method}('{svc}')"
-                    ),
+                    description: format!("AWS service client creation: {boto}.{method}('{svc}')"),
                     sdk_import: Some(format!("{boto}.{method}")),
                 });
             }
@@ -341,9 +334,9 @@ fn detect_azure_imports(
     for m in &matches {
         for capture in &m.captures {
             let text = &capture.text;
-            let is_azure = AZURE_IMPORTS.iter().any(|imp| {
-                text.as_str() == *imp || text.starts_with(&format!("{imp}."))
-            });
+            let is_azure = AZURE_IMPORTS
+                .iter()
+                .any(|imp| text.as_str() == *imp || text.starts_with(&format!("{imp}.")));
 
             if is_azure {
                 constructs.push(CloudConstruct {

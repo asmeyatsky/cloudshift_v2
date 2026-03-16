@@ -305,8 +305,14 @@ mod tests {
 
     #[test]
     fn language_detection_from_filename() {
-        assert_eq!(Language::from_filename("Dockerfile"), Some(Language::Dockerfile));
-        assert_eq!(Language::from_filename("Dockerfile.prod"), Some(Language::Dockerfile));
+        assert_eq!(
+            Language::from_filename("Dockerfile"),
+            Some(Language::Dockerfile)
+        );
+        assert_eq!(
+            Language::from_filename("Dockerfile.prod"),
+            Some(Language::Dockerfile)
+        );
         assert_eq!(Language::from_filename("main.go"), Some(Language::Go));
     }
 
@@ -319,8 +325,17 @@ mod tests {
 
     #[test]
     fn migration_effort_from_confidence() {
-        assert_eq!(MigrationEffort::from_confidence(Confidence::new(0.95)), MigrationEffort::Low);
-        assert_eq!(MigrationEffort::from_confidence(Confidence::new(0.80)), MigrationEffort::Medium);
-        assert_eq!(MigrationEffort::from_confidence(Confidence::new(0.50)), MigrationEffort::High);
+        assert_eq!(
+            MigrationEffort::from_confidence(Confidence::new(0.95)),
+            MigrationEffort::Low
+        );
+        assert_eq!(
+            MigrationEffort::from_confidence(Confidence::new(0.80)),
+            MigrationEffort::Medium
+        );
+        assert_eq!(
+            MigrationEffort::from_confidence(Confidence::new(0.50)),
+            MigrationEffort::High
+        );
     }
 }

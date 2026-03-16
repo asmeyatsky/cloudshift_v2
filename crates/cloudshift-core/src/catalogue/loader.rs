@@ -9,9 +9,9 @@
 //! Delegates compilation to `pattern::compiler`. Reports errors per-file
 //! without failing the entire catalogue load.
 
-use std::path::Path;
 use crate::domain::entities::CompiledPattern;
 use crate::pattern::compiler::{self, CompileError};
+use std::path::Path;
 
 /// Error type for catalogue loading.
 #[derive(Debug, thiserror::Error)]
@@ -20,10 +20,7 @@ pub enum CatalogueLoadError {
     Io(#[from] std::io::Error),
 
     #[error("Pattern compilation error in {file}: {error}")]
-    CompileError {
-        file: String,
-        error: CompileError,
-    },
+    CompileError { file: String, error: CompileError },
 }
 
 /// Load all TOML pattern files from a directory tree.
@@ -48,11 +45,7 @@ pub fn load_patterns_from_directory(
         return Ok((Vec::new(), warnings));
     }
 
-    tracing::info!(
-        "Found {} pattern files in {}",
-        sources.len(),
-        dir.display()
-    );
+    tracing::info!("Found {} pattern files in {}", sources.len(), dir.display());
 
     // Compile all collected sources
     let (patterns, errors) = compiler::compile_patterns(&sources);

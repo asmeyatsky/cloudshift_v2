@@ -56,8 +56,8 @@ pub fn print_repo_report(report: &RepoReport, format: &TransformOutputFormat) {
             );
         }
         TransformOutputFormat::Json | TransformOutputFormat::Sarif => {
-            let json = serde_json::to_string_pretty(report)
-                .expect("RepoReport is always serialisable");
+            let json =
+                serde_json::to_string_pretty(report).expect("RepoReport is always serialisable");
             println!("{}", json);
         }
     }

@@ -40,32 +40,19 @@ impl DiffGenerator {
 impl DiffEmitterPort for DiffGenerator {
     /// Generate a unified diff from original and transformed source.
     #[tracing::instrument(skip(self, original, transformed), level = "debug")]
-    fn emit_unified_diff(
-        &self,
-        path: &str,
-        original: &str,
-        transformed: &str,
-    ) -> String {
+    fn emit_unified_diff(&self, path: &str, original: &str, transformed: &str) -> String {
         emitter::unified_diff(path, original, transformed)
     }
 
     /// Generate a JSON-format diff.
     #[tracing::instrument(skip(self, original, transformed), level = "debug")]
-    fn emit_json_diff(
-        &self,
-        path: &str,
-        original: &str,
-        transformed: &str,
-    ) -> String {
+    fn emit_json_diff(&self, path: &str, original: &str, transformed: &str) -> String {
         emitter::json_diff(path, original, transformed)
     }
 
     /// Generate SARIF output for CI integration.
     #[tracing::instrument(skip(self, results), level = "debug")]
-    fn emit_sarif(
-        &self,
-        results: &[TransformResult],
-    ) -> String {
+    fn emit_sarif(&self, results: &[TransformResult]) -> String {
         emitter::sarif_output(results)
     }
 }

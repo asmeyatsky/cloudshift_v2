@@ -20,11 +20,7 @@ pub trait FileSystemPort: Send + Sync {
 /// Port: Pattern catalogue repository.
 pub trait PatternRepositoryPort: Send + Sync {
     /// Load all compiled patterns for a given language and source cloud.
-    fn get_patterns(
-        &self,
-        language: Language,
-        source: SourceCloud,
-    ) -> Vec<CompiledPattern>;
+    fn get_patterns(&self, language: Language, source: SourceCloud) -> Vec<CompiledPattern>;
 
     /// Find a pattern by its ID.
     fn get_by_id(&self, id: &PatternId) -> Option<CompiledPattern>;
@@ -39,26 +35,13 @@ pub trait PatternRepositoryPort: Send + Sync {
 /// Port: Diff emitter that converts AST changes to unified diffs.
 pub trait DiffEmitterPort: Send + Sync {
     /// Generate a unified diff from original source and transformed source.
-    fn emit_unified_diff(
-        &self,
-        path: &str,
-        original: &str,
-        transformed: &str,
-    ) -> String;
+    fn emit_unified_diff(&self, path: &str, original: &str, transformed: &str) -> String;
 
     /// Generate a JSON-format diff.
-    fn emit_json_diff(
-        &self,
-        path: &str,
-        original: &str,
-        transformed: &str,
-    ) -> String;
+    fn emit_json_diff(&self, path: &str, original: &str, transformed: &str) -> String;
 
     /// Generate SARIF output for CI integration.
-    fn emit_sarif(
-        &self,
-        results: &[TransformResult],
-    ) -> String;
+    fn emit_sarif(&self, results: &[TransformResult]) -> String;
 }
 
 /// Port: Event bus for domain event publishing.
@@ -130,10 +113,7 @@ pub enum LlmFallbackError {
 #[derive(Debug, thiserror::Error)]
 pub enum AnalysisError {
     #[error("Parse error in {language} file: {message}")]
-    ParseError {
-        language: Language,
-        message: String,
-    },
+    ParseError { language: Language, message: String },
     #[error("Unsupported language: {0}")]
     UnsupportedLanguage(Language),
     #[error("Internal error: {0}")]

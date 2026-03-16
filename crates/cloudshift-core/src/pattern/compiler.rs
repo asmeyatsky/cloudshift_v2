@@ -8,9 +8,9 @@
 //! Pure transformation — takes TOML text and produces domain entities.
 //! No I/O, no side effects, no business logic.
 
-use serde::Deserialize;
 use crate::domain::entities::{CompiledPattern, PatternBinding};
 use crate::domain::value_objects::{Confidence, Language, PatternId, SourceCloud};
+use serde::Deserialize;
 
 /// Error type for pattern compilation failures.
 #[derive(Debug, thiserror::Error)]
@@ -230,10 +230,7 @@ body_expr = "args.Body"
         assert!((pattern.confidence.value() - 0.97).abs() < 0.001);
         assert_eq!(pattern.tags, vec!["storage", "s3", "gcs"]);
         assert_eq!(pattern.detect_imports, vec!["boto3"]);
-        assert_eq!(
-            pattern.import_add,
-            vec!["from google.cloud import storage"]
-        );
+        assert_eq!(pattern.import_add, vec!["from google.cloud import storage"]);
         assert_eq!(pattern.import_remove, vec!["import boto3"]);
         assert_eq!(pattern.bindings.len(), 3);
     }
@@ -271,18 +268,29 @@ bucket_name_expr = "args.Bucket"
 description = "Some migration notes here."
 "#;
         let result = compile_pattern(toml);
-        assert!(result.is_ok(), "Pattern with target and notes should compile, got: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Pattern with target and notes should compile, got: {:?}",
+            result.err()
+        );
     }
 
     #[test]
     fn compile_real_pattern_toml_file() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent().unwrap().parent().unwrap();
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
         let pattern_path = root.join("patterns/python/aws_s3_create_bucket.toml");
         let content = std::fs::read_to_string(&pattern_path)
             .unwrap_or_else(|e| panic!("Failed to read {}: {}", pattern_path.display(), e));
         let result = compile_pattern(&content);
-        assert!(result.is_ok(), "Real pattern file should compile, got: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Real pattern file should compile, got: {:?}",
+            result.err()
+        );
     }
 
     #[test]

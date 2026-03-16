@@ -18,12 +18,12 @@
 //! - Each file is analysed independently — `SemanticAnalyser` is Send + Sync.
 //! - tree-sitter parsers are created per-call (no shared mutable state).
 
-pub mod treesitter;
-pub mod python;
-pub mod typescript;
-pub mod java;
 pub mod go_lang;
 pub mod hcl;
+pub mod java;
+pub mod python;
+pub mod treesitter;
+pub mod typescript;
 
 use crate::domain::entities::CloudConstruct;
 use crate::domain::ports::{AnalysisError, SemanticAnalyserPort};
@@ -242,10 +242,7 @@ fn analyse_dockerfile_fallback(source: &[u8]) -> Result<Vec<CloudConstruct>, Ana
 }
 
 /// Helper: convert a line number to a `SourceSpan`.
-fn line_to_span(
-    text: &str,
-    line_num: usize,
-) -> crate::domain::value_objects::SourceSpan {
+fn line_to_span(text: &str, line_num: usize) -> crate::domain::value_objects::SourceSpan {
     let mut byte_offset = 0;
     for (i, line) in text.lines().enumerate() {
         if i == line_num {

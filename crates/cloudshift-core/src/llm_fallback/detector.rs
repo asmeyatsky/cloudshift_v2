@@ -230,8 +230,12 @@ mod tests {
         let source = "import boto3\nclient = boto3.client('s3')\n";
         let refs = detect_remaining_cloud_refs(source, Language::Python);
         assert!(refs.len() >= 2);
-        assert!(refs.iter().any(|r| matches!(r.reference_type, ReferenceType::Import)));
-        assert!(refs.iter().any(|r| matches!(r.reference_type, ReferenceType::SdkClientUsage)));
+        assert!(refs
+            .iter()
+            .any(|r| matches!(r.reference_type, ReferenceType::Import)));
+        assert!(refs
+            .iter()
+            .any(|r| matches!(r.reference_type, ReferenceType::SdkClientUsage)));
     }
 
     #[test]
@@ -239,7 +243,10 @@ mod tests {
         let source = r#"resource_arn = "arn:aws:s3:::my-bucket""#;
         let refs = detect_remaining_cloud_refs(source, Language::Python);
         assert_eq!(refs.len(), 1);
-        assert!(matches!(refs[0].reference_type, ReferenceType::ArnReference));
+        assert!(matches!(
+            refs[0].reference_type,
+            ReferenceType::ArnReference
+        ));
     }
 
     #[test]
@@ -256,7 +263,10 @@ mod tests {
         let source = r#"region = os.environ["AWS_REGION"]"#;
         let refs = detect_remaining_cloud_refs(source, Language::Python);
         assert_eq!(refs.len(), 1);
-        assert!(matches!(refs[0].reference_type, ReferenceType::EnvironmentVariable));
+        assert!(matches!(
+            refs[0].reference_type,
+            ReferenceType::EnvironmentVariable
+        ));
     }
 
     #[test]
@@ -264,7 +274,10 @@ mod tests {
         let source = r#"url = "https://myaccount.blob.core.windows.net/container""#;
         let refs = detect_remaining_cloud_refs(source, Language::Python);
         assert_eq!(refs.len(), 1);
-        assert!(matches!(refs[0].reference_type, ReferenceType::ServiceEndpoint));
+        assert!(matches!(
+            refs[0].reference_type,
+            ReferenceType::ServiceEndpoint
+        ));
     }
 
     #[test]

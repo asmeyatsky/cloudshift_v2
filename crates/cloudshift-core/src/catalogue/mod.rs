@@ -17,10 +17,10 @@ pub mod loader;
 
 pub use loader::{CatalogueLoadError, CatalogueLoadWarning};
 
-use std::path::Path;
 use crate::domain::entities::CompiledPattern;
 use crate::domain::ports::PatternRepositoryPort;
 use crate::domain::value_objects::{Language, PatternId, SourceCloud};
+use std::path::Path;
 
 /// GCP pattern catalogue implementing `PatternRepositoryPort`.
 ///
@@ -88,11 +88,7 @@ impl Default for Catalogue {
 
 impl PatternRepositoryPort for Catalogue {
     /// Load all compiled patterns matching the given language and source cloud.
-    fn get_patterns(
-        &self,
-        language: Language,
-        source: SourceCloud,
-    ) -> Vec<CompiledPattern> {
+    fn get_patterns(&self, language: Language, source: SourceCloud) -> Vec<CompiledPattern> {
         self.patterns
             .iter()
             .filter(|p| {
@@ -116,7 +112,9 @@ impl PatternRepositoryPort for Catalogue {
         self.patterns
             .iter()
             .filter(|p| {
-                p.tags.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                p.tags
+                    .iter()
+                    .any(|t| t.to_lowercase().contains(&query_lower))
                     || p.description.to_lowercase().contains(&query_lower)
                     || p.id.as_str().to_lowercase().contains(&query_lower)
             })

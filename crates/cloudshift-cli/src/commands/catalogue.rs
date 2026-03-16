@@ -114,10 +114,7 @@ pub fn run(args: CatalogueArgs) -> Result<()> {
             if pending.is_empty() {
                 println!("No pending candidate patterns.");
             } else {
-                println!(
-                    "{} pending candidate pattern(s):\n",
-                    pending.len()
-                );
+                println!("{} pending candidate pattern(s):\n", pending.len());
                 for candidate in &pending {
                     println!(
                         "  [{}] language={}, source_file={}\n       {}",
@@ -127,9 +124,7 @@ pub fn run(args: CatalogueArgs) -> Result<()> {
                         candidate.file_path.display()
                     );
                 }
-                println!(
-                    "\nTo promote: cloudshift catalogue promote <candidate_id>"
-                );
+                println!("\nTo promote: cloudshift catalogue promote <candidate_id>");
                 println!("To reject:  cloudshift catalogue reject <candidate_id>");
             }
             Ok(())

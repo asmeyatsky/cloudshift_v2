@@ -229,9 +229,7 @@ fn transform_source(
     let pre_llm_source = final_source.clone();
     let mut llm_was_used = false;
     let final_source = match llm_fallback {
-        Some(llm)
-            if crate::llm_fallback::detector::needs_llm_fallback(&final_source, language) =>
-        {
+        Some(llm) if crate::llm_fallback::detector::needs_llm_fallback(&final_source, language) => {
             let remaining =
                 crate::llm_fallback::detector::detect_remaining_cloud_refs(&final_source, language);
             tracing::info!(
@@ -240,10 +238,7 @@ fn transform_source(
             );
 
             let context = crate::domain::ports::LlmFallbackContext {
-                applied_patterns: matches
-                    .iter()
-                    .map(|m| m.pattern_id.to_string())
-                    .collect(),
+                applied_patterns: matches.iter().map(|m| m.pattern_id.to_string()).collect(),
                 remaining_references: remaining.iter().map(|r| r.line_content.clone()).collect(),
                 original_source: source.to_string(),
             };
@@ -395,7 +390,11 @@ fn transform_source(
 
     for pattern_match in &matches {
         for &(pattern_prefix, message) in known_gaps {
-            if pattern_match.pattern_id.as_str().starts_with(pattern_prefix) {
+            if pattern_match
+                .pattern_id
+                .as_str()
+                .starts_with(pattern_prefix)
+            {
                 warnings.push(Warning {
                     message: message.to_string(),
                     span: Some(pattern_match.span),
@@ -423,10 +422,7 @@ fn transform_source(
 /// Orchestrates: read file → detect language → parse → analyse →
 /// match patterns → apply transforms → emit diff.
 #[tracing::instrument(skip(config), level = "info")]
-pub fn transform_file(
-    path: &str,
-    config: &TransformConfig,
-) -> anyhow::Result<TransformResult> {
+pub fn transform_file(path: &str, config: &TransformConfig) -> anyhow::Result<TransformResult> {
     // Validate path does not escape the working directory
     let file_path = Path::new(path);
     let root = std::env::current_dir()
@@ -434,8 +430,8 @@ pub fn transform_file(
     let canonical = validate_path(file_path, &root)?;
 
     // Check file size before reading
-    let metadata = std::fs::metadata(&canonical)
-        .map_err(|e| anyhow::anyhow!("Cannot stat {path}: {e}"))?;
+    let metadata =
+        std::fs::metadata(&canonical).map_err(|e| anyhow::anyhow!("Cannot stat {path}: {e}"))?;
     if metadata.len() > MAX_FILE_SIZE {
         anyhow::bail!(
             "File {} is too large ({} bytes, max {} bytes)",
@@ -498,10 +494,7 @@ pub fn transform_file(
 /// - Level 1 (parallel fan-out): per-file transform_source
 /// - Level 2 (sequential fan-in): aggregate into RepoReport
 #[tracing::instrument(skip(config), level = "info")]
-pub fn transform_repo(
-    path: &str,
-    config: &TransformConfig,
-) -> anyhow::Result<RepoReport> {
+pub fn transform_repo(path: &str, config: &TransformConfig) -> anyhow::Result<RepoReport> {
     let root = Path::new(path);
 
     // Configure the rayon thread pool if a specific parallel count was requested

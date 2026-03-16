@@ -13,7 +13,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use cloudshift_core::analyser::SemanticAnalyser;
 use cloudshift_core::catalogue::Catalogue;
+use cloudshift_core::diff::DiffGenerator;
 use cloudshift_core::domain::entities::{
     CompiledPattern, PatternMatch, TransformResult, Warning, WarningSeverity,
 };
@@ -24,10 +26,8 @@ use cloudshift_core::domain::services::{ConfidenceCalculator, ImportManager, Tra
 use cloudshift_core::domain::value_objects::{
     Confidence, Language, MigrationEffort, OutputFormat, PatternId, SourceCloud, SourceSpan,
 };
-use cloudshift_core::diff::DiffGenerator;
-use cloudshift_core::analyser::SemanticAnalyser;
 use cloudshift_core::pattern::PatternEngine;
-use cloudshift_core::{TransformConfig, transform_file, transform_repo};
+use cloudshift_core::{transform_file, transform_repo, TransformConfig};
 
 // ===========================================================================
 // Helpers
@@ -45,8 +45,7 @@ fn workspace_root() -> PathBuf {
 /// Load the full pattern catalogue from the `patterns/` directory.
 fn load_catalogue() -> Catalogue {
     let catalogue_path = workspace_root().join("patterns");
-    Catalogue::from_directory(&catalogue_path)
-        .expect("Failed to load catalogue")
+    Catalogue::from_directory(&catalogue_path).expect("Failed to load catalogue")
 }
 
 /// Build a default TransformConfig that points at the real catalogue.
@@ -63,8 +62,7 @@ fn default_config() -> TransformConfig {
 /// Load a sample file as a string, given a path relative to `samples/`.
 fn load_sample(relative: &str) -> String {
     let path = workspace_root().join("samples").join(relative);
-    fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e))
+    fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e))
 }
 
 /// Run the pattern engine on a source string and return all matches.
@@ -103,10 +101,15 @@ fn write_temp_file(dir: &Path, name: &str, content: &str) -> PathBuf {
 fn assert_patterns_present(matches: &[PatternMatch], expected_substrings: &[&str]) {
     for substr in expected_substrings {
         assert!(
-            matches.iter().any(|m| m.pattern_id.as_str().contains(substr)),
+            matches
+                .iter()
+                .any(|m| m.pattern_id.as_str().contains(substr)),
             "Expected pattern ID containing '{}' not found among: {:?}",
             substr,
-            matches.iter().map(|m| m.pattern_id.as_str()).collect::<Vec<_>>()
+            matches
+                .iter()
+                .map(|m| m.pattern_id.as_str())
+                .collect::<Vec<_>>()
         );
     }
 }
@@ -118,23 +121,22 @@ fn assert_patterns_present(matches: &[PatternMatch], expected_substrings: &[&str
 #[test]
 fn test_python_aws_storage_service_transform() {
     let source = load_sample("python_aws_app/storage_service.py");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Python,
-        SourceCloud::Aws,
-    );
+    let matches = match_patterns_on_source(source.as_bytes(), Language::Python, SourceCloud::Aws);
 
     // The storage_service.py uses: put_object, get_object, list_objects_v2,
     // delete_object, head_object, generate_presigned_url, copy_object
-    assert_patterns_present(&matches, &[
-        "put_object",
-        "get_object",
-        "list_object",
-        "delete_object",
-        "head_object",
-        "presigned_url",
-        "copy_object",
-    ]);
+    assert_patterns_present(
+        &matches,
+        &[
+            "put_object",
+            "get_object",
+            "list_object",
+            "delete_object",
+            "head_object",
+            "presigned_url",
+            "copy_object",
+        ],
+    );
 
     // Verify at least 7 pattern matches (one per SDK call)
     assert!(
@@ -145,35 +147,42 @@ fn test_python_aws_storage_service_transform() {
 
     // Verify import additions include google.cloud.storage
     let has_gcs_import = matches.iter().any(|m| {
-        m.import_add.iter().any(|i| i.contains("google.cloud") && i.contains("storage"))
+        m.import_add
+            .iter()
+            .any(|i| i.contains("google.cloud") && i.contains("storage"))
     });
-    assert!(has_gcs_import, "Expected at least one match to add a google.cloud.storage import");
+    assert!(
+        has_gcs_import,
+        "Expected at least one match to add a google.cloud.storage import"
+    );
 
     // Verify import removals include boto3
-    let has_boto3_removal = matches.iter().any(|m| {
-        m.import_remove.iter().any(|i| i.contains("boto3"))
-    });
-    assert!(has_boto3_removal, "Expected at least one match to remove boto3 import");
+    let has_boto3_removal = matches
+        .iter()
+        .any(|m| m.import_remove.iter().any(|i| i.contains("boto3")));
+    assert!(
+        has_boto3_removal,
+        "Expected at least one match to remove boto3 import"
+    );
 }
 
 #[test]
 fn test_python_aws_database_service_transform() {
     let source = load_sample("python_aws_app/database_service.py");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Python,
-        SourceCloud::Aws,
-    );
+    let matches = match_patterns_on_source(source.as_bytes(), Language::Python, SourceCloud::Aws);
 
     // DynamoDB operations: put_item, get_item, update_item, delete_item, scan, query
-    assert_patterns_present(&matches, &[
-        "put_item",
-        "get_item",
-        "update_item",
-        "delete_item",
-        "scan",
-        "query",
-    ]);
+    assert_patterns_present(
+        &matches,
+        &[
+            "put_item",
+            "get_item",
+            "update_item",
+            "delete_item",
+            "scan",
+            "query",
+        ],
+    );
 
     assert!(
         matches.len() >= 6,
@@ -185,21 +194,20 @@ fn test_python_aws_database_service_transform() {
 #[test]
 fn test_python_aws_messaging_service_transform() {
     let source = load_sample("python_aws_app/messaging_service.py");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Python,
-        SourceCloud::Aws,
-    );
+    let matches = match_patterns_on_source(source.as_bytes(), Language::Python, SourceCloud::Aws);
 
     // SQS: send_message, receive_message
     // SNS: publish
     // Kinesis: put_record
-    assert_patterns_present(&matches, &[
-        "sqs.send_message",
-        "sqs.receive_message",
-        "sns.publish",
-        "kinesis.put_record",
-    ]);
+    assert_patterns_present(
+        &matches,
+        &[
+            "sqs.send_message",
+            "sqs.receive_message",
+            "sns.publish",
+            "kinesis.put_record",
+        ],
+    );
 
     assert!(
         matches.len() >= 4,
@@ -211,18 +219,11 @@ fn test_python_aws_messaging_service_transform() {
 #[test]
 fn test_python_aws_secrets_service_transform() {
     let source = load_sample("python_aws_app/secrets_service.py");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Python,
-        SourceCloud::Aws,
-    );
+    let matches = match_patterns_on_source(source.as_bytes(), Language::Python, SourceCloud::Aws);
 
     // Secrets Manager: get_secret_value (used twice)
     // STS: assume_role
-    assert_patterns_present(&matches, &[
-        "secretsmanager",
-        "sts.assume_role",
-    ]);
+    assert_patterns_present(&matches, &["secretsmanager", "sts.assume_role"]);
 
     // At least 2 distinct patterns (secrets_manager appears twice in the code,
     // but both map to the same pattern id)
@@ -236,20 +237,12 @@ fn test_python_aws_secrets_service_transform() {
 #[test]
 fn test_python_aws_ml_service_transform() {
     let source = load_sample("python_aws_app/ml_service.py");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Python,
-        SourceCloud::Aws,
-    );
+    let matches = match_patterns_on_source(source.as_bytes(), Language::Python, SourceCloud::Aws);
 
     // Bedrock: invoke_model
     // Rekognition: detect_labels
     // Comprehend: detect_sentiment
-    assert_patterns_present(&matches, &[
-        "bedrock",
-        "rekognition",
-        "comprehend",
-    ]);
+    assert_patterns_present(&matches, &["bedrock", "rekognition", "comprehend"]);
 
     assert!(
         matches.len() >= 3,
@@ -261,19 +254,19 @@ fn test_python_aws_ml_service_transform() {
 #[test]
 fn test_typescript_s3_service_transform() {
     let source = load_sample("typescript_aws_app/s3-service.ts");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::TypeScript,
-        SourceCloud::Aws,
-    );
+    let matches =
+        match_patterns_on_source(source.as_bytes(), Language::TypeScript, SourceCloud::Aws);
 
     // TypeScript S3: PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command
-    assert_patterns_present(&matches, &[
-        "PutObjectCommand",
-        "GetObjectCommand",
-        "DeleteObjectCommand",
-        "ListObjectsV2Command",
-    ]);
+    assert_patterns_present(
+        &matches,
+        &[
+            "PutObjectCommand",
+            "GetObjectCommand",
+            "DeleteObjectCommand",
+            "ListObjectsV2Command",
+        ],
+    );
 
     assert!(
         matches.len() >= 4,
@@ -285,19 +278,19 @@ fn test_typescript_s3_service_transform() {
 #[test]
 fn test_typescript_dynamodb_service_transform() {
     let source = load_sample("typescript_aws_app/dynamo-service.ts");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::TypeScript,
-        SourceCloud::Aws,
-    );
+    let matches =
+        match_patterns_on_source(source.as_bytes(), Language::TypeScript, SourceCloud::Aws);
 
     // TypeScript DynamoDB: PutItemCommand, GetItemCommand, DeleteItemCommand, QueryCommand
-    assert_patterns_present(&matches, &[
-        "PutItemCommand",
-        "GetItemCommand",
-        "DeleteItemCommand",
-        "QueryCommand",
-    ]);
+    assert_patterns_present(
+        &matches,
+        &[
+            "PutItemCommand",
+            "GetItemCommand",
+            "DeleteItemCommand",
+            "QueryCommand",
+        ],
+    );
 
     assert!(
         matches.len() >= 4,
@@ -325,7 +318,14 @@ fn test_terraform_infrastructure_transform() {
     );
 
     // Verify expected pattern IDs exist in the catalogue
-    let expected = ["s3_bucket", "dynamodb_table", "lambda_function", "iam_role", "sqs_queue", "secretsmanager_secret"];
+    let expected = [
+        "s3_bucket",
+        "dynamodb_table",
+        "lambda_function",
+        "iam_role",
+        "sqs_queue",
+        "secretsmanager_secret",
+    ];
     for substr in &expected {
         assert!(
             hcl_patterns.iter().any(|p| p.id.as_str().contains(substr)),
@@ -351,18 +351,11 @@ fn test_terraform_infrastructure_transform() {
 #[test]
 fn test_python_azure_blob_service_transform() {
     let source = load_sample("python_azure_app/blob_service.py");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Python,
-        SourceCloud::Azure,
-    );
+    let matches = match_patterns_on_source(source.as_bytes(), Language::Python, SourceCloud::Azure);
 
     // Azure Blob Storage: upload_blob, download_blob
     // Azure Key Vault: get_secret
-    assert_patterns_present(&matches, &[
-        "blob",
-        "keyvault",
-    ]);
+    assert_patterns_present(&matches, &["blob", "keyvault"]);
 
     assert!(
         matches.len() >= 2,
@@ -383,8 +376,8 @@ fn test_full_python_app_repo_transform() {
     let samples_dir = root.join("samples/python_aws_app");
     let config = default_config();
 
-    let report = transform_repo(&samples_dir.to_string_lossy(), &config)
-        .expect("transform_repo failed");
+    let report =
+        transform_repo(&samples_dir.to_string_lossy(), &config).expect("transform_repo failed");
 
     // Should have changes for all 5 .py files
     assert!(
@@ -395,7 +388,12 @@ fn test_full_python_app_repo_transform() {
 
     // All changed files should be Python
     for change in &report.changes {
-        assert_eq!(change.language, Language::Python, "Non-Python file in Python app: {}", change.file);
+        assert_eq!(
+            change.language,
+            Language::Python,
+            "Non-Python file in Python app: {}",
+            change.file
+        );
     }
 
     // Total pattern count should be substantial (storage + database + messaging + secrets + ml)
@@ -427,8 +425,8 @@ fn test_full_terraform_repo_transform() {
     let samples_dir = root.join("samples/terraform_aws_infra");
     let config = default_config();
 
-    let report = transform_repo(&samples_dir.to_string_lossy(), &config)
-        .expect("transform_repo failed");
+    let report =
+        transform_repo(&samples_dir.to_string_lossy(), &config).expect("transform_repo failed");
 
     // The transform_repo should succeed without error.
     // Due to tree-sitter HCL version incompatibility, the analyser
@@ -443,7 +441,9 @@ fn test_full_terraform_repo_transform() {
     // If HCL parsing works, there should be changes; if not, the report
     // should still be well-formed with zero changes.
     if !report.changes.is_empty() {
-        let hcl_changes: Vec<_> = report.changes.iter()
+        let hcl_changes: Vec<_> = report
+            .changes
+            .iter()
             .filter(|c| c.language == Language::Hcl)
             .collect();
         assert!(
@@ -474,7 +474,11 @@ fn test_empty_file_transform() {
     match result {
         Ok(result) => {
             assert!(!result.has_changes(), "Empty file should have no changes");
-            assert_eq!(result.patterns.len(), 0, "Empty file should have no pattern matches");
+            assert_eq!(
+                result.patterns.len(),
+                0,
+                "Empty file should have no pattern matches"
+            );
         }
         Err(e) => {
             let msg = e.to_string();
@@ -503,15 +507,25 @@ fn test_non_cloud_code_produces_no_storage_matches() {
     let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Aws);
 
     // No storage, database, or messaging patterns should match
-    let cloud_service_matches: Vec<_> = matches.iter().filter(|m| {
-        let id = m.pattern_id.as_str();
-        id.contains("s3") || id.contains("dynamodb") || id.contains("sqs")
-            || id.contains("sns") || id.contains("kinesis") || id.contains("secrets")
-    }).collect();
+    let cloud_service_matches: Vec<_> = matches
+        .iter()
+        .filter(|m| {
+            let id = m.pattern_id.as_str();
+            id.contains("s3")
+                || id.contains("dynamodb")
+                || id.contains("sqs")
+                || id.contains("sns")
+                || id.contains("kinesis")
+                || id.contains("secrets")
+        })
+        .collect();
     assert!(
         cloud_service_matches.is_empty(),
         "Expected no cloud service matches in non-cloud code, got: {:?}",
-        cloud_service_matches.iter().map(|m| m.pattern_id.as_str()).collect::<Vec<_>>()
+        cloud_service_matches
+            .iter()
+            .map(|m| m.pattern_id.as_str())
+            .collect::<Vec<_>>()
     );
 }
 
@@ -566,16 +580,30 @@ def compute(x, y):
 #[test]
 fn test_unknown_language_file_extension() {
     // Language::from_extension should return None for unknown extensions
-    assert!(Language::from_extension("rb").is_none(), ".rb should not be detected");
-    assert!(Language::from_extension("swift").is_none(), ".swift should not be detected");
-    assert!(Language::from_extension("rs").is_none(), ".rs should not be detected");
-    assert!(Language::from_extension("cpp").is_none(), ".cpp should not be detected");
+    assert!(
+        Language::from_extension("rb").is_none(),
+        ".rb should not be detected"
+    );
+    assert!(
+        Language::from_extension("swift").is_none(),
+        ".swift should not be detected"
+    );
+    assert!(
+        Language::from_extension("rs").is_none(),
+        ".rs should not be detected"
+    );
+    assert!(
+        Language::from_extension("cpp").is_none(),
+        ".cpp should not be detected"
+    );
 }
 
 #[test]
 fn test_binary_content_handling() {
     // Binary-like content should not crash the analyser
-    let binary_source: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0xFF, 0xFE];
+    let binary_source: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0xFF, 0xFE,
+    ];
 
     let analyser = SemanticAnalyser::new();
     // The analyser should either return an error or an empty list, but not panic
@@ -583,7 +611,10 @@ fn test_binary_content_handling() {
     match result {
         Ok(constructs) => {
             // If it succeeds, there should be no cloud constructs in binary data
-            assert!(constructs.is_empty(), "Binary content should not produce cloud constructs");
+            assert!(
+                constructs.is_empty(),
+                "Binary content should not produce cloud constructs"
+            );
         }
         Err(_) => {
             // An error is also acceptable — the important thing is it doesn't panic
@@ -630,9 +661,10 @@ cache.get_object("k1")
 
     // Without a boto3 import, any matches that do occur should NOT be
     // high-confidence S3 matches
-    let high_s3 = matches.iter().filter(|m| {
-        m.pattern_id.as_str().contains("s3") && m.confidence.is_high()
-    }).count();
+    let high_s3 = matches
+        .iter()
+        .filter(|m| m.pattern_id.as_str().contains("s3") && m.confidence.is_high())
+        .count();
     assert_eq!(
         high_s3, 0,
         "Should not produce high-confidence S3 matches without boto3 import"
@@ -659,10 +691,15 @@ def save(item):
 
     // Both S3 and DynamoDB patterns should match without interference
     let has_s3 = matches.iter().any(|m| m.pattern_id.as_str().contains("s3"));
-    let has_dynamo = matches.iter().any(|m| m.pattern_id.as_str().contains("dynamodb"));
+    let has_dynamo = matches
+        .iter()
+        .any(|m| m.pattern_id.as_str().contains("dynamodb"));
 
     assert!(has_s3, "S3 pattern should match in mixed S3+DynamoDB file");
-    assert!(has_dynamo, "DynamoDB pattern should match in mixed S3+DynamoDB file");
+    assert!(
+        has_dynamo,
+        "DynamoDB pattern should match in mixed S3+DynamoDB file"
+    );
 
     // All matches should have positive confidence
     for m in &matches {
@@ -678,11 +715,7 @@ def save(item):
 fn test_pattern_confidence_ordering() {
     // Verify that pattern matches have meaningful confidence scores
     let source = load_sample("python_aws_app/storage_service.py");
-    let matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Python,
-        SourceCloud::Aws,
-    );
+    let matches = match_patterns_on_source(source.as_bytes(), Language::Python, SourceCloud::Aws);
 
     assert!(!matches.is_empty(), "Expected matches in storage service");
 
@@ -714,7 +747,8 @@ fn test_pattern_confidence_ordering() {
 fn test_diff_is_valid_unified_format() {
     let differ = DiffGenerator::new();
 
-    let original = "import boto3\ns3 = boto3.client('s3')\ns3.put_object(Bucket='b', Key='k', Body=b'data')\n";
+    let original =
+        "import boto3\ns3 = boto3.client('s3')\ns3.put_object(Bucket='b', Key='k', Body=b'data')\n";
     let transformed = "from google.cloud import storage\nclient = storage.Client()\nblob = client.bucket('b').blob('k')\nblob.upload_from_string(b'data')\n";
 
     let diff = differ.emit_unified_diff("test.py", original, transformed);
@@ -726,13 +760,15 @@ fn test_diff_is_valid_unified_format() {
 
     // Should show removals (lines starting with -)
     assert!(
-        diff.lines().any(|l| l.starts_with('-') && !l.starts_with("---")),
+        diff.lines()
+            .any(|l| l.starts_with('-') && !l.starts_with("---")),
         "Diff should contain deletion lines"
     );
 
     // Should show additions (lines starting with +)
     assert!(
-        diff.lines().any(|l| l.starts_with('+') && !l.starts_with("+++")),
+        diff.lines()
+            .any(|l| l.starts_with('+') && !l.starts_with("+++")),
         "Diff should contain addition lines"
     );
 }
@@ -744,7 +780,10 @@ fn test_diff_empty_when_no_changes() {
     let source = "x = 1\ny = 2\n";
     let diff = differ.emit_unified_diff("test.py", source, source);
 
-    assert!(diff.is_empty(), "Diff should be empty when there are no changes");
+    assert!(
+        diff.is_empty(),
+        "Diff should be empty when there are no changes"
+    );
 }
 
 #[test]
@@ -757,19 +796,33 @@ fn test_json_output_is_valid_json() {
     let json_str = differ.emit_json_diff("test.py", original, transformed);
 
     // Should parse as valid JSON
-    let parsed: serde_json::Value = serde_json::from_str(&json_str)
-        .expect("JSON diff output should be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&json_str).expect("JSON diff output should be valid JSON");
 
     // Should have expected fields
-    assert!(parsed.get("path").is_some(), "JSON diff missing 'path' field");
-    assert!(parsed.get("changed").is_some(), "JSON diff missing 'changed' field");
-    assert!(parsed.get("hunks").is_some(), "JSON diff missing 'hunks' field");
+    assert!(
+        parsed.get("path").is_some(),
+        "JSON diff missing 'path' field"
+    );
+    assert!(
+        parsed.get("changed").is_some(),
+        "JSON diff missing 'changed' field"
+    );
+    assert!(
+        parsed.get("hunks").is_some(),
+        "JSON diff missing 'hunks' field"
+    );
 
     // changed should be true
-    assert_eq!(parsed["changed"], true, "JSON diff 'changed' should be true");
+    assert_eq!(
+        parsed["changed"], true,
+        "JSON diff 'changed' should be true"
+    );
 
     // hunks should be a non-empty array
-    let hunks = parsed["hunks"].as_array().expect("hunks should be an array");
+    let hunks = parsed["hunks"]
+        .as_array()
+        .expect("hunks should be an array");
     assert!(!hunks.is_empty(), "hunks array should not be empty");
 }
 
@@ -780,11 +833,16 @@ fn test_json_output_no_changes() {
     let source = "x = 1\n";
     let json_str = differ.emit_json_diff("test.py", source, source);
 
-    let parsed: serde_json::Value = serde_json::from_str(&json_str)
-        .expect("JSON diff output should be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&json_str).expect("JSON diff output should be valid JSON");
 
-    assert_eq!(parsed["changed"], false, "JSON diff 'changed' should be false when no changes");
-    let hunks = parsed["hunks"].as_array().expect("hunks should be an array");
+    assert_eq!(
+        parsed["changed"], false,
+        "JSON diff 'changed' should be false when no changes"
+    );
+    let hunks = parsed["hunks"]
+        .as_array()
+        .expect("hunks should be an array");
     assert!(hunks.is_empty(), "hunks should be empty when no changes");
 }
 
@@ -820,11 +878,14 @@ fn test_sarif_output_structure() {
     let sarif_str = differ.emit_sarif(&[result]);
 
     // Should parse as valid JSON
-    let sarif: serde_json::Value = serde_json::from_str(&sarif_str)
-        .expect("SARIF output should be valid JSON");
+    let sarif: serde_json::Value =
+        serde_json::from_str(&sarif_str).expect("SARIF output should be valid JSON");
 
     // Required SARIF fields
-    assert!(sarif.get("$schema").is_some(), "SARIF missing '$schema' field");
+    assert!(
+        sarif.get("$schema").is_some(),
+        "SARIF missing '$schema' field"
+    );
     assert_eq!(sarif["version"], "2.1.0", "SARIF version should be 2.1.0");
     assert!(sarif.get("runs").is_some(), "SARIF missing 'runs' field");
 
@@ -835,7 +896,10 @@ fn test_sarif_output_structure() {
     // First run should have a tool and results
     let run = &runs[0];
     assert!(run.get("tool").is_some(), "SARIF run missing 'tool' field");
-    assert!(run.get("results").is_some(), "SARIF run missing 'results' field");
+    assert!(
+        run.get("results").is_some(),
+        "SARIF run missing 'results' field"
+    );
 
     // Tool should have a driver
     let driver = &run["tool"]["driver"];
@@ -843,10 +907,18 @@ fn test_sarif_output_structure() {
     assert_eq!(driver["name"], "CloudShift");
 
     // Results should contain our pattern match
-    let results = run["results"].as_array().expect("results should be an array");
+    let results = run["results"]
+        .as_array()
+        .expect("results should be an array");
     assert!(!results.is_empty(), "SARIF results should not be empty");
-    assert!(results[0].get("ruleId").is_some(), "SARIF result missing 'ruleId'");
-    assert!(results[0].get("locations").is_some(), "SARIF result missing 'locations'");
+    assert!(
+        results[0].get("ruleId").is_some(),
+        "SARIF result missing 'ruleId'"
+    );
+    assert!(
+        results[0].get("locations").is_some(),
+        "SARIF result missing 'locations'"
+    );
 }
 
 #[test]
@@ -857,10 +929,7 @@ fn test_diff_summary_statistics() {
     let transformed = "line1\nmodified_line2\nline3\nnew_line\nline5\n";
 
     let summary = differ.summarize(original, transformed);
-    assert!(
-        summary.total_changes() > 0,
-        "Summary should report changes"
-    );
+    assert!(summary.total_changes() > 0, "Summary should report changes");
 }
 
 // ===========================================================================
@@ -897,8 +966,14 @@ fn test_catalogue_filter_by_language() {
     let hcl = catalogue.get_patterns(Language::Hcl, SourceCloud::Aws);
 
     // All should have patterns
-    assert!(!python.is_empty(), "Python AWS patterns should not be empty");
-    assert!(!typescript.is_empty(), "TypeScript AWS patterns should not be empty");
+    assert!(
+        !python.is_empty(),
+        "Python AWS patterns should not be empty"
+    );
+    assert!(
+        !typescript.is_empty(),
+        "TypeScript AWS patterns should not be empty"
+    );
     assert!(!hcl.is_empty(), "HCL AWS patterns should not be empty");
 
     // Python should have more patterns than TypeScript (50 vs 25 pattern files)
@@ -957,7 +1032,10 @@ fn test_catalogue_get_by_id() {
 
     // Search for an S3 put_object pattern that we know exists
     let s3_patterns = catalogue.search("put_object");
-    assert!(!s3_patterns.is_empty(), "Expected at least one put_object pattern");
+    assert!(
+        !s3_patterns.is_empty(),
+        "Expected at least one put_object pattern"
+    );
 
     let pattern_id = &s3_patterns[0].id;
     let found = catalogue.get_by_id(pattern_id);
@@ -990,7 +1068,9 @@ fn test_catalogue_empty() {
     assert_eq!(empty.count(), 0);
     assert!(empty.all_patterns().is_empty());
     assert!(empty.search("anything").is_empty());
-    assert!(empty.get_patterns(Language::Python, SourceCloud::Aws).is_empty());
+    assert!(empty
+        .get_patterns(Language::Python, SourceCloud::Aws)
+        .is_empty());
     assert!(empty.get_by_id(&PatternId::new("nonexistent")).is_none());
 }
 
@@ -998,7 +1078,10 @@ fn test_catalogue_empty() {
 fn test_catalogue_nonexistent_pattern_returns_none() {
     let catalogue = load_catalogue();
     let result = catalogue.get_by_id(&PatternId::new("does_not_exist_at_all_xyz_12345"));
-    assert!(result.is_none(), "Nonexistent pattern ID should return None");
+    assert!(
+        result.is_none(),
+        "Nonexistent pattern ID should return None"
+    );
 }
 
 // ===========================================================================
@@ -1020,7 +1103,11 @@ fn test_import_deduplication() {
     );
 
     let count = result.matches("from google.cloud import storage").count();
-    assert_eq!(count, 1, "Duplicate import should only appear once, found {}", count);
+    assert_eq!(
+        count, 1,
+        "Duplicate import should only appear once, found {}",
+        count
+    );
 }
 
 #[test]
@@ -1034,8 +1121,14 @@ fn test_import_removal_preserves_other_imports() {
     );
 
     assert!(result.contains("import os"), "Should preserve 'import os'");
-    assert!(result.contains("import json"), "Should preserve 'import json'");
-    assert!(!result.contains("import boto3"), "Should remove 'import boto3'");
+    assert!(
+        result.contains("import json"),
+        "Should preserve 'import json'"
+    );
+    assert!(
+        !result.contains("import boto3"),
+        "Should remove 'import boto3'"
+    );
     assert!(
         result.contains("from google.cloud import storage"),
         "Should add 'from google.cloud import storage'"
@@ -1062,21 +1155,21 @@ fn test_import_add_when_no_existing_imports() {
 #[test]
 fn test_import_removal_only() {
     let source = "import boto3\nimport os\n\nx = 1\n";
-    let result = ImportManager::update_imports(
-        source,
-        Language::Python,
-        &[],
-        &["import boto3".into()],
-    );
+    let result =
+        ImportManager::update_imports(source, Language::Python, &[], &["import boto3".into()]);
 
-    assert!(!result.contains("import boto3"), "Should remove 'import boto3'");
+    assert!(
+        !result.contains("import boto3"),
+        "Should remove 'import boto3'"
+    );
     assert!(result.contains("import os"), "Should preserve 'import os'");
     assert!(result.contains("x = 1"), "Should preserve code");
 }
 
 #[test]
 fn test_import_typescript_format() {
-    let source = "import { S3Client } from '@aws-sdk/client-s3';\nimport { readFileSync } from 'fs';\n";
+    let source =
+        "import { S3Client } from '@aws-sdk/client-s3';\nimport { readFileSync } from 'fs';\n";
     let result = ImportManager::update_imports(
         source,
         Language::TypeScript,
@@ -1108,7 +1201,10 @@ fn test_confidence_boundary_values() {
     // Exact boundary: 0.70 is medium
     assert!(Confidence::new(0.70).is_medium(), "0.70 should be medium");
     // Just below: 0.69 is low
-    assert!(!Confidence::new(0.69).is_medium(), "0.69 should not be medium");
+    assert!(
+        !Confidence::new(0.69).is_medium(),
+        "0.69 should not be medium"
+    );
     assert!(Confidence::new(0.69).is_low(), "0.69 should be low");
     // Edge cases
     assert!(Confidence::new(0.0).is_low(), "0.0 should be low");
@@ -1119,17 +1215,27 @@ fn test_confidence_boundary_values() {
 fn test_confidence_clamping() {
     assert_eq!(Confidence::new(1.5).value(), 1.0, "Should clamp above 1.0");
     assert_eq!(Confidence::new(-0.5).value(), 0.0, "Should clamp below 0.0");
-    assert_eq!(Confidence::new(0.75).value(), 0.75, "Normal value should pass through");
+    assert_eq!(
+        Confidence::new(0.75).value(),
+        0.75,
+        "Normal value should pass through"
+    );
 }
 
 #[test]
 fn test_confidence_from_factors_weighted() {
     // Verify the exact weighting formula: 0.35 + 0.25 + 0.25 + 0.15
     let c = Confidence::from_factors(1.0, 1.0, 1.0, 1.0);
-    assert!((c.value() - 1.0).abs() < 0.001, "All 1.0 factors should give 1.0");
+    assert!(
+        (c.value() - 1.0).abs() < 0.001,
+        "All 1.0 factors should give 1.0"
+    );
 
     let c = Confidence::from_factors(0.0, 0.0, 0.0, 0.0);
-    assert!((c.value() - 0.0).abs() < 0.001, "All 0.0 factors should give 0.0");
+    assert!(
+        (c.value() - 0.0).abs() < 0.001,
+        "All 0.0 factors should give 0.0"
+    );
 
     // Specific case: pattern_specificity=0.9, version=0.8, arg_completeness=0.7, test=1.0
     // 0.9*0.35 + 0.8*0.25 + 0.7*0.25 + 1.0*0.15 = 0.315 + 0.2 + 0.175 + 0.15 = 0.84
@@ -1155,12 +1261,21 @@ fn test_transform_result_immutability() {
     assert!(!result.applied, "New result should not be applied");
 
     let applied = result.mark_applied();
-    assert!(!result.applied, "Original result should remain unchanged after mark_applied");
-    assert!(applied.applied, "New result from mark_applied should be applied");
+    assert!(
+        !result.applied,
+        "Original result should remain unchanged after mark_applied"
+    );
+    assert!(
+        applied.applied,
+        "New result from mark_applied should be applied"
+    );
 
     // Other fields should be identical
     assert_eq!(result.path, applied.path, "Path should be preserved");
-    assert_eq!(result.language, applied.language, "Language should be preserved");
+    assert_eq!(
+        result.language, applied.language,
+        "Language should be preserved"
+    );
     assert_eq!(result.diff, applied.diff, "Diff should be preserved");
 }
 
@@ -1174,7 +1289,10 @@ fn test_transform_result_has_changes() {
         Confidence::new(0.95),
         vec![],
     );
-    assert!(with_changes.has_changes(), "Result with diff should have changes");
+    assert!(
+        with_changes.has_changes(),
+        "Result with diff should have changes"
+    );
 
     let without_changes = TransformResult::new(
         "test.py".to_string(),
@@ -1184,7 +1302,10 @@ fn test_transform_result_has_changes() {
         Confidence::new(1.0),
         vec![],
     );
-    assert!(!without_changes.has_changes(), "Result with empty diff should have no changes");
+    assert!(
+        !without_changes.has_changes(),
+        "Result with empty diff should have no changes"
+    );
 }
 
 #[test]
@@ -1251,7 +1372,11 @@ fn test_language_extensions_are_consistent() {
 
     for lang in &languages {
         let exts = lang.extensions();
-        assert!(!exts.is_empty(), "Language {:?} should have extensions", lang);
+        assert!(
+            !exts.is_empty(),
+            "Language {:?} should have extensions",
+            lang
+        );
 
         for ext in exts {
             let detected = Language::from_extension(ext);
@@ -1272,7 +1397,10 @@ fn test_output_format_parsing() {
 
     assert_eq!(OutputFormat::from_str("diff").unwrap(), OutputFormat::Diff);
     assert_eq!(OutputFormat::from_str("json").unwrap(), OutputFormat::Json);
-    assert_eq!(OutputFormat::from_str("sarif").unwrap(), OutputFormat::Sarif);
+    assert_eq!(
+        OutputFormat::from_str("sarif").unwrap(),
+        OutputFormat::Sarif
+    );
     assert_eq!(OutputFormat::from_str("DIFF").unwrap(), OutputFormat::Diff);
     assert!(OutputFormat::from_str("xml").is_err());
 }
@@ -1314,7 +1442,10 @@ fn test_repo_report_aggregation() {
         "Expected avg confidence 0.875, got {}",
         report.average_confidence
     );
-    assert!(report.average_confidence.is_medium(), "0.875 avg should be medium");
+    assert!(
+        report.average_confidence.is_medium(),
+        "0.875 avg should be medium"
+    );
     assert_eq!(report.overall_effort, MigrationEffort::Medium);
 }
 
@@ -1348,7 +1479,11 @@ fn test_confidence_calculator_with_compiled_pattern() {
 
     // Perfect match: version_match=true, binding_completeness=1.0
     let c = ConfidenceCalculator::calculate(&pattern, 1.0, true);
-    assert!(c.is_high(), "Perfect match should have high confidence: {}", c);
+    assert!(
+        c.is_high(),
+        "Perfect match should have high confidence: {}",
+        c
+    );
 
     // Partial match: version_match=false, binding_completeness=0.5
     let c2 = ConfidenceCalculator::calculate(&pattern, 0.5, false);
@@ -1413,7 +1548,11 @@ fn test_transform_applicator_overlapping_matches() {
     );
 
     // Only one match should remain after overlap resolution
-    assert_eq!(matches.len(), 1, "Should have 1 match after overlap resolution");
+    assert_eq!(
+        matches.len(),
+        1,
+        "Should have 1 match after overlap resolution"
+    );
     assert_eq!(matches[0].pattern_id.as_str(), "high_conf");
 }
 
@@ -1458,8 +1597,14 @@ fn test_transform_applicator_non_overlapping_matches() {
     let result = TransformApplicator::apply_all(source, &mut matches);
 
     // Both non-overlapping matches should be applied
-    assert!(result.contains("new_first()"), "First match should be applied");
-    assert!(result.contains("new_second()"), "Second match should be applied");
+    assert!(
+        result.contains("new_first()"),
+        "First match should be applied"
+    );
+    assert!(
+        result.contains("new_second()"),
+        "Second match should be applied"
+    );
     assert_eq!(matches.len(), 2, "Both matches should be retained");
 }
 
@@ -1502,9 +1647,9 @@ s3.put_object(Bucket='b', Key='k', Body=b'data')
     );
 
     // Should find at least an SDK import construct
-    let has_import = constructs.iter().any(|c| {
-        c.kind == cloudshift_core::domain::entities::ConstructKind::SdkImport
-    });
+    let has_import = constructs
+        .iter()
+        .any(|c| c.kind == cloudshift_core::domain::entities::ConstructKind::SdkImport);
     assert!(has_import, "Should detect boto3 SDK import");
 }
 
@@ -1589,7 +1734,11 @@ fn test_ingestion_discovers_python_files() {
     );
 
     for file in &files {
-        assert_eq!(file.language, Language::Python, "All files should be Python");
+        assert_eq!(
+            file.language,
+            Language::Python,
+            "All files should be Python"
+        );
         assert!(file.size_bytes > 0, "Files should have non-zero size");
     }
 }
@@ -1628,7 +1777,10 @@ fn test_ingestion_empty_directory() {
     let ingestion = Ingestion::with_defaults();
     let files = ingestion.discover_files(&temp_dir).unwrap();
 
-    assert!(files.is_empty(), "Empty directory should produce no discovered files");
+    assert!(
+        files.is_empty(),
+        "Empty directory should produce no discovered files"
+    );
 
     let _ = fs::remove_dir_all(&temp_dir);
 }
@@ -1648,11 +1800,7 @@ fn test_diff_generator_path_sanitization() {
     let differ = DiffGenerator::new();
 
     // Path traversal sequences should be stripped from diff headers
-    let diff = differ.emit_unified_diff(
-        "../../etc/passwd",
-        "before\n",
-        "after\n",
-    );
+    let diff = differ.emit_unified_diff("../../etc/passwd", "before\n", "after\n");
 
     // The diff should not contain ".." path components
     assert!(
@@ -1682,14 +1830,46 @@ fn test_all_non_hcl_sample_files_produce_matches() {
     // Every non-HCL sample file should produce at least one pattern match.
     // HCL is excluded because tree-sitter grammar has a version incompatibility.
     let sample_files = [
-        ("python_aws_app/storage_service.py", Language::Python, SourceCloud::Aws),
-        ("python_aws_app/database_service.py", Language::Python, SourceCloud::Aws),
-        ("python_aws_app/messaging_service.py", Language::Python, SourceCloud::Aws),
-        ("python_aws_app/secrets_service.py", Language::Python, SourceCloud::Aws),
-        ("python_aws_app/ml_service.py", Language::Python, SourceCloud::Aws),
-        ("typescript_aws_app/s3-service.ts", Language::TypeScript, SourceCloud::Aws),
-        ("typescript_aws_app/dynamo-service.ts", Language::TypeScript, SourceCloud::Aws),
-        ("python_azure_app/blob_service.py", Language::Python, SourceCloud::Azure),
+        (
+            "python_aws_app/storage_service.py",
+            Language::Python,
+            SourceCloud::Aws,
+        ),
+        (
+            "python_aws_app/database_service.py",
+            Language::Python,
+            SourceCloud::Aws,
+        ),
+        (
+            "python_aws_app/messaging_service.py",
+            Language::Python,
+            SourceCloud::Aws,
+        ),
+        (
+            "python_aws_app/secrets_service.py",
+            Language::Python,
+            SourceCloud::Aws,
+        ),
+        (
+            "python_aws_app/ml_service.py",
+            Language::Python,
+            SourceCloud::Aws,
+        ),
+        (
+            "typescript_aws_app/s3-service.ts",
+            Language::TypeScript,
+            SourceCloud::Aws,
+        ),
+        (
+            "typescript_aws_app/dynamo-service.ts",
+            Language::TypeScript,
+            SourceCloud::Aws,
+        ),
+        (
+            "python_azure_app/blob_service.py",
+            Language::Python,
+            SourceCloud::Azure,
+        ),
     ];
 
     for (file, lang, cloud) in &sample_files {
@@ -1708,11 +1888,7 @@ fn test_hcl_sample_file_graceful_handling() {
     // HCL file should either produce matches or gracefully handle
     // the tree-sitter version incompatibility without panicking.
     let source = load_sample("terraform_aws_infra/main.tf");
-    let _matches = match_patterns_on_source(
-        source.as_bytes(),
-        Language::Hcl,
-        SourceCloud::Aws,
-    );
+    let _matches = match_patterns_on_source(source.as_bytes(), Language::Hcl, SourceCloud::Aws);
     // No panic = success. Matches may or may not be empty depending
     // on tree-sitter HCL grammar compatibility.
 }

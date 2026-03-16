@@ -39,8 +39,7 @@ fn load_fixture_meta(fixture_dir: &Path) -> FixtureMeta {
 /// Load a fixture file's content as a string.
 fn load_fixture_file(fixture_dir: &Path, filename: &str) -> String {
     let path = fixture_dir.join(filename);
-    fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e))
+    fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e))
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +101,9 @@ fn test_parse_python_fixture_with_tree_sitter() {
         .set_language(&language.into())
         .expect("Failed to set Python language");
 
-    let tree = parser.parse(&source, None).expect("Failed to parse Python source");
+    let tree = parser
+        .parse(&source, None)
+        .expect("Failed to parse Python source");
     let root_node = tree.root_node();
 
     // Should parse without errors
@@ -113,7 +114,10 @@ fn test_parse_python_fixture_with_tree_sitter() {
 
     // Should contain function definitions
     let child_count = root_node.named_child_count();
-    assert!(child_count >= 4, "Expected at least 4 top-level nodes (import, assignment, 3 functions)");
+    assert!(
+        child_count >= 4,
+        "Expected at least 4 top-level nodes (import, assignment, 3 functions)"
+    );
 }
 
 #[test]
@@ -128,7 +132,9 @@ fn test_parse_typescript_fixture_with_tree_sitter() {
         .set_language(&language.into())
         .expect("Failed to set TypeScript language");
 
-    let tree = parser.parse(&source, None).expect("Failed to parse TypeScript source");
+    let tree = parser
+        .parse(&source, None)
+        .expect("Failed to parse TypeScript source");
     let root_node = tree.root_node();
 
     assert!(!root_node.has_error(), "Parse tree contains errors");
@@ -149,12 +155,7 @@ fn test_load_pattern_toml_files() {
     let toml_files: Vec<_> = fs::read_dir(&patterns_dir)
         .expect("Failed to read patterns directory")
         .filter_map(|entry| entry.ok())
-        .filter(|entry| {
-            entry
-                .path()
-                .extension()
-                .map_or(false, |ext| ext == "toml")
-        })
+        .filter(|entry| entry.path().extension().map_or(false, |ext| ext == "toml"))
         .collect();
 
     assert!(
@@ -198,7 +199,10 @@ fn test_parse_s3_put_object_pattern() {
     let language = pattern.get("language").and_then(|v| v.as_str()).unwrap();
     assert_eq!(language, "python");
 
-    let confidence = pattern.get("confidence").and_then(|v| v.as_float()).unwrap();
+    let confidence = pattern
+        .get("confidence")
+        .and_then(|v| v.as_float())
+        .unwrap();
     assert!(confidence > 0.90);
 
     // Verify detect query exists and is non-empty
@@ -208,13 +212,20 @@ fn test_parse_s3_put_object_pattern() {
     assert!(query.contains("put_object"));
 
     // Verify transform template exists and contains the GCP replacement expression
-    let transform = pattern.get("transform").expect("Missing [pattern.transform]");
+    let transform = pattern
+        .get("transform")
+        .expect("Missing [pattern.transform]");
     let template = transform.get("template").and_then(|v| v.as_str()).unwrap();
     assert!(template.contains("storage.Client()"));
 
     // Verify imports are handled separately from the template
-    let import_add = transform.get("import_add").and_then(|v| v.as_array()).unwrap();
-    assert!(import_add.iter().any(|v| v.as_str().unwrap().contains("google.cloud")));
+    let import_add = transform
+        .get("import_add")
+        .and_then(|v| v.as_array())
+        .unwrap();
+    assert!(import_add
+        .iter()
+        .any(|v| v.as_str().unwrap().contains("google.cloud")));
 }
 
 // ---------------------------------------------------------------------------
@@ -276,9 +287,9 @@ fn test_confidence_from_fixture_meta() {
     let root = workspace_root();
 
     let test_cases = vec![
-        ("tests/patterns/python/aws_s3_to_gcs", true),             // 0.94 — high
+        ("tests/patterns/python/aws_s3_to_gcs", true), // 0.94 — high
         ("tests/patterns/python/aws_dynamodb_to_firestore", false), // 0.88 — medium
-        ("tests/patterns/hcl/aws_iam_to_google_iam", false),       // 0.78 — medium
+        ("tests/patterns/hcl/aws_iam_to_google_iam", false), // 0.78 — medium
     ];
 
     for (fixture_rel, expect_high) in test_cases {
@@ -388,8 +399,7 @@ fn test_full_pipeline_with_catalogue() {
     // Load the actual pattern catalogue from patterns/
     let catalogue_path = workspace_root().join("patterns");
 
-    let catalogue =
-        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+    let catalogue = cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
 
     // Verify we loaded a substantial number of patterns (62 expected)
     assert!(
@@ -439,10 +449,7 @@ fn test_transform_file_with_real_patterns() {
         ..Default::default()
     };
 
-    let result = cloudshift_core::transform_file(
-        &fixture_path.to_string_lossy(),
-        &config,
-    );
+    let result = cloudshift_core::transform_file(&fixture_path.to_string_lossy(), &config);
 
     // The transform should succeed
     assert!(result.is_ok(), "transform_file failed: {:?}", result.err());
@@ -466,10 +473,7 @@ fn test_transform_repo_with_real_patterns() {
         ..Default::default()
     };
 
-    let result = cloudshift_core::transform_repo(
-        &fixtures_dir.to_string_lossy(),
-        &config,
-    );
+    let result = cloudshift_core::transform_repo(&fixtures_dir.to_string_lossy(), &config);
 
     assert!(result.is_ok(), "transform_repo failed: {:?}", result.err());
     let report = result.unwrap();
@@ -485,8 +489,7 @@ fn test_all_pattern_toml_files_compile() {
     // Verify EVERY pattern TOML file in the catalogue can be compiled
     let catalogue_path = workspace_root().join("patterns");
 
-    let catalogue =
-        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+    let catalogue = cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
     let warnings = catalogue.warnings();
 
     // No pattern file should fail to compile
@@ -505,8 +508,7 @@ fn test_pattern_matching_on_boto3_code() {
     let source = b"import boto3\n\ns3 = boto3.client('s3')\ns3.put_object(Bucket='mybucket', Key='mykey', Body=b'data')\n";
 
     let catalogue_path = workspace_root().join("patterns");
-    let catalogue =
-        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+    let catalogue = cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
 
     use cloudshift_core::domain::ports::PatternRepositoryPort;
     let python_patterns = catalogue.get_patterns(
@@ -556,8 +558,7 @@ s3.put_object(Bucket=get_bucket_name("prod"), Key=f"{prefix}/file.txt", Body=jso
 "#;
 
     let catalogue_path = workspace_root().join("patterns");
-    let catalogue =
-        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+    let catalogue = cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
 
     use cloudshift_core::domain::ports::PatternRepositoryPort;
     let python_patterns = catalogue.get_patterns(
@@ -587,14 +588,18 @@ s3.put_object(Bucket=get_bucket_name("prod"), Key=f"{prefix}/file.txt", Body=jso
     // The replacement should contain the full complex bucket expression,
     // not a truncated version from naive comma splitting
     assert!(
-        put_match.replacement_text.contains("get_bucket_name(\"prod\")"),
+        put_match
+            .replacement_text
+            .contains("get_bucket_name(\"prod\")"),
         "Bucket binding should contain the full call expression, got: {}",
         put_match.replacement_text
     );
 
     // The key binding should contain the f-string
     assert!(
-        put_match.replacement_text.contains("f\"{prefix}/file.txt\""),
+        put_match
+            .replacement_text
+            .contains("f\"{prefix}/file.txt\""),
         "Key binding should contain the full f-string, got: {}",
         put_match.replacement_text
     );
@@ -616,8 +621,7 @@ s3.put_object(Bucket="my-bucket", Key="path/to/file, with comma.txt", Body=b"dat
 "#;
 
     let catalogue_path = workspace_root().join("patterns");
-    let catalogue =
-        cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
+    let catalogue = cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
 
     use cloudshift_core::domain::ports::PatternRepositoryPort;
     let python_patterns = catalogue.get_patterns(
@@ -645,7 +649,9 @@ s3.put_object(Bucket="my-bucket", Key="path/to/file, with comma.txt", Body=b"dat
 
     // Key should contain the full string including the comma
     assert!(
-        put_match.replacement_text.contains("\"path/to/file, with comma.txt\""),
+        put_match
+            .replacement_text
+            .contains("\"path/to/file, with comma.txt\""),
         "Key binding should preserve string with comma, got: {}",
         put_match.replacement_text
     );

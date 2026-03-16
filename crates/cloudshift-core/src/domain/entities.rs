@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use crate::domain::value_objects::*;
 use crate::domain::events::DomainEvent;
+use crate::domain::value_objects::*;
+use serde::{Deserialize, Serialize};
 
 /// Result of transforming a single file.
 /// Immutable — state changes produce new instances.

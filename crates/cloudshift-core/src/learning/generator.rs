@@ -40,10 +40,7 @@ pub fn generate_candidate_pattern(
     let pattern_id = format!(
         "learned.{} -> gcp.{}",
         change.source_construct.replace('_', "."),
-        change
-            .target_construct
-            .replace("::", ".")
-            .replace('_', ".")
+        change.target_construct.replace("::", ".").replace('_', ".")
     );
 
     // Build a simple detection query based on the source construct
