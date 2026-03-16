@@ -61,6 +61,7 @@ jobs:
             --region ${{ env.GCP_REGION }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --no-allow-unauthenticated \
+            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
             --quiet
         env:
           CLOUDSDK_CORE_PROJECT: ${{ env.GCP_PROJECT_ID }}
