@@ -38,7 +38,7 @@ fn has_valid_auth_from_headers(headers: &HeaderMap) -> bool {
             return true;
         }
     }
-    if let Some(api_key) = std::env::var("CLOUDSHIFT_API_KEY").ok() {
+    if let Ok(api_key) = std::env::var("CLOUDSHIFT_API_KEY") {
         let api_key = api_key.trim();
         if !api_key.is_empty()
             && headers
