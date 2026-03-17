@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudShift — Cloud migration transform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon" aria-hidden="true"></span>
+        <span class="logo-text">CloudShift</span>
+      </div>
+      <p class="tagline">Transform cloud-native code for migration</p>
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost" id="settings-btn" title="Settings">Settings</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel panel-source">
+      <div class="panel-head">
+        <h2 class="panel-title">Source</h2>
+        <div class="controls">
+          <label class="control">
+            <span class="control-label">Language</span>
+            <select id="language" class="select">
+              <option value="python">Python</option>
+              <option value="typescript">TypeScript</option>
+              <option value="javascript">JavaScript</option>
+              <option value="java">Java</option>
+              <option value="go">Go</option>
+              <option value="hcl">HCL</option>
+              <option value="yaml">YAML</option>
+              <option value="dockerfile">Dockerfile</option>
+              <option value="json">JSON</option>
+            </select>
+          </label>
+          <label class="control">
+            <span class="control-label">Source cloud</span>
+            <select id="source_cloud" class="select">
+              <option value="any">Any</option>
+              <option value="aws">AWS</option>
+              <option value="azure">Azure</option>
+            </select>
+          </label>
+          <label class="control control-path">
+            <span class="control-label">Path hint</span>
+            <input type="text" id="path_hint" class="input" placeholder="e.g. src/main.py" />
+          </label>
+        </div>
+      </div>
+      <div class="editor-wrap">
+        <textarea id="source" class="editor" placeholder="Paste or type source code to transform…" spellcheck="false"></textarea>
+      </div>
+      <div class="panel-foot">
+        <button type="button" class="btn btn-primary" id="transform-btn">
+          <span class="btn-icon" aria-hidden="true"></span>
+          Transform
+        </button>
+        <span class="status" id="status" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="panel panel-result" id="result-panel" aria-live="polite">
+      <div class="panel-head">
+        <h2 class="panel-title">Result</h2>
+        <div class="result-meta" id="result-meta"></div>
+      </div>
+      <div class="result-body">
+        <div class="empty-state" id="empty-state">
+          <p>Run a transform to see the diff and applied patterns here.</p>
+        </div>
+        <div class="result-content hidden" id="result-content">
+          <div class="result-section" id="result-diff-wrap">
+            <h3 class="result-section-title">Diff</h3>
+            <pre class="diff-view" id="diff-view"></pre>
+          </div>
+          <div class="result-section" id="result-patterns-wrap">
+            <h3 class="result-section-title">Patterns applied</h3>
+            <ul class="pattern-list" id="pattern-list"></ul>
+          </div>
+          <div class="result-section" id="result-warnings-wrap">
+            <h3 class="result-section-title">Warnings</h3>
+            <ul class="warning-list" id="warning-list"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
+    <div class="modal-inner">
+      <h2 id="settings-title" class="modal-title">Settings</h2>
+      <label class="control">
+        <span class="control-label">API key (optional)</span>
+        <input type="password" id="api-key" class="input" placeholder="Used when not behind IAP" autocomplete="off" />
+        <span class="control-hint">Required for direct Cloud Run URL; leave empty when using IAP.</span>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="settings-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="settings-save">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>

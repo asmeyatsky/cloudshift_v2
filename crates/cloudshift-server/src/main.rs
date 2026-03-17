@@ -1,7 +1,6 @@
-//! HTTP server for Cloud Run — health, auth, and transformation API (PRD deployment).
+//! HTTP server for Cloud Run — health, auth, transformation API, and static frontend.
 
 use axum::{
-    extract::Request,
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -13,48 +12,11 @@ use cloudshift_core::{
 };
 use serde::Deserialize;
 use std::net::SocketAddr;
+use std::path::Path;
+use tower_http::services::ServeDir;
 use tracing_subscriber::EnvFilter;
 
 const AUTH_REQUIRED_MSG: &str = "IAP / X-Searce-ID / Bearer or valid X-API-Key required";
-
-fn has_valid_auth(req: &Request) -> bool {
-    if req.headers().get("X-Goog-IAP-JWT-Assertion").is_some() {
-        return true;
-    }
-    if req
-        .headers()
-        .get("X-Searce-ID")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| !s.trim().is_empty())
-        .unwrap_or(false)
-    {
-        return true;
-    }
-    if let Some(auth) = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-    {
-        if auth.starts_with("Bearer ") && !auth[7..].trim().is_empty() {
-            return true;
-        }
-    }
-    if let Some(api_key) = std::env::var("CLOUDSHIFT_API_KEY")
-        .ok()
-        .filter(|k| !k.is_empty())
-    {
-        if req
-            .headers()
-            .get("X-API-Key")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.trim() == api_key.trim())
-            .unwrap_or(false)
-        {
-            return true;
-        }
-    }
-    false
-}
 
 fn has_valid_auth_from_headers(headers: &HeaderMap) -> bool {
     if headers.get("X-Goog-IAP-JWT-Assertion").is_some() {
@@ -92,12 +54,9 @@ fn has_valid_auth_from_headers(headers: &HeaderMap) -> bool {
     false
 }
 
-async fn root(req: Request) -> Response {
-    if has_valid_auth(&req) {
-        "ok".into_response()
-    } else {
-        (StatusCode::UNAUTHORIZED, AUTH_REQUIRED_MSG).into_response()
-    }
+/// Root fallback when static dir is not present (API-only mode).
+async fn root() -> &'static str {
+    "ok"
 }
 
 async fn health() -> &'static str {
@@ -179,14 +138,20 @@ async fn main() {
         )
         .init();
 
+    let static_dir = std::env::var("CLOUDSHIFT_STATIC_DIR").unwrap_or_else(|_| "static".into());
+    let has_static = Path::new(&static_dir).is_dir();
+
     let app = Router::new()
-        .route("/", get(root))
-        .route("/index.html", get(root))
         .route("/favicon.ico", get(favicon))
         .route("/health", get(health))
         .route("/ready", get(ready))
-        .route("/api/transform", post(api_transform))
-        .fallback(get(not_found));
+        .route("/api/transform", post(api_transform));
+    let app = if has_static {
+        app.nest_service("/", ServeDir::new(static_dir))
+    } else {
+        app.route("/", get(root)).route("/index.html", get(root))
+    };
+    let app = app.fallback(get(not_found));
 
     let port: u16 = std::env::var("PORT")
         .ok()
