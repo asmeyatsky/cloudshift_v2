@@ -155,10 +155,12 @@ async fn api_transform(headers: HeaderMap, body: Json<TransformRequestBody>) -> 
             Language::Dockerfile => "Dockerfile",
             Language::Json => "config.json",
         });
-    let mut config = TransformConfig::default();
-    config.source_cloud = body.source_cloud.unwrap_or(SourceCloud::Any);
-    config.dry_run = true;
-    config.catalogue_path = std::env::var("CLOUDSHIFT_PATTERNS_DIR").ok();
+    let config = TransformConfig {
+        source_cloud: body.source_cloud.unwrap_or(SourceCloud::Any),
+        dry_run: true,
+        catalogue_path: std::env::var("CLOUDSHIFT_PATTERNS_DIR").ok(),
+        ..Default::default()
+    };
     match transform_source_for_api(path_hint, &body.source, body.language, &config) {
         Ok(result) => Json(result).into_response(),
         Err(e) => (
