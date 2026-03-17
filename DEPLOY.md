@@ -7,7 +7,12 @@ Deploys on every push to `main`. (tests run first). Access is via IAP (Searce si
 
 **GitHub secret:** `GCP_SA_KEY` = full JSON key for your existing CloudShift service account (the one that has Cloud Run Admin / deploy rights). Create key in GCP → IAM → Service accounts → your SA → Keys → Add key → JSON, then paste the entire file into the secret.
 
-**Gemini key (for the app at runtime):** In the repo on GitHub, go to Settings → Secrets and variables → Actions, add a repository secret named `GEMINI_API_KEY` with your Gemini API key. The workflow passes it to Cloud Run as env var `GEMINI_API_KEY`. If you don’t need it yet, add a dummy value or remove the `--set-env-vars "GEMINI_API_KEY=..."` line from the workflow.
+**Secrets (for the app at runtime):** In the repo on GitHub, go to Settings → Secrets and variables → Actions and add:
+
+- `GEMINI_API_KEY` — your Gemini API key (or a dummy value if unused).
+- `CLOUDSHIFT_API_KEY` — the API key for direct Cloud Run URL auth. Must match the value you enter in the app’s Settings. Do not use `##` in this value (used as delimiter in deploy).
+
+The workflow passes both to Cloud Run in a single `--set-env-vars` (repeated flags replace all vars, so we use one flag with a `##` delimiter).
 
 ### Repoint cloudshift.poc-searce.com from v1 to v2
 

@@ -56,16 +56,15 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
+          # Single --set-env-vars: each repeated flag replaces ALL vars, so only one flag with custom delimiter (##).
+          # API key must not contain ##.
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --source . \
             --region ${{ env.GCP_REGION }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --allow-unauthenticated \
             --ingress=all \
-            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
-            --set-env-vars "CLOUDSHIFT_API_KEY=${{ secrets.CLOUDSHIFT_API_KEY }}" \
-            --set-env-vars "CLOUDSHIFT_PATTERNS_DIR=/app/patterns" \
-            --set-env-vars "CLOUDSHIFT_STATIC_DIR=/app/static" \
+            --set-env-vars "^##^GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}##CLOUDSHIFT_API_KEY=${{ secrets.CLOUDSHIFT_API_KEY }}##CLOUDSHIFT_PATTERNS_DIR=/app/patterns##CLOUDSHIFT_STATIC_DIR=/app/static" \
             --quiet
         env:
           CLOUDSDK_CORE_PROJECT: ${{ env.GCP_PROJECT_ID }}

@@ -163,6 +163,12 @@ async fn main() {
     };
     let app = app.fallback(get(not_found));
 
+    if let Ok(k) = std::env::var("CLOUDSHIFT_API_KEY") {
+        let len = k.trim().len();
+        tracing::info!("CLOUDSHIFT_API_KEY is set (length {})", len);
+    } else {
+        tracing::info!("CLOUDSHIFT_API_KEY is not set (X-API-Key auth disabled)");
+    }
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
