@@ -49,6 +49,11 @@ async fn ready() -> &'static str {
     "ready"
 }
 
+/// Avoid 404 for browser favicon requests.
+async fn favicon() -> Response {
+    (StatusCode::NO_CONTENT, ()).into_response()
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -59,6 +64,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(root))
+        .route("/favicon.ico", get(favicon))
         .route("/health", get(health))
         .route("/ready", get(ready));
 
