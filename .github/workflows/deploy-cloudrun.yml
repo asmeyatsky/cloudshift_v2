@@ -61,7 +61,7 @@ jobs:
             --region ${{ env.GCP_REGION }} \
             --project ${{ env.GCP_PROJECT_ID }} \
             --allow-unauthenticated \
-            --ingress=internal-and-cloud-load-balancing \
+            --ingress=all \
             --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},CLOUDSHIFT_API_KEY=${{ secrets.CLOUDSHIFT_API_KEY }}" \
             --quiet
         env:
