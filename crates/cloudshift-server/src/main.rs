@@ -10,23 +10,41 @@ use axum::{
 use std::net::SocketAddr;
 use tracing_subscriber::EnvFilter;
 
-const AUTH_REQUIRED_MSG: &str =
-    "IAP / X-Searce-ID / Bearer or valid X-API-Key required";
+const AUTH_REQUIRED_MSG: &str = "IAP / X-Searce-ID / Bearer or valid X-API-Key required";
 
 fn has_valid_auth(req: &Request) -> bool {
     if req.headers().get("X-Goog-IAP-JWT-Assertion").is_some() {
         return true;
     }
-    if req.headers().get("X-Searce-ID").and_then(|v| v.to_str().ok()).map(|s| !s.trim().is_empty()).unwrap_or(false) {
+    if req
+        .headers()
+        .get("X-Searce-ID")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false)
+    {
         return true;
     }
-    if let Some(auth) = req.headers().get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) {
+    if let Some(auth) = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+    {
         if auth.starts_with("Bearer ") && !auth[7..].trim().is_empty() {
             return true;
         }
     }
-    if let Some(api_key) = std::env::var("CLOUDSHIFT_API_KEY").ok().filter(|k| !k.is_empty()) {
-        if req.headers().get("X-API-Key").and_then(|v| v.to_str().ok()).map(|s| s.trim() == api_key.trim()).unwrap_or(false) {
+    if let Some(api_key) = std::env::var("CLOUDSHIFT_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+    {
+        if req
+            .headers()
+            .get("X-API-Key")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.trim() == api_key.trim())
+            .unwrap_or(false)
+        {
             return true;
         }
     }
