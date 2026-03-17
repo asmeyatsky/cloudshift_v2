@@ -72,6 +72,10 @@ async fn favicon() -> Response {
     (StatusCode::NO_CONTENT, ()).into_response()
 }
 
+async fn not_found() -> Response {
+    (StatusCode::NOT_FOUND, "Not found").into_response()
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -82,9 +86,11 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(root))
+        .route("/index.html", get(root))
         .route("/favicon.ico", get(favicon))
         .route("/health", get(health))
-        .route("/ready", get(ready));
+        .route("/ready", get(ready))
+        .fallback(get(not_found));
 
     let port: u16 = std::env::var("PORT")
         .ok()
