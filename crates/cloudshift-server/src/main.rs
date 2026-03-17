@@ -38,15 +38,14 @@ fn has_valid_auth_from_headers(headers: &HeaderMap) -> bool {
             return true;
         }
     }
-    if let Some(api_key) = std::env::var("CLOUDSHIFT_API_KEY")
-        .ok()
-        .filter(|k| !k.is_empty())
-    {
-        if headers
-            .get("X-API-Key")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.trim() == api_key.trim())
-            .unwrap_or(false)
+    if let Some(api_key) = std::env::var("CLOUDSHIFT_API_KEY").ok() {
+        let api_key = api_key.trim();
+        if !api_key.is_empty()
+            && headers
+                .get("X-API-Key")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim() == api_key)
+                .unwrap_or(false)
         {
             return true;
         }

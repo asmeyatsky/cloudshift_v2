@@ -101,7 +101,7 @@
       <label class="control">
         <span class="control-label">API key (optional)</span>
         <input type="password" id="api-key" class="input" placeholder="Used when not behind IAP" autocomplete="off" />
-        <span class="control-hint">Required for direct Cloud Run URL; leave empty when using IAP.</span>
+        <span class="control-hint">Must match the deployment’s CLOUDSHIFT_API_KEY (same value as in GitHub Secrets). Leave empty when using IAP.</span>
       </label>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" id="settings-cancel">Cancel</button>

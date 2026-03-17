@@ -173,7 +173,7 @@
     const headers = {
       'Content-Type': 'application/json',
     };
-    const apiKey = getApiKey();
+    const apiKey = (getApiKey() || '').trim();
     if (apiKey) {
       headers['X-API-Key'] = apiKey;
     }
