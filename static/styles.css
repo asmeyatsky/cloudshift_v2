@@ -412,6 +412,13 @@ body {
   color: var(--text-muted);
 }
 
+.diff-view.empty-message {
+  white-space: normal;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
 .pattern-list,
 .warning-list {
   margin: 0;

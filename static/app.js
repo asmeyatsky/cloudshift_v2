@@ -52,6 +52,7 @@
   }
 
   function renderDiff(diffText) {
+    el.diffView.classList.remove('empty-message');
     if (!diffText || !diffText.trim()) {
       el.diffView.innerHTML = '';
       return;
@@ -149,7 +150,18 @@
     el.resultMeta.innerHTML = '';
     el.resultMeta.appendChild(confidenceEl);
 
-    renderDiff(data.diff || '');
+    const hasDiff = (data.diff || '').trim().length > 0;
+    const hasPatterns = data.patterns && data.patterns.length > 0;
+
+    if (!hasDiff && !hasPatterns) {
+      renderDiff('');
+      el.diffView.classList.add('empty-message');
+      el.diffView.textContent = 'No changes suggested. No migration patterns matched this code, or the pattern catalogue is empty. Try AWS/Azure SDK code (e.g. boto3 S3, Azure Blob) in the selected language.';
+    } else {
+      el.diffView.classList.remove('empty-message');
+      renderDiff(data.diff || '');
+    }
+
     renderPatterns(data.patterns || []);
     renderWarnings(data.warnings || []);
   }
@@ -208,6 +220,11 @@
         if (res.status === 401) {
           setStatus('Unauthorized. Add an API key in Settings if using the direct URL.', 'error');
         }
+        return;
+      }
+
+      if (!data || typeof data !== 'object') {
+        setStatus('Invalid response from server.', 'error');
         return;
       }
 
