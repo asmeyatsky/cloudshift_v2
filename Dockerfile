@@ -11,7 +11,9 @@ RUN cargo build --release -p cloudshift-server
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/cloudshift-server /usr/local/bin/
+COPY --chown=nobody:nogroup patterns /app/patterns
 ENV PORT=8080
+ENV CLOUDSHIFT_PATTERNS_DIR=/app/patterns
 EXPOSE 8080
 USER nobody
 CMD ["cloudshift-server"]

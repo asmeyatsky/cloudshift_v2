@@ -417,6 +417,32 @@ fn transform_source(
     )
 }
 
+/// Transform in-memory source (for API / remote processing).
+///
+/// Uses the same pipeline as `transform_file` but accepts source as a string.
+/// Caller must ensure `config.catalogue_path` is set if patterns are required.
+#[tracing::instrument(skip(config, source), level = "info")]
+pub fn transform_source_for_api(
+    path_hint: &str,
+    source: &str,
+    language: Language,
+    config: &TransformConfig,
+) -> anyhow::Result<TransformResult> {
+    let catalogue = load_catalogue(config)?;
+    let patterns = catalogue.all_patterns();
+    Ok(transform_source(
+        path_hint,
+        source,
+        language,
+        config.source_cloud,
+        patterns,
+        config.output_format,
+        config.threshold,
+        None,
+        None,
+    ))
+}
+
 /// Transform a single file, reading it from disk.
 ///
 /// Orchestrates: read file → detect language → parse → analyse →

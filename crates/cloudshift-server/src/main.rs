@@ -1,12 +1,17 @@
-//! Minimal HTTP server for Cloud Run — listens on PORT, auth (IAP / X-Searce-ID / Bearer / X-API-Key), health/ready.
+//! HTTP server for Cloud Run — health, auth, and transformation API (PRD deployment).
 
 use axum::{
     extract::Request,
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::get,
-    Router,
+    routing::{get, post},
+    Json, Router,
 };
+use cloudshift_core::{
+    pipeline::{transform_source_for_api, TransformConfig},
+    Language, SourceCloud,
+};
+use serde::Deserialize;
 use std::net::SocketAddr;
 use tracing_subscriber::EnvFilter;
 
@@ -51,6 +56,42 @@ fn has_valid_auth(req: &Request) -> bool {
     false
 }
 
+fn has_valid_auth_from_headers(headers: &HeaderMap) -> bool {
+    if headers.get("X-Goog-IAP-JWT-Assertion").is_some() {
+        return true;
+    }
+    if headers
+        .get("X-Searce-ID")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    if let Some(auth) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+    {
+        if auth.starts_with("Bearer ") && !auth[7..].trim().is_empty() {
+            return true;
+        }
+    }
+    if let Some(api_key) = std::env::var("CLOUDSHIFT_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+    {
+        if headers
+            .get("X-API-Key")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.trim() == api_key.trim())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+    }
+    false
+}
+
 async fn root(req: Request) -> Response {
     if has_valid_auth(&req) {
         "ok".into_response()
@@ -76,6 +117,58 @@ async fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "Not found").into_response()
 }
 
+/// Max request body size for /api/transform (1 MiB).
+const MAX_TRANSFORM_BODY: usize = 1024 * 1024;
+
+#[derive(Deserialize)]
+struct TransformRequestBody {
+    source: String,
+    language: Language,
+    #[serde(default)]
+    source_cloud: Option<SourceCloud>,
+    #[serde(default)]
+    path_hint: Option<String>,
+}
+
+async fn api_transform(headers: HeaderMap, body: Json<TransformRequestBody>) -> Response {
+    if !has_valid_auth_from_headers(&headers) {
+        return (StatusCode::UNAUTHORIZED, AUTH_REQUIRED_MSG).into_response();
+    }
+    if body.source.len() > MAX_TRANSFORM_BODY {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("Source exceeds max size ({} bytes)", MAX_TRANSFORM_BODY),
+        )
+            .into_response();
+    }
+    let path_hint = body
+        .path_hint
+        .as_deref()
+        .unwrap_or_else(|| match body.language {
+            Language::Python => "main.py",
+            Language::TypeScript => "main.ts",
+            Language::JavaScript => "main.js",
+            Language::Java => "Main.java",
+            Language::Go => "main.go",
+            Language::Hcl => "main.tf",
+            Language::Yaml => "main.yaml",
+            Language::Dockerfile => "Dockerfile",
+            Language::Json => "config.json",
+        });
+    let mut config = TransformConfig::default();
+    config.source_cloud = body.source_cloud.unwrap_or(SourceCloud::Any);
+    config.dry_run = true;
+    config.catalogue_path = std::env::var("CLOUDSHIFT_PATTERNS_DIR").ok();
+    match transform_source_for_api(path_hint, &body.source, body.language, &config) {
+        Ok(result) => Json(result).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Transform failed: {}", e),
+        )
+            .into_response(),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -90,6 +183,7 @@ async fn main() {
         .route("/favicon.ico", get(favicon))
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .route("/api/transform", post(api_transform))
         .fallback(get(not_found));
 
     let port: u16 = std::env::var("PORT")

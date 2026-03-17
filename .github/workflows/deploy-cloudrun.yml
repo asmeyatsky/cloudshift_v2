@@ -62,7 +62,7 @@ jobs:
             --project ${{ env.GCP_PROJECT_ID }} \
             --allow-unauthenticated \
             --ingress=all \
-            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},CLOUDSHIFT_API_KEY=${{ secrets.CLOUDSHIFT_API_KEY }}" \
+            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},CLOUDSHIFT_API_KEY=${{ secrets.CLOUDSHIFT_API_KEY }},CLOUDSHIFT_PATTERNS_DIR=/app/patterns" \
             --quiet
         env:
           CLOUDSDK_CORE_PROJECT: ${{ env.GCP_PROJECT_ID }}
