@@ -75,6 +75,16 @@ async fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "Not found").into_response()
 }
 
+/// GET /api/auth-check — 200 if auth valid, 401 otherwise. Lets the UI verify API key.
+async fn api_auth_check(headers: HeaderMap) -> Response {
+    let (status, body) = if has_valid_auth_from_headers(&headers) {
+        (StatusCode::OK, "{\"ok\":true}")
+    } else {
+        (StatusCode::UNAUTHORIZED, "{\"ok\":false}")
+    };
+    (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
 /// Max request body size for /api/transform (1 MiB).
 const MAX_TRANSFORM_BODY: usize = 1024 * 1024;
 
@@ -144,6 +154,7 @@ async fn main() {
         .route("/favicon.ico", get(favicon))
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .route("/api/auth-check", get(api_auth_check))
         .route("/api/transform", post(api_transform));
     let app = if has_static {
         app.nest_service("/", ServeDir::new(static_dir))

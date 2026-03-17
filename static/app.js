@@ -2,6 +2,7 @@
   'use strict';
 
   const API_TRANSFORM = '/api/transform';
+  const API_AUTH_CHECK = '/api/auth-check';
   const STORAGE_API_KEY = 'cloudshift_api_key';
 
   const el = {
@@ -25,10 +26,19 @@
     apiKeyInput: document.getElementById('api-key'),
     settingsCancel: document.getElementById('settings-cancel'),
     settingsSave: document.getElementById('settings-save'),
+    apiKeyBadge: document.getElementById('api-key-badge'),
+    settingsTestKey: document.getElementById('settings-test-key'),
+    settingsTestResult: document.getElementById('settings-test-result'),
   };
 
   function getApiKey() {
     return localStorage.getItem(STORAGE_API_KEY) || '';
+  }
+
+  function refreshApiKeyBadge() {
+    if (!el.apiKeyBadge) return;
+    const key = (getApiKey() || '').trim();
+    el.apiKeyBadge.textContent = key ? 'API key: set' : 'API key: not set';
   }
 
   function setStatus(msg, type) {
@@ -227,17 +237,54 @@
     } else {
       localStorage.removeItem(STORAGE_API_KEY);
     }
+    refreshApiKeyBadge();
     closeSettings();
+  }
+
+  async function testKey() {
+    const key = (el.apiKeyInput.value || '').trim();
+    el.settingsTestResult.textContent = '';
+    if (!key) {
+      el.settingsTestResult.textContent = 'Enter a key first.';
+      el.settingsTestResult.className = 'settings-test-result error';
+      return;
+    }
+    el.settingsTestResult.textContent = 'Checking…';
+    el.settingsTestResult.className = 'settings-test-result';
+    try {
+      const res = await fetch(API_AUTH_CHECK, {
+        method: 'GET',
+        headers: { 'X-API-Key': key },
+      });
+      if (res.ok) {
+        el.settingsTestResult.textContent = 'Key valid.';
+        el.settingsTestResult.className = 'settings-test-result success';
+      } else if (res.status === 401) {
+        el.settingsTestResult.textContent = 'Key invalid or not set on server.';
+        el.settingsTestResult.className = 'settings-test-result error';
+      } else if (res.status === 404) {
+        el.settingsTestResult.textContent = '404 — ensure load balancer routes /api/* to Cloud Run.';
+        el.settingsTestResult.className = 'settings-test-result error';
+      } else {
+        el.settingsTestResult.textContent = res.status + ' ' + res.statusText;
+        el.settingsTestResult.className = 'settings-test-result error';
+      }
+    } catch (err) {
+      el.settingsTestResult.textContent = 'Request failed: ' + (err.message || 'network error');
+      el.settingsTestResult.className = 'settings-test-result error';
+    }
   }
 
   el.transformBtn.addEventListener('click', transform);
   el.settingsBtn.addEventListener('click', openSettings);
   el.settingsCancel.addEventListener('click', closeSettings);
   el.settingsSave.addEventListener('click', saveSettings);
+  if (el.settingsTestKey) el.settingsTestKey.addEventListener('click', testKey);
   el.settingsModal.addEventListener('cancel', closeSettings);
   el.settingsModal.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeSettings();
   });
 
+  refreshApiKeyBadge();
   showEmpty();
 })();

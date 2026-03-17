@@ -19,3 +19,7 @@ chmod +x deploy/gcp/repoint-lb-to-v2.sh
 ```
 
 This creates a NEG in europe-west1 for the **cloudshift** service, removes the us-central1 NEG from **cloudshift-backend**, and attaches the new NEG. After that, https://cloudshift.poc-searce.com/ serves v2.
+
+### If you get 404 on /api/transform or /api/auth-check via the LB URL
+
+The load balancer must send **all paths** (including `/api/*`) to the same Cloud Run backend. If the URL map has path rules that only match `/` or specific paths, requests to `/api/transform` or `/api/auth-check` can hit a different backend or no backend and return 404. In GCP Console: **Network services → Load balancing → your LB → URL map**. Ensure the default route (or a rule like `/*`) targets **cloudshift-backend** so that both the app and the API are served by the same Cloud Run service.

@@ -18,6 +18,7 @@
       </div>
       <p class="tagline">Transform cloud-native code for migration.</p>
       <div class="header-actions">
+        <span class="api-key-badge" id="api-key-badge" aria-live="polite">API key: not set</span>
         <button type="button" class="btn btn-ghost" id="settings-btn" title="Settings">Settings</button>
       </div>
     </div>
@@ -104,6 +105,8 @@
         <span class="control-hint">Must match the deployment’s CLOUDSHIFT_API_KEY (same value as in GitHub Secrets). Leave empty when using IAP.</span>
       </label>
       <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="settings-test-key">Test key</button>
+        <span class="settings-test-result" id="settings-test-result" aria-live="polite"></span>
         <button type="button" class="btn btn-ghost" id="settings-cancel">Cancel</button>
         <button type="button" class="btn btn-primary" id="settings-save">Save</button>
       </div>

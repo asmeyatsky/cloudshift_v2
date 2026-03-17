@@ -89,6 +89,14 @@ body {
 
 .header-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.api-key-badge {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 /* Main layout */
@@ -496,7 +504,22 @@ body {
   margin-top: 1.25rem;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.settings-test-result {
+  font-size: 0.8125rem;
+  margin-right: auto;
+}
+
+.settings-test-result.success {
+  color: var(--accent);
+}
+
+.settings-test-result.error {
+  color: var(--danger);
 }
 
 /* Utility */
