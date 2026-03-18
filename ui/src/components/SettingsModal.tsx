@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { X, Key, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react'
+import { X, Key, CheckCircle2, XCircle, Loader2, Trash2, Map } from 'lucide-react'
 import { useStore } from '../store'
 import { checkAuth } from '../api'
+import { runHomeTour, runWorkspaceTour } from '../tour/cloudshiftTour'
 
 export default function SettingsModal() {
   const showSettings = useStore((s) => s.showSettings)
@@ -10,6 +11,8 @@ export default function SettingsModal() {
   const setApiKey = useStore((s) => s.setApiKey)
   const history = useStore((s) => s.history)
   const clearHistory = useStore((s) => s.clearHistory)
+  const screen = useStore((s) => s.screen)
+  const goHome = useStore((s) => s.goHome)
 
   const [draft, setDraft] = useState(apiKey)
   const [testing, setTesting] = useState(false)
@@ -127,6 +130,46 @@ export default function SettingsModal() {
               </div>
             </div>
           )}
+
+          {/* Guided tours */}
+          <div className="pt-3 border-t border-[#27272a] space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+              <Map className="w-3 h-3" />
+              Guided tour
+            </div>
+            <p className="text-[11px] text-zinc-600">
+              Step-by-step explanations of the home menu and the editor workspace. You can also open tours from
+              the <span className="text-zinc-500">?</span> button in the header.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleClose()
+                  if (screen !== 'home') {
+                    goHome()
+                    setTimeout(runHomeTour, 320)
+                  } else {
+                    runHomeTour()
+                  }
+                }}
+                className="h-8 px-3 text-xs font-medium rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-zinc-200"
+              >
+                Home menu tour
+              </button>
+              <button
+                type="button"
+                disabled={screen !== 'workspace'}
+                onClick={() => {
+                  handleClose()
+                  setTimeout(runWorkspaceTour, 100)
+                }}
+                className="h-8 px-3 text-xs font-medium rounded-lg bg-[#27272a] hover:bg-[#3f3f46] text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Editor tour
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

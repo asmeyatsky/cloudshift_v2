@@ -26,6 +26,8 @@ Set **`CLOUDSHIFT_API_KEY`** and/or **`CLOUDSHIFT_IAP_AUDIENCE`** (IAP OAuth cli
 
 Home-screen samples are **intentional source-cloud code** (Blob, S3, etc.) — inputs to **Transform**, not GCP snippets. LLMs sometimes flag “Azure + GCS” confusion; the Azure SDK here is correct as migration **from** Azure **to** generated GCP code.
 
+**Guided tours** (driver.js): `ui/src/tour/cloudshiftTour.ts` — Home menu + Editor workspace; Help (?) in header and Settings.
+
 ## Key Commands
 
 - `cloudshift transform ./path --source aws --dry-run`

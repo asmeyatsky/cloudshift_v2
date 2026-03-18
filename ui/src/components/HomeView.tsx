@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Zap,
   Upload,
@@ -14,6 +14,9 @@ import { useStore } from '../store'
 import { AWS_EXAMPLES, AZURE_EXAMPLES, type CloudExample } from '../content/examples'
 import { readFileEntries, readZipEntries, MAX_BATCH_FILES } from '../fileImport'
 import { importGithubRepo } from '../api'
+import { runHomeTour } from '../tour/cloudshiftTour'
+
+const TOUR_BANNER_KEY = 'cloudshift_tour_banner_dismissed_v1'
 
 const CLOUDS = [
   { value: 'aws', label: 'AWS' },
@@ -38,6 +41,24 @@ export default function HomeView() {
   const [examplePicker, setExamplePicker] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
   const [githubRef, setGithubRef] = useState('')
+  const [showTourBanner, setShowTourBanner] = useState(false)
+
+  useEffect(() => {
+    try {
+      setShowTourBanner(!localStorage.getItem(TOUR_BANNER_KEY))
+    } catch {
+      setShowTourBanner(false)
+    }
+  }, [])
+
+  const dismissTourBanner = () => {
+    try {
+      localStorage.setItem(TOUR_BANNER_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+    setShowTourBanner(false)
+  }
 
   const openSnippet = useCallback(() => {
     enterSnippetWorkspace()
@@ -180,7 +201,38 @@ export default function HomeView() {
       onDrop={onDrop}
     >
       <div className="max-w-3xl mx-auto px-4 py-10 space-y-10">
-        <div className="text-center space-y-3">
+        {showTourBanner && (
+          <div
+            id="tour-home-banner"
+            className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-blue-500/25 bg-blue-500/5 px-4 py-3"
+          >
+            <p className="text-sm text-zinc-300 flex-1">
+              <span className="font-medium text-blue-400">New here?</span> Take a quick guided tour of the home
+              menu and how to load code.
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  dismissTourBanner()
+                  runHomeTour()
+                }}
+                className="h-8 px-3 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 text-white"
+              >
+                Start tour
+              </button>
+              <button
+                type="button"
+                onClick={dismissTourBanner}
+                className="h-8 px-3 text-xs text-zinc-500 hover:text-zinc-300"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div id="tour-home-intro" className="text-center space-y-3">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 border border-blue-500/15 flex items-center justify-center mx-auto">
             <Zap className="w-7 h-7 text-blue-400" />
           </div>
@@ -205,6 +257,7 @@ export default function HomeView() {
           </p>
         )}
 
+        <div id="tour-home-imports" className="space-y-2">
         {/* Quick actions */}
         <div className="grid sm:grid-cols-2 gap-3">
           <button
@@ -281,9 +334,10 @@ export default function HomeView() {
         <p className="text-center text-[11px] text-zinc-600">
           Drag and drop files or a .zip here · Up to {MAX_BATCH_FILES} files · ~900KB per file
         </p>
+        </div>
 
         {/* GitHub repo */}
-        <div className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
+        <div id="tour-home-github" className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Github className="w-4 h-4 text-zinc-500" />
             <h2 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
@@ -322,7 +376,7 @@ export default function HomeView() {
         </div>
 
         {/* Paste snippet */}
-        <div className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
+        <div id="tour-home-paste" className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
           <h2 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Paste code</h2>
           <textarea
             value={paste}
@@ -370,7 +424,7 @@ export default function HomeView() {
         </div>
 
         {/* Service examples — AWS & Azure */}
-        <div className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
+        <div id="tour-home-examples" className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
               Service examples

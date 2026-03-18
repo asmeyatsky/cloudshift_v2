@@ -336,7 +336,10 @@ export default function TransformView() {
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 flex min-h-0">
         {isBatch && (
-          <aside className="w-52 shrink-0 border-r border-[#1e1e22] bg-[#0c0c0f] flex flex-col min-h-0">
+          <aside
+            id="tour-ws-batch"
+            className="w-52 shrink-0 border-r border-[#1e1e22] bg-[#0c0c0f] flex flex-col min-h-0"
+          >
             <div className="p-2 border-b border-[#1e1e22] space-y-2">
               <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider px-1">
                 <ListTree className="w-3 h-3" />
@@ -397,7 +400,10 @@ export default function TransformView() {
 
         {/* Source */}
         <div className="flex-1 flex flex-col min-w-0 border-r border-[#1e1e22]">
-          <div className="flex items-center gap-2 px-3 h-10 border-b border-[#1e1e22] bg-[#0c0c0f] shrink-0 flex-wrap">
+          <div
+            id="tour-ws-source-toolbar"
+            className="flex items-center gap-2 px-3 h-10 border-b border-[#1e1e22] bg-[#0c0c0f] shrink-0 flex-wrap"
+          >
             <button
               type="button"
               onClick={() => goHome()}
@@ -475,7 +481,7 @@ export default function TransformView() {
             </button>
           </div>
 
-          <div className="flex-1 min-h-0">
+          <div id="tour-ws-editor" className="flex-1 min-h-0 min-w-0">
             <MonacoEditor
               language={lang}
               value={code}
@@ -492,7 +498,7 @@ export default function TransformView() {
         </div>
 
         {/* Result */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div id="tour-ws-result" className="flex-1 flex flex-col min-w-0">
           {hasResult ? (
             <>
               <div className="flex items-center gap-2 px-3 h-10 border-b border-[#1e1e22] bg-[#0c0c0f] shrink-0 flex-wrap">

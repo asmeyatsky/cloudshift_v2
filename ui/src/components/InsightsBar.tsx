@@ -33,7 +33,7 @@ export default function InsightsBar() {
     confidence >= 0.8 ? 'bg-emerald-400' : confidence >= 0.5 ? 'bg-amber-400' : 'bg-red-400'
 
   return (
-    <div className="border-t border-[#1e1e22] bg-[#0e0e11] shrink-0">
+    <div id="tour-insights-bar" className="border-t border-[#1e1e22] bg-[#0e0e11] shrink-0">
       {/* Summary row */}
       <button
         onClick={() => setExpanded(!expanded)}

@@ -12,6 +12,7 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "clsx": "^2.1.0",
+    "driver.js": "^1.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "monaco-editor": "^0.52.0",
