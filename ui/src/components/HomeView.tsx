@@ -382,7 +382,10 @@ export default function HomeView() {
             </span>
           </div>
           <p className="text-xs text-zinc-600 leading-relaxed">
-            Load a Python SDK–style sample for a major service, then run Transform to see GCP mappings.
+            Samples are <strong className="text-zinc-400">AWS or Azure source code</strong> (what you migrate{' '}
+            <em>from</em>) — not GCP. Run <strong className="text-zinc-400">Transform</strong> to generate GCP
+            equivalents (e.g. Azure Blob → <code className="text-zinc-500">google.cloud.storage</code>, S3 →
+            Cloud Storage).
           </p>
           <select
             value={examplePicker}

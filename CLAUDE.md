@@ -20,7 +20,11 @@ Universal GCP code refactoring engine. Rust core + Python bindings via Maturin/P
 
 ## Server (Cloud Run)
 
-Set **`CLOUDSHIFT_API_KEY`** and/or **`CLOUDSHIFT_IAP_AUDIENCE`** (IAP OAuth client ID). Optional: `CLOUDSHIFT_TRANSFORM_RPM`, `CLOUDSHIFT_PATTERNS_DIR`, `CLOUDSHIFT_STATIC_DIR`.
+Set **`CLOUDSHIFT_API_KEY`** and/or **`CLOUDSHIFT_IAP_AUDIENCE`** (IAP OAuth client ID). Optional: `CLOUDSHIFT_TRANSFORM_RPM`, `CLOUDSHIFT_PATTERNS_DIR`, `CLOUDSHIFT_STATIC_DIR`, `GITHUB_TOKEN`, `CLOUDSHIFT_GITHUB_RPM`.
+
+## UI examples (AWS / Azure)
+
+Home-screen samples are **intentional source-cloud code** (Blob, S3, etc.) — inputs to **Transform**, not GCP snippets. LLMs sometimes flag “Azure + GCS” confusion; the Azure SDK here is correct as migration **from** Azure **to** generated GCP code.
 
 ## Key Commands
 

@@ -22,7 +22,8 @@ export const AWS_EXAMPLES: CloudExample[] = [
     tagColor: AWS_COLOR,
     language: 'python',
     cloud: 'aws',
-    code: `import boto3
+    code: `# AWS S3 = SOURCE for migration. Transform → GCP Cloud Storage patterns.
+import boto3
 
 s3 = boto3.client('s3')
 
@@ -351,7 +352,9 @@ export const AZURE_EXAMPLES: CloudExample[] = [
     tagColor: AZURE_COLOR,
     language: 'python',
     cloud: 'azure',
-    code: `from azure.storage.blob import BlobServiceClient
+    code: `# Azure Blob = SOURCE code (system you migrate FROM). CloudShift Transform → GCP.
+# This is not GCS: on GCP you’d use google.cloud.storage + ADC / service account JSON.
+from azure.storage.blob import BlobServiceClient
 
 connection_string = "DefaultEndpointsProtocol=https;AccountName=..."
 blob_service = BlobServiceClient.from_connection_string(connection_string)
