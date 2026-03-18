@@ -486,17 +486,15 @@ pub fn transform_file(path: &str, config: &TransformConfig) -> anyhow::Result<Tr
     // Apply language filter
     if let Some(filter_lang) = config.language_filter {
         if language != filter_lang {
-            return Ok(
-                TransformResult::new(
-                    path.to_string(),
-                    language,
-                    String::new(),
-                    Vec::new(),
-                    Confidence::new(1.0),
-                    Vec::new(),
-                )
-                .with_transformed_source(source.clone()),
-            );
+            return Ok(TransformResult::new(
+                path.to_string(),
+                language,
+                String::new(),
+                Vec::new(),
+                Confidence::new(1.0),
+                Vec::new(),
+            )
+            .with_transformed_source(source.clone()));
         }
     }
 

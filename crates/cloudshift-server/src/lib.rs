@@ -2,7 +2,7 @@
 
 use axum::{
     body::Body,
-    extract::{DefaultBodyLimit, ConnectInfo, State},
+    extract::{ConnectInfo, DefaultBodyLimit, State},
     http::{header, HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -129,10 +129,7 @@ async fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "Not found").into_response()
 }
 
-async fn api_auth_check(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Response {
+async fn api_auth_check(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
     let ok = auth_valid(state.as_ref(), &headers).await;
     let (status, body) = if ok {
         (StatusCode::OK, "{\"ok\":true}")
