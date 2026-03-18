@@ -1,9 +1,11 @@
-import { Settings, Cloud } from 'lucide-react'
+import { Settings, Cloud, Home } from 'lucide-react'
 import { useStore } from '../store'
 
 export default function Header() {
   const authVerified = useStore((s) => s.authVerified)
   const setShowSettings = useStore((s) => s.setShowSettings)
+  const screen = useStore((s) => s.screen)
+  const goHome = useStore((s) => s.goHome)
 
   return (
     <header className="h-11 flex items-center justify-between px-4 border-b border-[#1e1e22] bg-[#0e0e11] shrink-0">
@@ -15,6 +17,17 @@ export default function Header() {
         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
           v2
         </span>
+        {screen === 'workspace' && (
+          <button
+            type="button"
+            onClick={() => goHome()}
+            className="ml-2 flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent hover:border-[#27272a] transition-colors"
+            title="Back to menu"
+          >
+            <Home className="w-3.5 h-3.5" />
+            Menu
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
