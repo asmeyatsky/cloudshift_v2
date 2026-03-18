@@ -133,7 +133,7 @@ const workspaceStepsBase: DriveStep[] = [
     popover: {
       title: 'Workspace',
       description:
-        'Left: source code. Right: result after transform—diff, code, or patterns and warnings. Menu returns to the home screen.',
+        'Left: source code. Right: result after transform. Very large AWS files (many boto3 services in one file) often need splitting—see the amber warning if it appears. Menu returns home.',
       side: 'over',
     },
   },

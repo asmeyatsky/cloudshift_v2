@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import MonacoEditor, { DiffEditor, type Monaco } from '@monaco-editor/react'
 import {
   Zap,
@@ -25,6 +25,7 @@ import InsightsBar from './InsightsBar'
 import { applyDiff } from '../applyDiff'
 import type { Warning } from '../types'
 import { formatPatternIds } from '../formatPatternIds'
+import { analyzeAwsPythonInput } from '../detectComplexAwsInput'
 
 const LANGUAGES = [
   { value: 'python', label: 'Python' },
@@ -149,6 +150,21 @@ export default function TransformView() {
   const setIsTransforming = useStore((s) => s.setIsTransforming)
 
   const [copied, setCopied] = useState(false)
+  const [dismissComplexityWarn, setDismissComplexityWarn] = useState(false)
+
+  const awsComplexity = useMemo(() => {
+    if (language !== 'python' || !code.includes('boto3')) return null
+    return analyzeAwsPythonInput(code)
+  }, [code, language])
+
+  useEffect(() => {
+    setDismissComplexityWarn(false)
+  }, [pathHint, batchSelectedId])
+
+  const showComplexityWarn =
+    awsComplexity &&
+    (awsComplexity.isHighRisk || awsComplexity.isMediumRisk) &&
+    !dismissComplexityWarn
 
   const flushBatchEditorToItem = useCallback(() => {
     const s = useStore.getState()
@@ -480,6 +496,61 @@ export default function TransformView() {
               </kbd>
             </button>
           </div>
+
+          {showComplexityWarn && awsComplexity && (
+            <div
+              className={clsx(
+                'shrink-0 mx-2 mb-2 mt-1 px-3 py-2.5 rounded-lg border text-[11px] leading-relaxed',
+                awsComplexity.isHighRisk
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-200/95'
+                  : 'bg-zinc-500/10 border-zinc-500/25 text-zinc-400',
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle
+                  className={clsx(
+                    'w-4 h-4 shrink-0 mt-0.5',
+                    awsComplexity.isHighRisk ? 'text-amber-400' : 'text-zinc-500',
+                  )}
+                />
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <p className="font-medium text-zinc-200">
+                    {awsComplexity.isHighRisk
+                      ? 'Large multi-service AWS file'
+                      : 'Complex AWS snippet'}
+                  </p>
+                  <p>
+                    Detected ~{awsComplexity.lineCount} lines and{' '}
+                    {awsComplexity.botoServices.length} distinct boto3 service
+                    {awsComplexity.botoServices.length !== 1 ? 's' : ''}
+                    {awsComplexity.botoServices.length > 0 && (
+                      <span className="text-zinc-500">
+                        {' '}
+                        ({awsComplexity.botoServices.slice(0, 12).join(', ')}
+                        {awsComplexity.botoServices.length > 12
+                          ? `, +${awsComplexity.botoServices.length - 12} more`
+                          : ''}
+                        )
+                      </span>
+                    )}
+                    . CloudShift applies pattern-based rewrites to matched fragments—not a full program
+                    rewrite—so output may mix AWS and GCP SDKs, break syntax, or skip untouched code.
+                  </p>
+                  <p className="text-zinc-500">
+                    For reliable results: split into smaller files (e.g. one class or service per file),
+                    transform each, then assemble GCP code manually.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setDismissComplexityWarn(true)}
+                    className="text-[10px] font-medium text-blue-400 hover:text-blue-300"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div id="tour-ws-editor" className="flex-1 min-h-0 min-w-0">
             <MonacoEditor
