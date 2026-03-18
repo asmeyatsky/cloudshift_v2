@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Key, CheckCircle2, XCircle, Loader2, Trash2, Map } from 'lucide-react'
+import { X, Key, CheckCircle2, XCircle, Loader2, Trash2, Map, Terminal } from 'lucide-react'
 import { useStore } from '../store'
 import { checkAuth } from '../api'
 import { runHomeTour, runWorkspaceTour } from '../tour/cloudshiftTour'
@@ -130,6 +130,31 @@ export default function SettingsModal() {
               </div>
             </div>
           )}
+
+          {/* CLI vs UI */}
+          <div className="pt-3 border-t border-[#27272a] space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+              <Terminal className="w-3 h-3" />
+              Whole repos &amp; large files
+            </div>
+            <div className="text-[11px] text-zinc-600 space-y-2 leading-relaxed">
+              <p>
+                <span className="text-zinc-400">This browser app</span> is best for snippets, examples, and moderate
+                batches (upload / GitHub). It uses the same engine as the CLI—not a different “deeper” refactor.
+              </p>
+              <p>
+                <span className="text-zinc-400">Entire repositories</span> (many files, CI/CD): use the{' '}
+                <strong className="text-zinc-500">CloudShift CLI</strong> —{' '}
+                <code className="text-zinc-500 font-mono text-[10px]">cloudshift transform ./my-repo --source aws</code>{' '}
+                with parallel workers and <code className="text-zinc-500 font-mono text-[10px]">--report</code>. See{' '}
+                <code className="text-zinc-500">docs/WHICH_TOOL.md</code> in the repo.
+              </p>
+              <p>
+                <span className="text-zinc-400">One huge AWS file</span> (1000+ lines, many services): split into
+                smaller modules first—neither CLI nor UI can reliably rewrite that as a single clean GCP program.
+              </p>
+            </div>
+          </div>
 
           {/* Guided tours */}
           <div className="pt-3 border-t border-[#27272a] space-y-2">

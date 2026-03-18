@@ -28,6 +28,8 @@ Home-screen samples are **intentional source-cloud code** (Blob, S3, etc.) — i
 
 **Guided tours** (driver.js): `ui/src/tour/cloudshiftTour.ts` — Home menu + Editor workspace; Help (?) in header and Settings.
 
+**UI vs CLI:** `docs/WHICH_TOOL.md` — CLI is ready for `cloudshift transform ./repo` (parallel, `--report`). Same core as UI per file; huge single-file AWS samples need splitting.
+
 ## Key Commands
 
 - `cloudshift transform ./path --source aws --dry-run`

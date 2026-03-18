@@ -538,7 +538,9 @@ export default function TransformView() {
                   </p>
                   <p className="text-zinc-500">
                     For reliable results: split into smaller files (e.g. one class or service per file),
-                    transform each, then assemble GCP code manually.
+                    transform each, then assemble GCP code manually. For many files across a repo, use the{' '}
+                    <strong className="text-zinc-400">CLI</strong> (<code className="font-mono">cloudshift transform ./repo</code>
+                    ) — see Settings → “Whole repos”.
                   </p>
                   <button
                     type="button"

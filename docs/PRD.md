@@ -12,8 +12,12 @@ Formal requirements: use **`CloudShift_PRD_v2.0.pdf`** if present in the repo ro
 | Secure enterprise access | IAP JWT verification + API key; rate limits |
 | Observability / audit | Structured logs; extend per PRD for audit trails |
 
+## User guidance: UI vs CLI
+
+See **`docs/WHICH_TOOL.md`** — web UI for try/batch; **CLI** for full-repo transforms (`cloudshift transform ./path`, reports, parallel). Same engine per file; monolithic multi-service files need splitting first.
+
 ## Gaps to track in PRD revisions
 
-- Optional: catalogue browser in UI, org-wide audit logging, SLA targets.
+- Optional: catalogue browser in UI, org-wide audit logging, SLA targets, async server-side repo jobs.
 
 When the PDF is updated, refresh this file with any new acceptance criteria.
