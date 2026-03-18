@@ -2,7 +2,7 @@ import { Settings, Cloud } from 'lucide-react'
 import { useStore } from '../store'
 
 export default function Header() {
-  const apiKey = useStore((s) => s.apiKey)
+  const authVerified = useStore((s) => s.authVerified)
   const setShowSettings = useStore((s) => s.setShowSettings)
 
   return (
@@ -18,13 +18,26 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        {apiKey && (
+        {authVerified === null && (
+          <span className="text-[11px] text-zinc-600">Checking API…</span>
+        )}
+        {authVerified === true && (
           <div className="flex items-center gap-1.5 text-[11px] text-emerald-400/80">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            API connected
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            API ready
           </div>
         )}
+        {authVerified === false && (
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            className="text-[11px] text-amber-400/90 hover:text-amber-300 underline-offset-2 hover:underline"
+          >
+            Sign in — Settings (API key) or IAP
+          </button>
+        )}
         <button
+          type="button"
           onClick={() => setShowSettings(true)}
           className="p-1.5 rounded-md hover:bg-white/5 transition-colors text-zinc-500 hover:text-zinc-300"
           title="Settings"

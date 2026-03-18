@@ -24,6 +24,8 @@ interface AppState {
   resultTab: 'diff' | 'code'
 
   apiKey: string
+  /** null = not yet checked; IAP may succeed without apiKey */
+  authVerified: boolean | null
   history: HistoryEntry[]
 
   setCode: (code: string) => void
@@ -37,6 +39,7 @@ interface AppState {
   setShowSettings: (v: boolean) => void
   setResultTab: (tab: 'diff' | 'code') => void
   setApiKey: (key: string) => void
+  setAuthVerified: (v: boolean | null) => void
   addToHistory: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void
   clearHistory: () => void
   clearResult: () => void
@@ -57,6 +60,7 @@ export const useStore = create<AppState>((set) => ({
   resultTab: 'diff',
 
   apiKey: localStorage.getItem('cloudshift_api_key') || '',
+  authVerified: null,
   history: loadHistory(),
 
   setCode: (code) => set({ code }),
@@ -71,8 +75,9 @@ export const useStore = create<AppState>((set) => ({
   setResultTab: (resultTab) => set({ resultTab }),
   setApiKey: (apiKey) => {
     localStorage.setItem('cloudshift_api_key', apiKey)
-    set({ apiKey })
+    set({ apiKey, authVerified: null })
   },
+  setAuthVerified: (authVerified) => set({ authVerified }),
   addToHistory: (entry) =>
     set((state) => {
       const newEntry: HistoryEntry = {

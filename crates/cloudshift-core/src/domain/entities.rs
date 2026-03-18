@@ -9,6 +9,9 @@ pub struct TransformResult {
     pub path: String,
     pub language: Language,
     pub diff: String,
+    /// Full source after transformation (API/UI); empty when unchanged or not computed.
+    #[serde(default)]
+    pub transformed_source: String,
     pub patterns: Vec<PatternMatch>,
     pub confidence: Confidence,
     pub warnings: Vec<Warning>,
@@ -28,11 +31,18 @@ impl TransformResult {
             path,
             language,
             diff,
+            transformed_source: String::new(),
             patterns,
             confidence,
             warnings,
             applied: false,
         }
+    }
+
+    /// Attach canonical post-transform source (avoids client-side diff application).
+    pub fn with_transformed_source(mut self, source: impl Into<String>) -> Self {
+        self.transformed_source = source.into();
+        self
     }
 
     /// Create a new result with applied=true. Original is unchanged.

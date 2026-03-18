@@ -10,9 +10,10 @@ Deploys on every push to `main`. (tests run first). Access is via IAP (Searce si
 **Secrets (for the app at runtime):** In the repo on GitHub, go to Settings → Secrets and variables → Actions and add:
 
 - `GEMINI_API_KEY` — your Gemini API key (or a dummy value if unused).
-- `CLOUDSHIFT_API_KEY` — the API key for direct Cloud Run URL auth. Must match the value you enter in the app’s Settings. Do not use `##` in this value (used as delimiter in deploy).
+- `CLOUDSHIFT_API_KEY` — API key for direct Cloud Run URL / optional browser Settings. Must not contain `##`. **At least one of** this or `CLOUDSHIFT_IAP_AUDIENCE` must be set (server refuses to start with neither).
+- `CLOUDSHIFT_IAP_AUDIENCE` — **Required for IAP custom domain** (e.g. cloudshift.poc-searce.com). Comma-separated OAuth 2.0 client ID(s) from **GCP → Security → Identity-Aware Proxy → your HTTPS resource → OAuth client ID**. The server verifies `X-Goog-IAP-JWT-Assertion` against this audience.
 
-The workflow passes both to Cloud Run in a single `--set-env-vars` (repeated flags replace all vars, so we use one flag with a `##` delimiter).
+The workflow passes env vars in one `--set-env-vars` with a `##` delimiter.
 
 ### Repoint cloudshift.poc-searce.com from v1 to v2
 

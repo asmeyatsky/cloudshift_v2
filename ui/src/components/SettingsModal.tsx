@@ -25,8 +25,11 @@ export default function SettingsModal() {
     setTesting(false)
   }
 
-  const handleSave = () => {
-    setApiKey(draft.trim())
+  const handleSave = async () => {
+    const key = draft.trim()
+    setApiKey(key)
+    const ok = await checkAuth(key || undefined)
+    useStore.getState().setAuthVerified(ok)
     setShowSettings(false)
     setTestResult(null)
   }
@@ -39,16 +42,22 @@ export default function SettingsModal() {
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={handleClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
         className="w-full max-w-md bg-[#141417] border border-[#27272a] rounded-xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#27272a]">
-          <h2 className="text-sm font-semibold text-zinc-100">Settings</h2>
+          <h2 id="settings-title" className="text-sm font-semibold text-zinc-100">
+            Settings
+          </h2>
           <button
             onClick={handleClose}
             className="p-1 rounded-md hover:bg-white/5 text-zinc-500 hover:text-zinc-300"

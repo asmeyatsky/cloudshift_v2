@@ -18,6 +18,10 @@ Universal GCP code refactoring engine. Rust core + Python bindings via Maturin/P
 - `patterns/` — GCP Pattern Catalogue (TOML)
 - `tests/patterns/` — Pattern test fixtures (before/after pairs)
 
+## Server (Cloud Run)
+
+Set **`CLOUDSHIFT_API_KEY`** and/or **`CLOUDSHIFT_IAP_AUDIENCE`** (IAP OAuth client ID). Optional: `CLOUDSHIFT_TRANSFORM_RPM`, `CLOUDSHIFT_PATTERNS_DIR`, `CLOUDSHIFT_STATIC_DIR`.
+
 ## Key Commands
 
 - `cloudshift transform ./path --source aws --dry-run`

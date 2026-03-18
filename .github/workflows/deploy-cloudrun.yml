@@ -36,6 +36,14 @@ jobs:
         run: |
           pip install maturin
           maturin build -m crates/cloudshift-py/Cargo.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: UI unit tests
+        run: npm ci && npm run test
+        working-directory: ui
 
   deploy:
     name: Deploy to Cloud Run
@@ -64,7 +72,7 @@ jobs:
             --project ${{ env.GCP_PROJECT_ID }} \
             --allow-unauthenticated \
             --ingress=all \
-            --set-env-vars "^##^GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}##CLOUDSHIFT_API_KEY=${{ secrets.CLOUDSHIFT_API_KEY }}##CLOUDSHIFT_PATTERNS_DIR=/app/patterns##CLOUDSHIFT_STATIC_DIR=/app/static" \
+            --set-env-vars "^##^GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}##CLOUDSHIFT_API_KEY=${{ secrets.CLOUDSHIFT_API_KEY }}##CLOUDSHIFT_IAP_AUDIENCE=${{ secrets.CLOUDSHIFT_IAP_AUDIENCE }}##CLOUDSHIFT_PATTERNS_DIR=/app/patterns##CLOUDSHIFT_STATIC_DIR=/app/static" \
             --quiet
         env:
           CLOUDSDK_CORE_PROJECT: ${{ env.GCP_PROJECT_ID }}

@@ -15,6 +15,7 @@ import clsx from 'clsx'
 import { useStore } from '../store'
 import { transform } from '../api'
 import InsightsBar from './InsightsBar'
+import { applyDiff } from '../applyDiff'
 
 /* ── constants ─────────────────────────────────────────── */
 
@@ -163,38 +164,6 @@ function defineTheme(monaco: Monaco) {
   })
 }
 
-/* ── diff applier ──────────────────────────────────────── */
-
-function applyDiff(original: string, diff: string): string {
-  if (!diff) return original
-
-  const origLines = original.split('\n')
-  const diffLines = diff.split('\n')
-  const result: string[] = []
-  let origIdx = 0
-
-  for (const line of diffLines) {
-    if (line.startsWith('@@')) {
-      const m = line.match(/@@ -(\d+)/)
-      if (m) {
-        const start = parseInt(m[1]) - 1
-        while (origIdx < start) result.push(origLines[origIdx++])
-      }
-      continue
-    }
-    if (line.startsWith('---') || line.startsWith('+++') || line.startsWith('diff ')) continue
-    if (line.startsWith('-')) origIdx++
-    else if (line.startsWith('+')) result.push(line.slice(1))
-    else if (line.startsWith(' ')) {
-      result.push(line.slice(1))
-      origIdx++
-    }
-  }
-
-  while (origIdx < origLines.length) result.push(origLines[origIdx++])
-  return result.join('\n')
-}
-
 /* ── editor options ────────────────────────────────────── */
 
 const EDITOR_OPTS = {
@@ -255,7 +224,11 @@ export default function TransformView() {
       )
 
       s.setResult(res)
-      s.setTransformedCode(applyDiff(s.code, res.diff))
+      const out =
+        res.transformed_source && res.transformed_source.length > 0
+          ? res.transformed_source
+          : applyDiff(s.code, res.diff)
+      s.setTransformedCode(out)
       s.setResultTab('diff')
       s.addToHistory({
         code: s.code,
@@ -285,6 +258,7 @@ export default function TransformView() {
   }, [handleTransform])
 
   const handleCopy = () => {
+    if (!transformedCode.trim()) return
     navigator.clipboard.writeText(transformedCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -362,8 +336,11 @@ export default function TransformView() {
                 <Zap className="w-3 h-3" />
               )}
               Transform
-              <kbd className="hidden lg:inline text-[9px] opacity-50 ml-0.5 font-mono">
-                {'\u2318\u21B5'}
+                    <kbd className="hidden lg:inline text-[9px] opacity-50 ml-0.5 font-mono">
+                {typeof navigator !== 'undefined' &&
+                /Mac|iPhone|iPod|iPad/i.test(navigator.platform)
+                  ? '\u2318\u21B5'
+                  : 'Ctrl+Enter'}
               </kbd>
             </button>
           </div>
@@ -544,15 +521,32 @@ export default function TransformView() {
 
                 <div className="text-center">
                   <p className="text-[10px] text-zinc-700">
-                    Press{' '}
-                    <kbd className="px-1 py-0.5 rounded bg-[#1e1e22] text-zinc-500 font-mono text-[9px]">
-                      {'\u2318'}
-                    </kbd>{' '}
-                    +{' '}
-                    <kbd className="px-1 py-0.5 rounded bg-[#1e1e22] text-zinc-500 font-mono text-[9px]">
-                      Enter
-                    </kbd>{' '}
-                    to transform
+                    {typeof navigator !== 'undefined' &&
+                    /Mac|iPhone|iPod|iPad/i.test(navigator.platform) ? (
+                      <>
+                        Press{' '}
+                        <kbd className="px-1 py-0.5 rounded bg-[#1e1e22] text-zinc-500 font-mono text-[9px]">
+                          ⌘
+                        </kbd>{' '}
+                        +{' '}
+                        <kbd className="px-1 py-0.5 rounded bg-[#1e1e22] text-zinc-500 font-mono text-[9px]">
+                          Enter
+                        </kbd>{' '}
+                        to transform
+                      </>
+                    ) : (
+                      <>
+                        Press{' '}
+                        <kbd className="px-1 py-0.5 rounded bg-[#1e1e22] text-zinc-500 font-mono text-[9px]">
+                          Ctrl
+                        </kbd>{' '}
+                        +{' '}
+                        <kbd className="px-1 py-0.5 rounded bg-[#1e1e22] text-zinc-500 font-mono text-[9px]">
+                          Enter
+                        </kbd>{' '}
+                        to transform
+                      </>
+                    )}
                   </p>
                 </div>
               </div>

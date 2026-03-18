@@ -32,6 +32,8 @@ export interface TransformResult {
   path: string
   language: string
   diff: string
+  /** Canonical transformed source from server (preferred over client-side diff apply). */
+  transformed_source?: string
   patterns: PatternMatch[]
   confidence: number
   warnings: Warning[]

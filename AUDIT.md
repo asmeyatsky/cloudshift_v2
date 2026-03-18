@@ -1,107 +1,77 @@
-# CloudShift v2 — Full app audit for Cloud Run
+# CloudShift v2 — Application audit (Cloud Run + SPA)
 
-## 1. What is the “full app”
+## 1. Components
 
 | Component | Location | Deployed |
 |-----------|----------|----------|
-| **HTTP server** | `crates/cloudshift-server` | ✅ Single binary in image |
-| **Transformation engine** | `crates/cloudshift-core` | ✅ Linked into server |
-| **Pattern catalogue** | `patterns/*.toml` | ✅ Copied to `/app/patterns` in image |
-| **CLI / Python / LSP** | other crates | ❌ Not in Cloud Run (dev/CI only) |
-
-There is **no separate web UI** in this repo. The “full app” for Cloud Run is the **API server** (health, auth, `POST /api/transform`).
+| **HTTP server** | `crates/cloudshift-server` | Single binary in image |
+| **React UI** | `ui/` → built to `static/` | Served by server (`ServeDir`) |
+| **Transformation engine** | `crates/cloudshift-core` | Linked into server |
+| **Pattern catalogue** | `patterns/*.toml` | `/app/patterns` in image |
+| **CLI / Python / LSP** | other crates | Dev / CI only (not in minimal image) |
 
 ---
 
-## 2. Server surface (cloudshift-server)
+## 2. Server routes (`cloudshift-server`)
 
-| Route | Method | Auth | Purpose |
-|-------|--------|------|---------|
-| `/` | GET | Yes | Root / liveness (returns "ok") |
-| `/index.html` | GET | Yes | Same as `/` |
-| `/favicon.ico` | GET | No | 204 (avoid 404) |
-| `/health` | GET | No | Health check (returns "ok") |
-| `/ready` | GET | No | Readiness (returns "ready") |
-| `/api/transform` | POST | Yes | Transform in-memory source → JSON result |
-| *other* | * | No | 404 "Not found" |
+| Route | Method | Auth | Notes |
+|-------|--------|------|--------|
+| `/`, assets | GET | No | SPA + static (when `static/` present) |
+| `/favicon.ico` | GET | No | 204 |
+| `/health`, `/ready` | GET | No | Probes |
+| `/api/auth-check` | GET | Yes* | JSON `{ok:true/false}` |
+| `/api/transform` | POST | Yes* | JSON body → `TransformResult` (includes `transformed_source`) |
 
-**Auth:** IAP (`X-Goog-IAP-JWT-Assertion`), `X-Searce-ID`, `Authorization: Bearer`, or `X-API-Key` (must match `CLOUDSHIFT_API_KEY`).
+\* **Auth:** Valid **`X-API-Key`** matching `CLOUDSHIFT_API_KEY`, **or** verified **IAP JWT** (`X-Goog-IAP-JWT-Assertion`) when `CLOUDSHIFT_IAP_AUDIENCE` lists the OAuth client ID(s). At least one of API key or IAP audience must be configured.
 
-**`POST /api/transform` body (JSON):**
-- `source` (string, required)
-- `language` (required: `python`, `typescript`, `javascript`, `java`, `go`, `hcl`, `yaml`, `dockerfile`, `json`)
-- `source_cloud` (optional: `aws`, `azure`, `any`)
-- `path_hint` (optional, e.g. `main.py`)
+**Removed (previously weak):** presence-only IAP header, arbitrary `X-Searce-ID`, any `Bearer` token.
 
-**Response:** `TransformResult` (path, language, diff, patterns, confidence, warnings, applied).
+**Limits:** Source field max **1 MiB**; **~90 transforms/min/client** (IP or `X-Forwarded-For`), configurable via `CLOUDSHIFT_TRANSFORM_RPM`.
+
+**Headers:** CSP (Monaco-compatible), `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`.
 
 ---
 
 ## 3. Dockerfile
 
-- **Build:** `rust:1-bookworm` → `cargo build --release -p cloudshift-server`.
-- **Runtime:** `debian:bookworm-slim`, binary + `patterns/` → `/app/patterns`.
-- **Env:** `PORT=8080`, `CLOUDSHIFT_PATTERNS_DIR=/app/patterns`.
-- **User:** `nobody`.
-- **CMD:** `cloudshift-server`.
-
-**Check:** `COPY patterns /app/patterns` requires `patterns/` in the build context (repo root). It is present and not in `.gitignore`.
+Multi-stage: Node builds UI → Rust builds server → slim runtime, `nobody`, `patterns` + `static`.
 
 ---
 
-## 4. GitHub Actions (deploy-cloudrun.yml)
+## 4. Deploy / secrets
 
-| Step | Status |
-|------|--------|
-| Trigger | `push` → `main` |
-| Job 1: test | checkout, Rust (clippy, rustfmt), `cargo check`, `cargo test`, `cargo clippy`, `cargo fmt --check`, maturin build (cloudshift-py) |
-| Job 2: deploy | needs test, checkout, auth (`GCP_SA_KEY`), setup-gcloud, `gcloud run deploy ... --source .` |
-| Deploy flags | `--allow-unauthenticated`, `--ingress=all`, `--set-env-vars` for GEMINI_API_KEY, CLOUDSHIFT_API_KEY, CLOUDSHIFT_PATTERNS_DIR |
-
-**Secrets:** `GCP_SA_KEY` (required), `GEMINI_API_KEY`, `CLOUDSHIFT_API_KEY` (optional).
+| Variable | Purpose |
+|----------|---------|
+| `CLOUDSHIFT_API_KEY` | API key auth (direct Run URL, scripts) |
+| `CLOUDSHIFT_IAP_AUDIENCE` | Comma-separated IAP OAuth client ID(s) — **required for custom-domain IAP users** |
+| `CLOUDSHIFT_TRANSFORM_RPM` | Optional rate limit override |
+| `GEMINI_API_KEY` | LLM fallback in engine |
 
 ---
 
-## 5. Cloud Run runtime
+## 5. Tests
 
-| Item | Value |
-|------|--------|
-| Project | emea-mas |
-| Region | europe-west1 |
-| Service | cloudshift |
-| Direct URL | https://cloudshift-cux4sclfpq-ew.a.run.app |
-| IAP URL | https://cloudshift.poc-searce.com |
-| Ingress | all (direct + LB) |
-| Invoker | allUsers (so LB can call) |
-
-**Env at runtime:** `PORT` (set by Cloud Run), `CLOUDSHIFT_PATTERNS_DIR=/app/patterns`, `GEMINI_API_KEY`, `CLOUDSHIFT_API_KEY` (from workflow).
+| Area | Coverage |
+|------|----------|
+| `cloudshift-core` | Extensive Rust integration + unit tests |
+| `cloudshift-server` | Integration tests in `tests/api.rs` (auth, payload limit, health) |
+| `ui` | `npm run test` (Vitest) — e.g. `applyDiff` |
 
 ---
 
-## 6. Gaps and fixes applied
+## 6. PRD
 
-- **Patterns in image:** Dockerfile copies `patterns/` and sets `CLOUDSHIFT_PATTERNS_DIR`; workflow also sets it in `--set-env-vars`. ✅
-- **Health:** Use `/health` for probes (returns 200). Root `/` returns 401 without auth; Cloud Run still sees a response. ✅
-- **No .gcloudignore:** Build context uses `.gitignore`; `target/` excluded, `patterns/` included. ✅
+Product requirements: see **`docs/PRD.md`** (summary) and `CloudShift_PRD_v2.0.pdf` if present in repo.
 
 ---
 
-## 7. How to get it running
-
-1. **Secrets (GitHub):** `GCP_SA_KEY`, optionally `GEMINI_API_KEY`, `CLOUDSHIFT_API_KEY`.
-2. **Push to `main`** → workflow runs tests then deploys.
-3. **Access:**  
-   - **Browser (IAP):** https://cloudshift.poc-searce.com  
-   - **Direct:** https://cloudshift-cux4sclfpq-ew.a.run.app (e.g. `curl` with auth header or `/health`).
-4. **API:** `POST /api/transform` with JSON body and one of the auth headers above.
-
----
-
-## 8. Quick verification before deploy
+## 7. Local dev
 
 ```bash
-cargo build --release -p cloudshift-server
-cargo test --workspace
+export CLOUDSHIFT_API_KEY=dev
+export CLOUDSHIFT_PATTERNS_DIR=$(pwd)/patterns
+cargo run -p cloudshift-server
+# UI: cd ui && npm run dev  (proxies /api to :8080)
 ```
 
-Then push to `main` and watch the Actions tab for the deploy.
+For IAP verification locally, set `CLOUDSHIFT_IAP_AUDIENCE` to your OAuth client ID and send a real IAP JWT.

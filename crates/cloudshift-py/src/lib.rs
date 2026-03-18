@@ -126,6 +126,7 @@ impl PyTransformConfig {
 pub struct PyTransformResult {
     path: String,
     diff: String,
+    transformed_source: String,
     patterns: Vec<String>,
     confidence: f64,
     warnings: Vec<String>,
@@ -142,6 +143,11 @@ impl PyTransformResult {
     #[getter]
     fn diff(&self) -> &str {
         &self.diff
+    }
+
+    #[getter]
+    fn transformed_source(&self) -> &str {
+        &self.transformed_source
     }
 
     #[getter]
@@ -179,6 +185,7 @@ impl PyTransformResult {
         Self {
             path: r.path,
             diff: r.diff,
+            transformed_source: r.transformed_source,
             patterns: r
                 .patterns
                 .iter()
@@ -438,6 +445,7 @@ fn transform_repo_stream_py(py: Python<'_>, path: String) -> PyResult<Vec<PyTran
         .map(|c| PyTransformResult {
             path: c.file.clone(),
             diff: c.diff.clone(),
+            transformed_source: String::new(),
             patterns: Vec::new(),
             confidence: c.confidence.value(),
             warnings: Vec::new(),

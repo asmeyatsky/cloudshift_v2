@@ -165,7 +165,8 @@ fn transform_source(
                     span: None,
                     severity: WarningSeverity::Error,
                 }],
-            );
+            )
+            .with_transformed_source(source.to_string());
         }
     };
 
@@ -177,7 +178,8 @@ fn transform_source(
             Vec::new(),
             Confidence::new(1.0),
             Vec::new(),
-        );
+        )
+        .with_transformed_source(source.to_string());
     }
 
     // Stage 2: Pattern matching
@@ -195,7 +197,8 @@ fn transform_source(
             Vec::new(),
             Confidence::new(1.0),
             Vec::new(),
-        );
+        )
+        .with_transformed_source(source.to_string());
     }
 
     // Stage 3: Apply transformations
@@ -415,6 +418,7 @@ fn transform_source(
         avg_confidence,
         warnings,
     )
+    .with_transformed_source(final_source)
 }
 
 /// Transform in-memory source (for API / remote processing).
@@ -482,14 +486,17 @@ pub fn transform_file(path: &str, config: &TransformConfig) -> anyhow::Result<Tr
     // Apply language filter
     if let Some(filter_lang) = config.language_filter {
         if language != filter_lang {
-            return Ok(TransformResult::new(
-                path.to_string(),
-                language,
-                String::new(),
-                Vec::new(),
-                Confidence::new(1.0),
-                Vec::new(),
-            ));
+            return Ok(
+                TransformResult::new(
+                    path.to_string(),
+                    language,
+                    String::new(),
+                    Vec::new(),
+                    Confidence::new(1.0),
+                    Vec::new(),
+                )
+                .with_transformed_source(source.clone()),
+            );
         }
     }
 
