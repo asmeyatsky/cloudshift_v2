@@ -13,3 +13,4 @@ build/
 *.whl
 .env
 .venv/
+ui/tsconfig.tsbuildinfo
