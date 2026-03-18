@@ -1,4 +1,8 @@
-"""Azure Key Vault — secrets."""
+"""Azure Key Vault — secrets.
+
+``SecretClient`` + ``DefaultAzureCredential`` — not HTTP handlers. Do not use
+``functions_framework`` on these methods.
+"""
 from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 

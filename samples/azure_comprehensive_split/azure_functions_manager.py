@@ -1,4 +1,10 @@
-"""Azure Functions — serverless HTTP triggers."""
+"""Azure Functions — serverless HTTP triggers.
+
+``invoke_function`` is an HTTP **client** (any runtime). ``example_http_function``
+uses **azure.functions** types inside Azure only — not Cloud Functions decorators.
+
+GCP: ``gcp_reference/azure_functions_gcp_manager.py`` (invoke + sample handler).
+"""
 from azure.functions import HttpRequest, HttpResponse
 
 

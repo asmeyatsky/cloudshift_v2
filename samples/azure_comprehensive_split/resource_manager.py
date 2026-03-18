@@ -1,4 +1,9 @@
-"""Azure Resource Manager — resource groups."""
+"""Azure Resource Manager — resource groups.
+
+``ResourceManagementClient`` SDK only — not HTTP handlers; no
+``functions_framework``.
+GCP (loose analogue): ``gcp_reference/resource_manager_projects_analogue.py``.
+"""
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.resource import ResourceManagementClient
 

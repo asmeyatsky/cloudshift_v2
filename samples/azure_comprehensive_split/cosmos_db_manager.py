@@ -1,4 +1,9 @@
-"""Azure Cosmos DB — NoSQL."""
+"""Azure Cosmos DB — NoSQL.
+
+SDK client class only: **CosmosClient** + database/container CRUD. Not HTTP
+handlers — no ``functions_framework`` / ``@functions_framework.http`` on
+these methods.
+"""
 import uuid
 from azure.cosmos import CosmosClient, PartitionKey, exceptions
 

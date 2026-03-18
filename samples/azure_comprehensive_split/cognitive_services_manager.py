@@ -1,4 +1,8 @@
-"""Azure Cognitive Services — Text Analytics / Vision."""
+"""Azure Cognitive Services — Text Analytics / Vision.
+
+REST calls with subscription key. GCP analogue:
+``gcp_reference/cognitive_services_gcp_manager.py`` (Natural Language + Vision).
+"""
 
 
 class CognitiveServicesManager:

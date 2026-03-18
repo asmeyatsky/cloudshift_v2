@@ -1,4 +1,11 @@
-"""Azure Active Directory — identity (Graph RBAC)."""
+"""Azure Active Directory — identity (Graph RBAC).
+
+Uses legacy **azure-graphrbac** (consider Microsoft Graph for new code). Not HTTP
+handlers — no ``functions_framework``.
+
+GCP partial analogue: ``gcp_reference/azure_ad_gcp_iam_analogue.py`` (service
+accounts); directory users → Workspace / Cloud Identity.
+"""
 
 
 class AzureADManager:

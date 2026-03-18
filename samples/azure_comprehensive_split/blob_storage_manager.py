@@ -1,4 +1,9 @@
-"""Azure Blob Storage — object storage."""
+"""Azure Blob Storage — object storage.
+
+Plain **BlobServiceClient** helpers (container CRUD-ish, upload/download/list/delete,
+SAS URL). These are **not** HTTP Cloud Functions — do not wrap methods with
+``@functions_framework.http`` or replace ``self`` with ``request``.
+"""
 import os
 from azure.storage.blob import BlobServiceClient
 
