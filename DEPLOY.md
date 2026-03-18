@@ -27,4 +27,25 @@ This creates a NEG in europe-west1 for the **cloudshift** service, removes the u
 
 ### If you get 404 on /api/transform or /api/auth-check via the LB URL
 
-The load balancer must send **all paths** (including `/api/*`) to the same Cloud Run backend. If the URL map has path rules that only match `/` or specific paths, requests to `/api/transform` or `/api/auth-check` can hit a different backend or no backend and return 404. In GCP Console: **Network services → Load balancing → your LB → URL map**. Ensure the default route (or a rule like `/*`) targets **cloudshift-backend** so that both the app and the API are served by the same Cloud Run service.
+The load balancer must send **all paths** (including `/api/*`) to the same Cloud Run backend. If the URL map’s default service is not **cloudshift-backend**, or path matchers send `/api/*` elsewhere, you get 404.
+
+**Option A — GCP Console**  
+**Network services → Load balancing** → open the load balancer for cloudshift.poc-searce.com → **URL map**. Set the **default backend** (and any path matcher default) to **cloudshift-backend** so `/`, `/api/transform`, and `/api/auth-check` all go to Cloud Run.
+
+**Option B — gcloud** (project **emea-mas**, global LB):
+
+```bash
+# 1. List URL maps and find the one used by your LB (e.g. cloudshift-lb or similar)
+gcloud compute url-maps list --global --project=emea-mas
+
+# 2. Inspect it (replace URL_MAP_NAME with the name from step 1)
+gcloud compute url-maps describe URL_MAP_NAME --global --project=emea-mas
+
+# 3. Set default backend to cloudshift-backend so all paths (including /api/*) go to Cloud Run
+gcloud compute url-maps set-default-service URL_MAP_NAME \
+  --default-service=cloudshift-backend \
+  --global \
+  --project=emea-mas
+```
+
+If the URL map has **path matchers** that send `/api` or `/api/*` to a different backend, remove or change those so the default (or the relevant matcher) is **cloudshift-backend**.
