@@ -24,6 +24,7 @@ import { transform } from '../api'
 import InsightsBar from './InsightsBar'
 import { applyDiff } from '../applyDiff'
 import type { Warning } from '../types'
+import { formatPatternIds } from '../formatPatternIds'
 
 const LANGUAGES = [
   { value: 'python', label: 'Python' },
@@ -532,9 +533,56 @@ export default function TransformView() {
                 )}
               </div>
 
-              <div className="flex-1 min-h-0 overflow-hidden">
-                {resultTab === 'insights' && result ? (
-                  <div className="h-full overflow-y-auto p-4 space-y-6 bg-[#111114]">
+              <div className="flex-1 min-h-0 relative overflow-hidden">
+                {/* Keep DiffEditor + result Monaco mounted when switching tabs — avoids
+                    "TextModel got disposed before DiffEditorWidget model got reset". */}
+                <div
+                  className={clsx(
+                    'absolute inset-0 flex min-h-0 min-w-0 flex-col',
+                    resultTab !== 'diff' && 'invisible pointer-events-none z-0',
+                    resultTab === 'diff' && 'z-[1]',
+                  )}
+                  aria-hidden={resultTab !== 'diff'}
+                >
+                  <DiffEditor
+                    original={code}
+                    modified={transformedCode}
+                    language={lang}
+                    theme="cloudshift-dark"
+                    beforeMount={defineTheme}
+                    options={{
+                      ...EDITOR_OPTS,
+                      readOnly: true,
+                      renderSideBySide: true,
+                    }}
+                  />
+                </div>
+                <div
+                  className={clsx(
+                    'absolute inset-0 flex min-h-0 min-w-0 flex-col',
+                    resultTab !== 'code' && 'invisible pointer-events-none z-0',
+                    resultTab === 'code' && 'z-[1]',
+                  )}
+                  aria-hidden={resultTab !== 'code'}
+                >
+                  <MonacoEditor
+                    language={lang}
+                    value={transformedCode}
+                    theme="cloudshift-dark"
+                    beforeMount={defineTheme}
+                    options={{ ...EDITOR_OPTS, readOnly: true }}
+                  />
+                </div>
+                {result ? (
+                  <div
+                    className={clsx(
+                      'absolute inset-0 overflow-y-auto bg-[#111114]',
+                      resultTab !== 'insights' && 'invisible pointer-events-none z-0',
+                      resultTab === 'insights' && 'z-[1]',
+                    )}
+                    aria-hidden={resultTab !== 'insights'}
+                  >
+                    <div className="p-4 space-y-6">
                     <div>
                       <h3 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-3">
                         Patterns matched ({result.patterns.length})
@@ -544,7 +592,7 @@ export default function TransformView() {
                           <div key={i} className="p-3 rounded-lg bg-[#141417] border border-[#222228]">
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-[11px] font-mono text-violet-400 break-all">
-                                {p.pattern_id.join(', ')}
+                                {formatPatternIds(p.pattern_id)}
                               </span>
                               <span
                                 className={clsx(
@@ -625,29 +673,9 @@ export default function TransformView() {
                         </span>
                       </p>
                     </div>
+                    </div>
                   </div>
-                ) : resultTab === 'diff' ? (
-                  <DiffEditor
-                    original={code}
-                    modified={transformedCode}
-                    language={lang}
-                    theme="cloudshift-dark"
-                    beforeMount={defineTheme}
-                    options={{
-                      ...EDITOR_OPTS,
-                      readOnly: true,
-                      renderSideBySide: true,
-                    }}
-                  />
-                ) : (
-                  <MonacoEditor
-                    language={lang}
-                    value={transformedCode}
-                    theme="cloudshift-dark"
-                    beforeMount={defineTheme}
-                    options={{ ...EDITOR_OPTS, readOnly: true }}
-                  />
-                )}
+                ) : null}
               </div>
             </>
           ) : isTransforming ? (

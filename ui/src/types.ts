@@ -6,7 +6,8 @@ export interface TransformRequest {
 }
 
 export interface PatternMatch {
-  pattern_id: string[]
+  /** Server may send a string or string[] */
+  pattern_id: string | string[]
   span: {
     start_byte: number
     end_byte: number

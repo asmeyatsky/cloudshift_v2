@@ -11,6 +11,7 @@ import {
 import clsx from 'clsx'
 import { useStore } from '../store'
 import { Warning } from '../types'
+import { formatPatternIds } from '../formatPatternIds'
 
 const SEVERITY: Record<Warning['severity'], { icon: typeof AlertCircle; color: string; bg: string; border: string }> = {
   Error: { icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
@@ -82,7 +83,7 @@ export default function InsightsBar() {
               <div key={i} className="p-2.5 rounded-lg bg-[#141417] border border-[#222228]">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[11px] font-mono text-violet-400 truncate">
-                    {p.pattern_id.join(', ')}
+                    {formatPatternIds(p.pattern_id)}
                   </span>
                   <span
                     className={clsx(
