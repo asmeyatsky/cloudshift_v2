@@ -54,7 +54,15 @@ fn apply_python_fixups(source: &str) -> String {
     result = fix_exception_references(&result);
 
     // === URI scheme fixups ===
-    result = result.replace("s3://", "gs://");
+    // Rewrite s3:// → gs:// only when this file no longer uses an S3 boto3 client
+    // (avoids corrupting intentional S3 URLs while DynamoDB/others still on boto3).
+    let s3_boto_present = result.contains("client('s3'")
+        || result.contains("client(\"s3\"")
+        || result.contains("resource('s3'")
+        || result.contains("resource(\"s3\"");
+    if !s3_boto_present {
+        result = result.replace("s3://", "gs://");
+    }
 
     // === Unresolved binding cleanup ===
     // Replace /* unresolved: ... */ with TODO comments
@@ -83,6 +91,12 @@ fn fix_exception_references(source: &str) -> String {
     let lines: Vec<&str> = source.lines().collect();
     let mut result_lines: Vec<String> = Vec::with_capacity(lines.len());
 
+    // Bare `except ClientError` is correct for boto3/botocore. Only rewrite when
+    // the file no longer uses boto3 (fully or primarily migrated to GCP SDK).
+    let still_uses_boto3 = source.contains("import boto3")
+        || source.contains("from boto3")
+        || source.contains("botocore.exceptions");
+
     for line in &lines {
         let mut fixed = line.to_string();
 
@@ -95,11 +109,15 @@ fn fix_exception_references(source: &str) -> String {
         fixed = replace_client_exception_pattern(&fixed, "sns", "GoogleCloudError");
         fixed = replace_client_exception_pattern(&fixed, "kinesis", "GoogleCloudError");
         fixed = replace_client_exception_pattern(&fixed, "lambda_client", "GoogleCloudError");
-        fixed = replace_client_exception_pattern(&fixed, "client", "GoogleCloudError");
+        // Do not use a generic "client.exceptions." match: it hits substrings like
+        // dynamodb_client.exceptions and breaks valid boto3 error handling.
 
-        // Generic ClientError in except clauses (only in exception handling context)
+        // Generic ClientError in except clauses — only after boto3 is gone
         let trimmed = fixed.trim();
-        if trimmed.starts_with("except") && fixed.contains("ClientError") {
+        if trimmed.starts_with("except")
+            && fixed.contains("ClientError")
+            && !still_uses_boto3
+        {
             fixed = fixed.replace("ClientError", "google.cloud.exceptions.GoogleCloudError");
         }
 
@@ -415,6 +433,54 @@ mod tests {
         let source = "x = \"s3://bucket/key\"";
         let fixed = apply_fixups(source, Language::Java);
         assert_eq!(fixed, source);
+    }
+
+    #[test]
+    fn test_s3_uri_not_rewritten_when_s3_boto_client_present() {
+        let source = r#"import boto3
+c = boto3.client('s3')
+u = "s3://bucket/key"
+"#;
+        let fixed = apply_python_fixups(source);
+        assert!(
+            fixed.contains("s3://"),
+            "Should keep s3:// while S3 client exists:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_s3_uri_rewritten_when_only_non_s3_boto_client() {
+        let source = r#"import boto3
+c = boto3.client('dynamodb')
+u = "s3://bucket/key"
+"#;
+        let fixed = apply_python_fixups(source);
+        assert!(
+            fixed.contains("gs://"),
+            "Should rewrite s3:// when no S3 boto client:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_preserves_botocore_client_error_when_boto3_present() {
+        let source = r#"import boto3
+from botocore.exceptions import ClientError
+
+def create_role():
+    try:
+        boto3.client("iam").create_role(RoleName="x", AssumeRolePolicyDocument="{}")
+    except ClientError as e:
+        print(e)
+"#;
+        let fixed = apply_python_fixups(source);
+        assert!(
+            fixed.contains("except ClientError as e"),
+            "Should keep botocore ClientError when boto3 is in use, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("google.cloud.exceptions.GoogleCloudError"),
+            "Should not inject GCP exception for boto3 code, got:\n{fixed}"
+        );
     }
 
     #[test]

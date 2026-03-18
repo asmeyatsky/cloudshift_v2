@@ -7,12 +7,17 @@ confidence = 0.90
 tags = ["compute", "lambda", "cloud-functions", "serverless"]
 
 [pattern.detect]
+# Only module-level Lambda handlers: (event, context). Instance methods like
+# create_role(self, role_name, ...) must NOT match — first param would be self.
 query = '''
   (function_definition
     name: (identifier) @func_name
     parameters: (parameters
       (identifier) @event_param
       (identifier) @context_param)
+    (#not-eq? @event_param "self")
+    (#not-eq? @event_param "cls")
+    (#eq? @context_param "context")
     body: (block) @func_body)
 '''
 imports = []
@@ -38,4 +43,4 @@ event_param = "event_param"
 context_param = "context_param"
 
 [pattern.notes]
-description = "Lambda handlers take (event, context). Cloud Functions HTTP handlers take (request). Event-driven functions use @functions_framework.cloud_event for Pub/Sub triggers."
+description = "Matches only top-level handlers with signature (event, context) — not methods (self, …). Cloud Functions HTTP uses @functions_framework.http; S3-triggered Lambdas often need @functions_framework.cloud_event after redesign."

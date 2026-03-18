@@ -30,6 +30,8 @@ Home-screen samples are **intentional source-cloud code** (Blob, S3, etc.) — i
 
 **UI vs CLI:** `docs/WHICH_TOOL.md` — CLI is ready for `cloudshift transform ./repo` (parallel, `--report`). Same core as UI per file; huge single-file AWS samples need splitting.
 
+**AWS→GCP realism:** `docs/AWS_GCP_TRANSFORM.md` — patterns + optional LLM do **not** guarantee full migration of every AWS service; safety rails for Lambda false positives, exceptions, S3 URIs; `samples/gcp_reference/` for hand-written targets.
+
 ## Key Commands
 
 - `cloudshift transform ./path --source aws --dry-run`

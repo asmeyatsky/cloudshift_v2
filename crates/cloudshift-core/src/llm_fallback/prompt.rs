@@ -61,11 +61,12 @@ However, the code still contains {cloud_name} references that need to be migrate
 ```
 
 ## Instructions
-1. Complete the migration by replacing ALL remaining {cloud_name} references with GCP equivalents
+1. Complete the migration by replacing ALL remaining {cloud_name} references with GCP equivalents (every boto3/botocore usage, every service client)
 2. Ensure the output code is FULLY RUNNABLE on GCP -- no {cloud_name} imports, no {cloud_name} client constructors, no {cloud_name} API calls, no {cloud_name} endpoints or ARNs
-3. Use idiomatic GCP SDK patterns for {lang_name}
-4. Preserve the code's logic and structure -- only change what's necessary for GCP
-5. Return ONLY the complete migrated source code, no explanations
+3. For services without a 1:1 GCP API (e.g. niche AWS-only products), use the closest GCP service OR a clear `# TODO(migration):` with the recommended GCP approach -- do not leave boto3 in place
+4. Use idiomatic GCP SDK patterns for {lang_name}
+5. Preserve the code's logic and structure -- only change what's necessary for GCP
+6. Return ONLY the complete migrated source code, no explanations
 
 ## GCP SDK Reference
 - Storage: `from google.cloud import storage` -> `storage.Client().bucket(...).blob(...)`

@@ -389,6 +389,10 @@ fn transform_source(
             "azure.keyvault.get_secret",
             "GCP Secret Manager returns payload.data bytes \u{2014} update code that accesses .value property",
         ),
+        (
+            "aws.lambda.handler",
+            "HTTP Cloud Functions wrapper fits API-Gateway-style Lambdas only -- S3/SQS/event Lambdas need cloud_event or redesign",
+        ),
     ];
 
     for pattern_match in &matches {
