@@ -131,3 +131,48 @@ async fn health_unauthenticated() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+#[serial]
+async fn github_repo_requires_auth() {
+    std::env::set_var("CLOUDSHIFT_API_KEY", "secret-key");
+    std::env::remove_var("CLOUDSHIFT_IAP_AUDIENCE");
+    let st = cloudshift_server::build_state().unwrap();
+    let app = cloudshift_server::app(st, "/nonexistent-static-xyz");
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/github/repo")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"url":"https://github.com/foo/bar"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+#[serial]
+async fn github_repo_rejects_blank_url() {
+    std::env::set_var("CLOUDSHIFT_API_KEY", "k");
+    std::env::remove_var("CLOUDSHIFT_IAP_AUDIENCE");
+    let st = cloudshift_server::build_state().unwrap();
+    let app = cloudshift_server::app(st, "/nonexistent-static-xyz");
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/github/repo")
+                .header("content-type", "application/json")
+                .header("x-api-key", "k")
+                .body(Body::from(r#"{"url":"   "}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}

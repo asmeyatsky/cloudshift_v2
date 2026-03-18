@@ -1,5 +1,7 @@
 //! HTTP server — auth, rate limiting, transform API, static UI.
 
+mod github;
+
 use axum::{
     body::Body,
     extract::{ConnectInfo, DefaultBodyLimit, State},
@@ -26,14 +28,17 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 const AUTH_REQUIRED_MSG: &str = "Valid X-API-Key or IAP JWT required";
 const RATE_LIMIT_MSG: &str = "Too many transform requests; try again shortly";
+const GITHUB_RATE_LIMIT_MSG: &str = "Too many GitHub imports; try again shortly";
 
 const DEFAULT_TRANSFORM_RPM: u32 = 90;
+const DEFAULT_GITHUB_RPM: u32 = 15;
 const RATE_WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Clone)]
 pub struct RateLimitState {
     rate: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
     transform_rpm: u32,
+    github_rpm: u32,
 }
 
 pub struct AppState {
@@ -42,6 +47,7 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub rate: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
     pub transform_rpm: u32,
+    pub github_rpm: u32,
 }
 
 fn client_key(headers: &HeaderMap, addr: SocketAddr) -> String {
@@ -54,8 +60,8 @@ fn client_key(headers: &HeaderMap, addr: SocketAddr) -> String {
         .unwrap_or_else(|| addr.ip().to_string())
 }
 
-fn check_rate(rl: &RateLimitState, key: &str) -> bool {
-    let max = rl.transform_rpm.max(1) as usize;
+fn check_rate(rl: &RateLimitState, key: &str, rpm: u32) -> bool {
+    let max = rpm.max(1) as usize;
     let mut map = rl.rate.lock().unwrap();
     let now = Instant::now();
     let v = map.entry(key.to_string()).or_default();
@@ -77,9 +83,26 @@ async fn rate_limit_transform(
         .get::<ConnectInfo<SocketAddr>>()
         .map(|c| c.0)
         .unwrap_or_else(|| SocketAddr::from(([127, 0, 0, 1], 0)));
-    let key = client_key(req.headers(), addr);
-    if !check_rate(&rl, &key) {
+    let key = format!("t:{}", client_key(req.headers(), addr));
+    if !check_rate(&rl, &key, rl.transform_rpm) {
         return (StatusCode::TOO_MANY_REQUESTS, RATE_LIMIT_MSG).into_response();
+    }
+    next.run(req).await
+}
+
+async fn rate_limit_github(
+    State(rl): State<RateLimitState>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    let addr = req
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| SocketAddr::from(([127, 0, 0, 1], 0)));
+    let key = format!("g:{}", client_key(req.headers(), addr));
+    if !check_rate(&rl, &key, rl.github_rpm) {
+        return (StatusCode::TOO_MANY_REQUESTS, GITHUB_RATE_LIMIT_MSG).into_response();
     }
     next.run(req).await
 }
@@ -196,6 +219,45 @@ async fn api_transform(
     }
 }
 
+#[derive(Deserialize)]
+struct GithubRepoBody {
+    url: String,
+    #[serde(default)]
+    r#ref: Option<String>,
+}
+
+async fn api_github_repo(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<GithubRepoBody>,
+) -> Response {
+    if !auth_valid(state.as_ref(), &headers).await {
+        return (StatusCode::UNAUTHORIZED, AUTH_REQUIRED_MSG).into_response();
+    }
+    let url = body.url.trim();
+    if url.is_empty() || url.len() > 2048 {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Missing or invalid url (max 2048 chars)",
+        )
+            .into_response();
+    }
+
+    let gh = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(90))
+        .user_agent("CloudShift-Server/1")
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Server misconfiguration").into_response();
+        }
+    };
+
+    let resp = github::import_github_repo(&gh, url, body.r#ref.as_deref()).await;
+    Json(resp).into_response()
+}
+
 fn parse_iap_audiences(raw: &str) -> Vec<String> {
     raw.split(',')
         .map(|s| s.trim().to_string())
@@ -223,6 +285,11 @@ pub fn build_state() -> anyhow::Result<Arc<AppState>> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_TRANSFORM_RPM);
 
+    let github_rpm = std::env::var("CLOUDSHIFT_GITHUB_RPM")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_GITHUB_RPM);
+
     let http = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
@@ -235,6 +302,7 @@ pub fn build_state() -> anyhow::Result<Arc<AppState>> {
         http,
         rate: rate.clone(),
         transform_rpm,
+        github_rpm,
     }))
 }
 
@@ -245,6 +313,12 @@ pub fn app(state: Arc<AppState>, static_dir: &str) -> Router {
     let rate_state = RateLimitState {
         rate: state.rate.clone(),
         transform_rpm: state.transform_rpm,
+        github_rpm: state.github_rpm,
+    };
+    let rate_state_gh = RateLimitState {
+        rate: state.rate.clone(),
+        transform_rpm: state.transform_rpm,
+        github_rpm: state.github_rpm,
     };
 
     let base = Router::new()
@@ -252,6 +326,15 @@ pub fn app(state: Arc<AppState>, static_dir: &str) -> Router {
         .route("/health", get(health))
         .route("/ready", get(ready))
         .route("/api/auth-check", get(api_auth_check))
+        .route(
+            "/api/github/repo",
+            post(api_github_repo)
+                .layer(DefaultBodyLimit::max(4096))
+                .layer(middleware::from_fn_with_state(
+                    rate_state_gh,
+                    rate_limit_github,
+                )),
+        )
         .route(
             "/api/transform",
             post(api_transform)
@@ -311,6 +394,10 @@ pub async fn run() -> anyhow::Result<()> {
     tracing::info!(
         "Transform rate limit: {} requests/min per client",
         state.transform_rpm
+    );
+    tracing::info!(
+        "GitHub import rate limit: {} requests/min per client",
+        state.github_rpm
     );
 
     let static_dir = std::env::var("CLOUDSHIFT_STATIC_DIR").unwrap_or_else(|_| "static".into());

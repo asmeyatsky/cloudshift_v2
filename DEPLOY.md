@@ -12,6 +12,8 @@ Deploys on every push to `main`. (tests run first). Access is via IAP (Searce si
 - `GEMINI_API_KEY` — your Gemini API key (or a dummy value if unused).
 - `CLOUDSHIFT_API_KEY` — API key for direct Cloud Run URL / optional browser Settings. Must not contain `##`. **At least one of** this or `CLOUDSHIFT_IAP_AUDIENCE` must be set (server refuses to start with neither).
 - `CLOUDSHIFT_IAP_AUDIENCE` — **Required for IAP custom domain** (e.g. cloudshift.poc-searce.com). Comma-separated OAuth 2.0 client ID(s) from **GCP → Security → Identity-Aware Proxy → your HTTPS resource → OAuth client ID**. The server verifies `X-Goog-IAP-JWT-Assertion` against this audience.
+- `GITHUB_TOKEN` (optional) — GitHub PAT so **Load repo** can import **private** repositories and to raise API rate limits. Public repos work without it.
+- `CLOUDSHIFT_GITHUB_RPM` (optional) — GitHub import requests per client IP per minute (default **15**).
 
 The workflow passes env vars in one `--set-env-vars` with a `##` delimiter.
 

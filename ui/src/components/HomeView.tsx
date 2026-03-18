@@ -7,11 +7,13 @@ import {
   FileCode,
   ArrowRight,
   Loader2,
+  Github,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore } from '../store'
 import { AWS_EXAMPLES, AZURE_EXAMPLES, type CloudExample } from '../content/examples'
 import { readFileEntries, readZipEntries, MAX_BATCH_FILES } from '../fileImport'
+import { importGithubRepo } from '../api'
 
 const CLOUDS = [
   { value: 'aws', label: 'AWS' },
@@ -23,6 +25,7 @@ export default function HomeView() {
   const loadSnippet = useStore((s) => s.loadSnippet)
   const loadBatch = useStore((s) => s.loadBatch)
   const enterSnippetWorkspace = useStore((s) => s.enterSnippetWorkspace)
+  const apiKey = useStore((s) => s.apiKey)
 
   const [paste, setPaste] = useState('')
   const [pasteLang, setPasteLang] = useState('python')
@@ -33,6 +36,8 @@ export default function HomeView() {
   const folderRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const [examplePicker, setExamplePicker] = useState('')
+  const [githubUrl, setGithubUrl] = useState('')
+  const [githubRef, setGithubRef] = useState('')
 
   const openSnippet = useCallback(() => {
     enterSnippetWorkspace()
@@ -54,6 +59,50 @@ export default function HomeView() {
     },
     [loadSnippet],
   )
+
+  const loadGithubRepo = useCallback(async () => {
+    const u = githubUrl.trim()
+    if (!u) {
+      setImportMsg('Enter a GitHub repository URL.')
+      return
+    }
+    setBusy(true)
+    setImportMsg(null)
+    try {
+      const data = await importGithubRepo(u, {
+        ref: githubRef.trim() || undefined,
+        apiKey: apiKey || undefined,
+      })
+      if (data.error && (!data.files || data.files.length === 0)) {
+        setImportMsg(data.error)
+        return
+      }
+      if (!data.files?.length) {
+        setImportMsg(data.error || 'No supported files in this repository.')
+        return
+      }
+      const refNote = data.resolved_ref ? `@${data.resolved_ref}` : ''
+      const trunc = data.truncated ? ' (first 80 files only)' : ''
+      if (data.files.length === 1) {
+        const f = data.files[0]
+        loadSnippet(f.source, f.language, 'any', f.path)
+        setImportMsg(`Opened ${f.path} from GitHub${refNote}${trunc}`)
+      } else {
+        loadBatch(
+          data.files.map((f) => ({ path: f.path, source: f.source, language: f.language })),
+          'any',
+        )
+        setImportMsg(`Loaded ${data.files.length} files from GitHub${refNote}${trunc}`)
+      }
+      if (data.error && data.files.length > 0) {
+        setImportMsg((m) => `${m} — ${data.error}`)
+      }
+    } catch (e) {
+      setImportMsg(e instanceof Error ? e.message : 'GitHub import failed')
+    } finally {
+      setBusy(false)
+    }
+  }, [githubUrl, githubRef, apiKey, loadSnippet, loadBatch])
 
   const handleFiles = useCallback(
     async (list: FileList | null) => {
@@ -137,7 +186,7 @@ export default function HomeView() {
           </div>
           <h1 className="text-xl font-semibold text-zinc-100">CloudShift</h1>
           <p className="text-sm text-zinc-500 max-w-md mx-auto">
-            Transform AWS/Azure code to GCP. Paste a snippet, upload files, a folder, or a repo ZIP.
+            Transform AWS/Azure code to GCP. Paste code, upload files, open a GitHub repo, or use a ZIP.
           </p>
         </div>
 
@@ -145,7 +194,9 @@ export default function HomeView() {
           <p
             className={clsx(
               'text-center text-sm px-4 py-2 rounded-lg border',
-              importMsg.startsWith('Opened') || importMsg.includes('files')
+              importMsg.startsWith('Opened') ||
+              importMsg.startsWith('Loaded') ||
+              importMsg.includes('files from GitHub')
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400/90'
                 : 'bg-amber-500/10 border-amber-500/20 text-amber-400/90',
             )}
@@ -230,6 +281,45 @@ export default function HomeView() {
         <p className="text-center text-[11px] text-zinc-600">
           Drag and drop files or a .zip here · Up to {MAX_BATCH_FILES} files · ~900KB per file
         </p>
+
+        {/* GitHub repo */}
+        <div className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Github className="w-4 h-4 text-zinc-500" />
+            <h2 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
+              GitHub repository
+            </h2>
+          </div>
+          <p className="text-xs text-zinc-600 leading-relaxed">
+            Public repos download on the server (max ~25&nbsp;MB archive). Optional branch or tag. Private
+            repos need <code className="text-zinc-500">GITHUB_TOKEN</code> on the server.
+          </p>
+          <input
+            type="url"
+            value={githubUrl}
+            onChange={(e) => setGithubUrl(e.target.value)}
+            placeholder="https://github.com/owner/repo"
+            className="w-full h-10 px-3 text-sm bg-[#111114] border border-[#27272a] rounded-lg text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-blue-500/40"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={githubRef}
+              onChange={(e) => setGithubRef(e.target.value)}
+              placeholder="Branch or tag (optional — default branch if empty)"
+              className="flex-1 min-w-[200px] h-9 px-3 text-xs bg-[#111114] border border-[#27272a] rounded-lg text-zinc-300 placeholder:text-zinc-700 outline-none focus:border-blue-500/40"
+            />
+            <button
+              type="button"
+              onClick={() => void loadGithubRepo()}
+              disabled={busy || !githubUrl.trim()}
+              className="h-9 px-4 text-xs font-semibold rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white disabled:opacity-40 flex items-center gap-2 shrink-0"
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Github className="w-3.5 h-3.5" />}
+              Load repo
+            </button>
+          </div>
+        </div>
 
         {/* Paste snippet */}
         <div className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
