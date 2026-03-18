@@ -35,4 +35,4 @@ func_body = "func_body"
 req_param = "req_param"
 
 [pattern.notes]
-description = "Azure Functions use func.HttpRequest/func.HttpResponse with req.params and req.get_json(). Cloud Functions use Flask request objects with request.args and request.get_json(). Azure function.json bindings must be migrated to Cloud Functions trigger configuration. Azure Functions v2 decorator model (@func.route) differs from Cloud Functions' functions-framework approach."
+description = "Matches only single-parameter defs (no comma at param top-level), not self/cls, not dunder names — avoids class methods like __init__ or get_metrics(self, ...). Typed req (HttpRequest) OK. Cloud Functions use request.get_json(); review func.json bindings."

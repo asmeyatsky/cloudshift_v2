@@ -106,6 +106,13 @@ pub fn match_pattern(
             continue;
         };
 
+        // Azure Functions handler pattern must not match class methods or multi-arg defs.
+        if pattern.id.as_str().contains("azure.functions.handler")
+            && !azure_http_handler_params_ok(&match_text)
+        {
+            continue;
+        }
+
         // Resolve bindings: map pattern binding variables to captured text
         let resolved = resolve_bindings(pattern, &captures, source, language);
 
@@ -139,6 +146,57 @@ pub fn match_pattern(
     }
 
     Ok(results)
+}
+
+/// True only for a plausible top-level Azure HTTP function: single parameter,
+/// not `self`/`cls`, not dunder names. Rejects `def m(self, x):` and `__init__`.
+fn azure_http_handler_params_ok(fn_text: &str) -> bool {
+    let s = fn_text.trim_start();
+    let Some(def_pos) = s.find("def ") else {
+        return false;
+    };
+    let after_def = &s[def_pos + 4..];
+    let Some(open) = after_def.find('(') else {
+        return false;
+    };
+    let name_before = after_def[..open].trim();
+    if name_before.starts_with("__") && name_before.ends_with("__") {
+        return false;
+    }
+    let after_paren = &after_def[open + 1..];
+    let mut depth = 0i32;
+    let mut close_idx = None;
+    for (i, c) in after_paren.char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' if depth > 0 => depth -= 1,
+            ')' if depth == 0 => {
+                close_idx = Some(i);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let Some(ci) = close_idx else {
+        return false;
+    };
+    let params = after_paren[..ci].trim();
+    if params.is_empty() {
+        return false;
+    }
+    let mut d = 0i32;
+    for c in params.chars() {
+        match c {
+            '(' | '[' | '{' => d += 1,
+            ')' | ']' | '}' => d -= 1,
+            ',' if d == 0 => return false,
+            _ => {}
+        }
+    }
+    let first = params.split(':').next().unwrap_or(params).trim();
+    let first = first.split_whitespace().next().unwrap_or(first);
+    let first = first.trim_start_matches('*');
+    !matches!(first, "self" | "cls")
 }
 
 /// Match multiple patterns against source code, returning all matches.
@@ -313,6 +371,24 @@ fn apply_template(template: &str, bindings: &HashMap<String, String>) -> String 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_azure_handler_filter_single_param_only() {
+        assert!(azure_http_handler_params_ok(
+            "def main(req):\n    return HttpResponse(\"ok\")"
+        ));
+        assert!(azure_http_handler_params_ok(
+            "def main(req: func.HttpRequest):\n    pass"
+        ));
+        assert!(!azure_http_handler_params_ok(
+            "def __init__(self, sub):\n    pass"
+        ));
+        assert!(!azure_http_handler_params_ok(
+            "def get_metrics(self, rid, names):\n    pass"
+        ));
+        assert!(!azure_http_handler_params_ok("def foo(self):\n    pass"));
+        assert!(!azure_http_handler_params_ok("def foo():\n    pass"));
+    }
 
     #[test]
     fn test_apply_template() {

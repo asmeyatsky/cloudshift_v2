@@ -114,10 +114,7 @@ fn fix_exception_references(source: &str) -> String {
 
         // Generic ClientError in except clauses — only after boto3 is gone
         let trimmed = fixed.trim();
-        if trimmed.starts_with("except")
-            && fixed.contains("ClientError")
-            && !still_uses_boto3
-        {
+        if trimmed.starts_with("except") && fixed.contains("ClientError") && !still_uses_boto3 {
             fixed = fixed.replace("ClientError", "google.cloud.exceptions.GoogleCloudError");
         }
 

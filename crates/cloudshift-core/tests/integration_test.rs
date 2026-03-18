@@ -155,7 +155,7 @@ fn test_load_pattern_toml_files() {
     let toml_files: Vec<_> = fs::read_dir(&patterns_dir)
         .expect("Failed to read patterns directory")
         .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.path().extension().map_or(false, |ext| ext == "toml"))
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "toml"))
         .collect();
 
     assert!(

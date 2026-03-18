@@ -18,6 +18,7 @@
 | Risk | Mitigation |
 |------|------------|
 | Lambda pattern matching **instance methods** | Python `aws.lambda.handler` only matches `(event, context)` with second param **named `context`**, first not `self`/`cls`. |
+| Azure Functions pattern on **managers / `__init__`** | `azure.functions.handler` matches only **single-arg** `def` (no top-level comma in params), not `self`/`cls`, not dunder names. |
 | **ClientError** rewritten while still on boto3 | Generic `except ClientError` → GCP only when file has **no** boto3/botocore import. |
 | **`client.exceptions.`** false positives | Removed blanket `client.exceptions.` replacement (was matching `dynamodb_client.exceptions`). |
 | **`s3://` → `gs://`** while S3 still used | Rewritten only when the transformed file has **no** `boto3.client('s3')` / `resource('s3')` (DynamoDB-only files still get URI rewrite). |

@@ -7,6 +7,7 @@ See **`docs/AWS_GCP_TRANSFORM.md`** for how patterns + LLM fallback fit together
 | File | AWS analogue |
 |------|----------------|
 | `gcs_storage_manager.py` | `aws_comprehensive_split/s3_manager.py` (S3 → GCS) |
+| `gcp_monitoring_manager.py` | `azure_comprehensive_split/azure_monitor_manager.py` (Monitor → Cloud Monitoring) |
 | `compute_engine_manager.py` | `aws_comprehensive_split/ec2_manager.py` (EC2 + security groups) |
 | `gke_cluster_manager.py` | `aws_comprehensive_split/eks_manager.py` (EKS → GKE) |
 | `api_gateway_manager.py` | `aws_comprehensive_split/apigateway_manager.py` (REST API → API Gateway + OpenAPI) |
