@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useStore } from '../store'
-import { EXAMPLES } from '../content/examples'
+import { AWS_EXAMPLES, AZURE_EXAMPLES, type CloudExample } from '../content/examples'
 import { readFileEntries, readZipEntries, MAX_BATCH_FILES } from '../fileImport'
 
 const CLOUDS = [
@@ -32,6 +32,7 @@ export default function HomeView() {
   const fileRef = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
+  const [examplePicker, setExamplePicker] = useState('')
 
   const openSnippet = useCallback(() => {
     enterSnippetWorkspace()
@@ -48,8 +49,8 @@ export default function HomeView() {
   }, [paste, pasteLang, pasteCloud, loadSnippet])
 
   const loadExample = useCallback(
-    (ex: (typeof EXAMPLES)[number]) => {
-      loadSnippet(ex.code, ex.language, ex.cloud, `example_${ex.title.replace(/\s+/g, '_')}.py`)
+    (ex: CloudExample) => {
+      loadSnippet(ex.code, ex.language, ex.cloud, `example_${ex.id}.py`)
     },
     [loadSnippet],
   )
@@ -278,34 +279,54 @@ export default function HomeView() {
           </div>
         </div>
 
-        {/* Examples */}
-        <div>
-          <h2 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-3 text-center">
-            Examples
-          </h2>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex.title}
-                type="button"
-                onClick={() => loadExample(ex)}
-                className="group p-3 rounded-lg border border-[#222228] hover:border-[#333340] bg-[#111114] hover:bg-[#141418] text-left transition-all"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className={clsx(
-                      'text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider',
-                      ex.tagColor,
-                    )}
-                  >
-                    {ex.tag}
-                  </span>
-                  <span className="text-xs font-medium text-zinc-300 truncate">{ex.title}</span>
-                </div>
-                <span className="text-[10px] text-zinc-600 capitalize">{ex.language}</span>
-              </button>
-            ))}
+        {/* Service examples — AWS & Azure */}
+        <div className="rounded-xl border border-[#222228] bg-[#0c0c0f] p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
+              Service examples
+            </h2>
+            <span className="text-[10px] text-zinc-500 tabular-nums">
+              <span className="text-orange-400/90">{AWS_EXAMPLES.length} AWS</span>
+              <span className="text-zinc-600 mx-1">·</span>
+              <span className="text-sky-400/90">{AZURE_EXAMPLES.length} Azure</span>
+            </span>
           </div>
+          <p className="text-xs text-zinc-600 leading-relaxed">
+            Load a Python SDK–style sample for a major service, then run Transform to see GCP mappings.
+          </p>
+          <select
+            value={examplePicker}
+            onChange={(e) => {
+              const id = e.target.value
+              if (!id) return
+              const ex =
+                AWS_EXAMPLES.find((x) => x.id === id) ?? AZURE_EXAMPLES.find((x) => x.id === id)
+              if (ex) {
+                loadExample(ex)
+                setImportMsg(`Opened: ${ex.title}`)
+              }
+              setExamplePicker('')
+            }}
+            className="w-full h-11 px-3 text-sm bg-[#111114] border border-[#27272a] rounded-lg text-zinc-200 outline-none focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/20 cursor-pointer"
+          >
+            <option value="">
+              Choose AWS or Azure service ({AWS_EXAMPLES.length + AZURE_EXAMPLES.length} examples)…
+            </option>
+            <optgroup label={`Amazon Web Services — ${AWS_EXAMPLES.length} services`}>
+              {AWS_EXAMPLES.map((ex) => (
+                <option key={ex.id} value={ex.id}>
+                  {ex.title}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={`Microsoft Azure — ${AZURE_EXAMPLES.length} services`}>
+              {AZURE_EXAMPLES.map((ex) => (
+                <option key={ex.id} value={ex.id}>
+                  {ex.title}
+                </option>
+              ))}
+            </optgroup>
+          </select>
         </div>
       </div>
     </div>
