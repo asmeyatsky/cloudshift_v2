@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.ec2.terminate_instances -> gcp.compute_v1.instances.delete"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["ec2", "compute", "gce", "lifecycle"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (_) @recv
+      attribute: (identifier) @method (#eq? @method "terminate_instances"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["botocore"]
+
+[pattern.transform]
+template = '''compute_v1.InstancesClient().delete(project="", zone="", instance="")  # TODO: set project/zone; GCE uses instance *name*, not EC2 InstanceId — was InstanceIds={instance_ids}'''
+import_add = ["from google.cloud import compute_v1"]
+import_remove = []
+
+[pattern.bindings]
+instance_ids = "args.InstanceIds"
+
+[pattern.notes]
+description = "EC2 instance ids (i-…) do not equal GCE instance names. Resolve name + zone (e.g. from labels) then call delete. See gcp_reference/compute_engine_manager.py."

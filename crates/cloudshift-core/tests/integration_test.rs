@@ -90,6 +90,60 @@ fn test_load_python_s3_before_after() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn azure_functions_handler_pattern_matches_minimal_snippet() {
+    use cloudshift_core::catalogue::loader::load_patterns_from_directory;
+    use cloudshift_core::domain::value_objects::Language;
+    use cloudshift_core::pattern::matcher::match_pattern;
+
+    let root = workspace_root();
+    let (patterns, _) = load_patterns_from_directory(&root.join("patterns")).unwrap();
+    let pat = patterns
+        .iter()
+        .find(|p| p.id.as_str().contains("azure.functions.handler"))
+        .expect("pattern");
+    for src in [
+        b"import azure.functions as func\ndef main(req):\n    return 1\n".as_slice(),
+        b"import azure.functions as func\ndef main(req: func.HttpRequest) -> func.HttpResponse:\n    return func.HttpResponse('ok')\n".as_slice(),
+    ] {
+        let m = match_pattern(src, Language::Python, pat).expect("match");
+        assert!(
+            !m.is_empty(),
+            "azure.functions.handler should match:\n{}",
+            std::str::from_utf8(src).unwrap()
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual AST dump"]
+fn debug_python_function_parameters_structure() {
+    let src = "import azure.functions as func\ndef main(req):\n    return 1\n";
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&tree_sitter_python::LANGUAGE.into())
+        .unwrap();
+    let tree = parser.parse(src.as_bytes(), None).unwrap();
+    let mut cursor = tree.walk();
+    fn walk(cursor: &mut tree_sitter::TreeCursor, src: &str, depth: usize) {
+        let n = cursor.node();
+        let slice = &src[n.start_byte()..n.end_byte().min(src.len())];
+        let preview: String = slice.chars().take(50).collect();
+        println!("{:indent$}{} [{}..{}] {:?}", "", n.kind(), n.start_byte(), n.end_byte(), preview, indent = depth * 2);
+        if !cursor.goto_first_child() {
+            return;
+        }
+        loop {
+            walk(cursor, src, depth + 1);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+    walk(&mut cursor, src, 0);
+}
+
+#[test]
 fn test_parse_python_fixture_with_tree_sitter() {
     let root = workspace_root();
     let fixture_dir = root.join("tests/patterns/python/aws_s3_to_gcs");

@@ -1,0 +1,458 @@
+[
+  {
+    "stem": "aws_boto3_client_apigateway",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('apigateway')\n",
+    "pattern_id": "aws.boto3.client.apigateway -> gcp.apigateway_v1.ApiGatewayServiceClient"
+  },
+  {
+    "stem": "aws_boto3_client_dynamodb",
+    "source": "aws",
+    "code": "import boto3\nboto3.resource('dynamodb')\n",
+    "pattern_id": "aws.boto3.resource.dynamodb -> gcp.firestore.Client"
+  },
+  {
+    "stem": "aws_boto3_client_ec2",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('ec2')\n",
+    "pattern_id": "aws.boto3.client.ec2 -> gcp.compute_v1.InstancesClient"
+  },
+  {
+    "stem": "aws_boto3_client_ecs",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('ecs')\n",
+    "pattern_id": "aws.boto3.client.ecs -> gcp.run_v2.ServicesClient"
+  },
+  {
+    "stem": "aws_boto3_client_eks",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('eks')\n",
+    "pattern_id": "aws.boto3.client.eks -> gcp.container_v1.ClusterManagerClient"
+  },
+  {
+    "stem": "aws_boto3_client_elasticache",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('elasticache')\n",
+    "pattern_id": "aws.boto3.client.elasticache -> gcp.redis_v1.CloudRedisClient"
+  },
+  {
+    "stem": "aws_boto3_client_iam",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('iam')\n",
+    "pattern_id": "aws.boto3.client.iam -> gcp.iam_credentials_v1.IAMCredentialsClient"
+  },
+  {
+    "stem": "aws_boto3_client_logs",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('logs')\n",
+    "pattern_id": "aws.boto3.client.logs -> gcp.logging.Client"
+  },
+  {
+    "stem": "aws_boto3_client_route53",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('route53')\n",
+    "pattern_id": "aws.boto3.client.route53 -> gcp.dns.Client"
+  },
+  {
+    "stem": "aws_boto3_client_s3",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('s3')\n",
+    "pattern_id": "aws.boto3.client.s3 -> gcp.storage.Client"
+  },
+  {
+    "stem": "aws_boto3_client_secretsmanager",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('secretsmanager')\n",
+    "pattern_id": "aws.boto3.client.secretsmanager -> gcp.secretmanager.Client"
+  },
+  {
+    "stem": "aws_boto3_client_sns",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('sns')\n",
+    "pattern_id": "aws.boto3.client.sns -> gcp.pubsub.PublisherClient"
+  },
+  {
+    "stem": "aws_boto3_client_sqs",
+    "source": "aws",
+    "code": "import boto3\nboto3.client('sqs')\n",
+    "pattern_id": "aws.boto3.client.sqs -> gcp.pubsub.PublisherClient"
+  },
+  {
+    "stem": "aws_boto3_resource_ec2",
+    "source": "aws",
+    "code": "import boto3\nboto3.resource('ec2')\n",
+    "pattern_id": "aws.boto3.resource.ec2 -> gcp.compute_v1.InstancesClient"
+  },
+  {
+    "stem": "aws_s3_put_object",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.put_object(Bucket='b', Key='k', Body=b'x')\n",
+    "pattern_id": "aws.s3.put_object -> gcp.gcs.blob.upload_from_string"
+  },
+  {
+    "stem": "aws_s3_get_object",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.get_object(Bucket='b', Key='k')\n",
+    "pattern_id": "aws.s3.get_object -> gcp.gcs.blob.download_as_bytes"
+  },
+  {
+    "stem": "aws_s3_list_objects",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.list_objects_v2(Bucket='b')\n",
+    "pattern_id": "aws.s3.list_objects_v2 -> gcp.gcs.bucket.list_blobs"
+  },
+  {
+    "stem": "aws_s3_delete_object",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.delete_object(Bucket='b', Key='k')\n",
+    "pattern_id": "aws.s3.delete_object -> gcp.gcs.blob.delete"
+  },
+  {
+    "stem": "aws_s3_create_bucket",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.create_bucket(Bucket='b')\n",
+    "pattern_id": "aws.s3.create_bucket -> gcp.gcs.client.create_bucket"
+  },
+  {
+    "stem": "aws_s3_copy_object",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.copy_object(Bucket='b', CopySource='a/k', Key='k2')\n",
+    "pattern_id": "aws.s3.copy_object -> gcp.gcs.copy_blob"
+  },
+  {
+    "stem": "aws_s3_head_object",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.head_object(Bucket='b', Key='k')\n",
+    "pattern_id": "aws.s3.head_object -> gcp.gcs.blob.reload"
+  },
+  {
+    "stem": "aws_s3_presigned_url",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.generate_presigned_url('get_object', Params={{'Bucket':'b','Key':'k'}})\n",
+    "pattern_id": "aws.s3.generate_presigned_url -> gcp.gcs.blob.generate_signed_url"
+  },
+  {
+    "stem": "aws_s3_upload_file",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('s3')\n_c.upload_file('/tmp/x', 'b', 'k')\n",
+    "pattern_id": "aws.s3.upload_file -> gcp.gcs.blob.upload_from_filename"
+  },
+  {
+    "stem": "aws_dynamodb_put_item",
+    "source": "aws",
+    "code": "import boto3\n_t=boto3.resource('dynamodb').Table('t')\n_t.put_item(Item={'id':'1'})\n",
+    "pattern_id": "aws.dynamodb.put_item -> gcp.firestore.document.set"
+  },
+  {
+    "stem": "aws_dynamodb_get_item",
+    "source": "aws",
+    "code": "import boto3\n_t=boto3.resource('dynamodb').Table('t')\n_t.get_item(Key={'id':'1'})\n",
+    "pattern_id": "aws.dynamodb.get_item -> gcp.firestore.document.get"
+  },
+  {
+    "stem": "aws_dynamodb_delete_item",
+    "source": "aws",
+    "code": "import boto3\n_t=boto3.resource('dynamodb').Table('t')\n_t.delete_item(Key={'id':'1'})\n",
+    "pattern_id": "aws.dynamodb.delete_item -> gcp.firestore.document.delete"
+  },
+  {
+    "stem": "aws_dynamodb_update_item",
+    "source": "aws",
+    "code": "import boto3\n_t=boto3.resource('dynamodb').Table('t')\n_t.update_item(Key={'id':'1'}, UpdateExpression='SET #a=:v', ExpressionAttributeNames={'#a':'n'}, ExpressionAttributeValues={':v':'x'})\n",
+    "pattern_id": "aws.dynamodb.update_item -> gcp.firestore.document.update"
+  },
+  {
+    "stem": "aws_dynamodb_query",
+    "source": "aws",
+    "code": "import boto3\n_t=boto3.resource('dynamodb').Table('t')\n_t.query(KeyConditionExpression='id = :i', ExpressionAttributeValues={':i':'1'})\n",
+    "pattern_id": "aws.dynamodb.query -> gcp.firestore.collection.where"
+  },
+  {
+    "stem": "aws_dynamodb_scan",
+    "source": "aws",
+    "code": "import boto3\n_t=boto3.resource('dynamodb').Table('t')\n_t.scan()\n",
+    "pattern_id": "aws.dynamodb.scan -> gcp.firestore.collection.stream"
+  },
+  {
+    "stem": "aws_dynamodb_batch_write",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('dynamodb')\n_c.batch_write_item(RequestItems={'t': [{'PutRequest': {'Item': {'id': {'S': '1'}}}}]})\n",
+    "pattern_id": "aws.dynamodb.batch_write_item -> gcp.firestore.batch"
+  },
+  {
+    "stem": "aws_sqs_send_message",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('sqs')\n_c.send_message(QueueUrl='https://q', MessageBody='m')\n",
+    "pattern_id": "aws.sqs.send_message -> gcp.pubsub.publish"
+  },
+  {
+    "stem": "aws_sqs_receive_message",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('sqs')\n_c.receive_message(QueueUrl='https://q')\n",
+    "pattern_id": "aws.sqs.receive_message -> gcp.pubsub.pull"
+  },
+  {
+    "stem": "aws_sns_publish",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('sns')\n_c.publish(TopicArn='arn:aws:sns:x', Message='m')\n",
+    "pattern_id": "aws.sns.publish -> gcp.pubsub.publish"
+  },
+  {
+    "stem": "aws_ses_send_email",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('ses')\n_c.send_email(Source='a@b.c', Destination={'ToAddresses':['x@y.z']}, Message={'Subject':{'Data':'s'},'Body':{'Text':{'Data':'b'}}})\n",
+    "pattern_id": "aws.ses.send_email -> gcp.sendgrid.send"
+  },
+  {
+    "stem": "aws_secrets_manager",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('secretsmanager')\n_c.get_secret_value(SecretId='s')\n",
+    "pattern_id": "aws.secretsmanager.get_secret_value -> gcp.secretmanager.access_secret_version"
+  },
+  {
+    "stem": "aws_kinesis_put_record",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('kinesis')\n_c.put_record(StreamName='s', Data=b'x', PartitionKey='p')\n",
+    "pattern_id": "aws.kinesis.put_record -> gcp.pubsub.publish"
+  },
+  {
+    "stem": "aws_step_functions_start",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('stepfunctions')\n_c.start_execution(stateMachineArn='arn:aws:states:x', name='n', input='{}')\n",
+    "pattern_id": "aws.stepfunctions.start_execution -> gcp.workflows.create_execution"
+  },
+  {
+    "stem": "aws_eventbridge_put_events",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('events')\n_c.put_events(Entries=[{'Source':'s','DetailType':'t','Detail':'{}'}])\n",
+    "pattern_id": "aws.eventbridge.put_events -> gcp.eventarc.publish_events"
+  },
+  {
+    "stem": "aws_glue_start_job",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('glue')\n_c.start_job_run(JobName='j')\n",
+    "pattern_id": "aws.glue.start_job_run -> gcp.dataproc.submit_job"
+  },
+  {
+    "stem": "aws_athena_query",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('athena')\n_c.start_query_execution(QueryString='SELECT 1', ResultConfiguration={'OutputLocation':'s3://b/'})\n",
+    "pattern_id": "aws.athena.start_query_execution -> gcp.bigquery.query"
+  },
+  {
+    "stem": "aws_rds_connection",
+    "source": "aws",
+    "code": "import psycopg2\npsycopg2.connect(host='x.rds.amazonaws.com', database='d', user='u', password='p')\n",
+    "pattern_id": "aws.rds.psycopg2_connect -> gcp.cloud_sql.connector"
+  },
+  {
+    "stem": "aws_redshift_query",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('redshift-data')\n_c.execute_statement(ClusterIdentifier='c', Database='d', DbUser='u', Sql='SELECT 1')\n",
+    "pattern_id": "aws.redshift.execute_statement -> gcp.bigquery.query"
+  },
+  {
+    "stem": "aws_sts_assume_role",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('sts')\n_c.assume_role(RoleArn='arn:aws:iam::1:role/r', RoleSessionName='s')\n",
+    "pattern_id": "aws.sts.assume_role -> gcp.auth.workload_identity_federation"
+  },
+  {
+    "stem": "aws_ecr_get_auth",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('ecr')\n_c.get_authorization_token()\n",
+    "pattern_id": "aws.ecr.get_authorization_token -> gcp.artifactregistry.get_repository"
+  },
+  {
+    "stem": "aws_cloudwatch_put_metric",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('cloudwatch')\n_c.put_metric_data(Namespace='n', MetricData=[{'MetricName':'m','Value':1.0}])\n",
+    "pattern_id": "aws.cloudwatch.put_metric_data -> gcp.monitoring.create_time_series"
+  },
+  {
+    "stem": "aws_cloudwatch_get_metric",
+    "source": "aws",
+    "code": "import boto3\nfrom datetime import datetime, timedelta\nnow = datetime.utcnow()\n_c=boto3.client('cloudwatch')\n_c.get_metric_data(MetricDataQueries=[{'Id':'x','MetricStat':{'Metric':{'Namespace':'AWS/EC2','MetricName':'CPUUtilization'},'Period':60,'Stat':'Average'}}], StartTime=now-timedelta(hours=1), EndTime=now)\n",
+    "pattern_id": "aws.cloudwatch.get_metric_data -> gcp.monitoring.list_time_series"
+  },
+  {
+    "stem": "aws_comprehend_detect_sentiment",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('comprehend')\n_c.detect_sentiment(Text='hello', LanguageCode='en')\n",
+    "pattern_id": "aws.comprehend.detect_sentiment -> gcp.language.analyze_sentiment"
+  },
+  {
+    "stem": "aws_translate_text",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('translate')\n_c.translate_text(Text='hi', SourceLanguageCode='en', TargetLanguageCode='es')\n",
+    "pattern_id": "aws.translate.translate_text -> gcp.translate.translate"
+  },
+  {
+    "stem": "aws_textract_detect",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('textract')\n_c.detect_document_text(Document={'S3Object':{'Bucket':'b','Name':'n'}})\n",
+    "pattern_id": "aws.textract.detect_document_text -> gcp.vision.document_text_detection"
+  },
+  {
+    "stem": "aws_rekognition_detect_labels",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('rekognition')\n_c.detect_labels(Image={'S3Object':{'Bucket':'b','Name':'n'}})\n",
+    "pattern_id": "aws.rekognition.detect_labels -> gcp.vision.annotate_image"
+  },
+  {
+    "stem": "aws_polly_synthesize",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('polly')\n_c.synthesize_speech(Text='x', OutputFormat='mp3', VoiceId='Joanna')\n",
+    "pattern_id": "aws.polly.synthesize_speech -> gcp.texttospeech.synthesize_speech"
+  },
+  {
+    "stem": "aws_sagemaker_create_endpoint",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('sagemaker')\n_c.create_endpoint(EndpointName='e', EndpointConfigName='c')\n",
+    "pattern_id": "aws.sagemaker.create_endpoint -> gcp.vertex_ai.deploy_model"
+  },
+  {
+    "stem": "aws_bedrock_invoke_model",
+    "source": "aws",
+    "code": "import boto3\n_c=boto3.client('bedrock-runtime')\n_c.invoke_model(modelId='m', body=b'{}')\n",
+    "pattern_id": "aws.bedrock.invoke_model -> gcp.vertex_ai.generative_model.generate_content"
+  },
+  {
+    "stem": "aws_lambda_handler",
+    "source": "aws",
+    "code": "def lambda_handler(event, context):\n    return 0\n",
+    "pattern_id": "aws.lambda.handler -> gcp.cloud_functions.handler"
+  },
+  {
+    "stem": "aws_ec2_terminate_instances",
+    "source": "aws",
+    "code": "from botocore.exceptions import ClientError\nimport boto3\n_ec2=boto3.client('ec2')\n_ec2.terminate_instances(InstanceIds=['i-1'])\n",
+    "pattern_id": "aws.ec2.terminate_instances -> gcp.compute_v1.instances.delete"
+  },
+  {
+    "stem": "aws_route53_list_hosted_zones",
+    "source": "aws",
+    "code": "from botocore.exceptions import ClientError\nimport boto3\n_r=boto3.client('route53')\n_r.list_hosted_zones()\n",
+    "pattern_id": "aws.route53.list_hosted_zones -> gcp.dns.Client.list_zones"
+  },
+  {
+    "stem": "azure_blob_upload",
+    "source": "azure",
+    "code": "from azure.storage.blob import BlobServiceClient\n_bs=BlobServiceClient.from_connection_string('x')\n_bc=_bs.get_blob_client('c','b')\n_bc.upload_blob(b'd', overwrite=True)\n",
+    "pattern_id": "azure.blob.upload_blob -> gcp.gcs.blob.upload_from_string"
+  },
+  {
+    "stem": "azure_blob_download",
+    "source": "azure",
+    "code": "from azure.storage.blob import BlobServiceClient\n_bs=BlobServiceClient.from_connection_string('x')\n_bc=_bs.get_blob_client('c','b')\n_bc.download_blob()\n",
+    "pattern_id": "azure.blob.download_blob -> gcp.gcs.blob.download_as_bytes"
+  },
+  {
+    "stem": "azure_storage_queue_send",
+    "source": "azure",
+    "code": "from azure.storage.queue import QueueServiceClient\n_qs=QueueServiceClient.from_connection_string('x')\n_qc=_qs.get_queue_client('q')\n_qc.send_message('m')\n",
+    "pattern_id": "azure.storage.queue.send_message -> gcp.pubsub.publish"
+  },
+  {
+    "stem": "azure_servicebus_send",
+    "source": "azure",
+    "code": "from azure.servicebus import ServiceBusClient, ServiceBusMessage\n_sb=ServiceBusClient.from_connection_string('x')\n_snd=_sb.get_queue_sender('q')\n_snd.send_messages(ServiceBusMessage('m'))\n",
+    "pattern_id": "azure.servicebus.send_messages -> gcp.pubsub.publish"
+  },
+  {
+    "stem": "azure_keyvault_get_secret",
+    "source": "azure",
+    "code": "from azure.identity import DefaultAzureCredential\nfrom azure.keyvault.secrets import SecretClient\n_sc=SecretClient('https://v.vault.azure.net', DefaultAzureCredential())\n_sc.get_secret('s')\n",
+    "pattern_id": "azure.keyvault.get_secret -> gcp.secretmanager.access_secret_version"
+  },
+  {
+    "stem": "azure_cosmosdb_create_item",
+    "source": "azure",
+    "code": "from azure.cosmos import CosmosClient\n_cc=CosmosClient('https://x.documents.azure.com:443','k').get_database_client('d').get_container_client('c')\n_cc.create_item(body={'id':'1'})\n",
+    "pattern_id": "azure.cosmosdb.create_item -> gcp.firestore.document.set"
+  },
+  {
+    "stem": "azure_cognitive_text_analytics",
+    "source": "azure",
+    "code": "from azure.ai.textanalytics import TextAnalyticsClient\nfrom azure.core.credentials import AzureKeyCredential\n_c=TextAnalyticsClient('https://x.cognitiveservices.azure.com/', AzureKeyCredential('k'))\n_c.analyze_sentiment([{'id':'1','text':'hi'}])\n",
+    "pattern_id": "azure.textanalytics.analyze_sentiment -> gcp.language.analyze_sentiment"
+  },
+  {
+    "stem": "azure_functions_handler",
+    "source": "azure",
+    "code": "import azure.functions as func\ndef main(req: func.HttpRequest) -> func.HttpResponse:\n    return func.HttpResponse('ok')\n",
+    "pattern_id": "azure.functions.handler -> gcp.cloud_functions.handler"
+  },
+  {
+    "stem": "azure_openai_chat",
+    "source": "azure",
+    "code": "from openai import AzureOpenAI\n_c=AzureOpenAI(api_key='k',api_version='2024-02-01',azure_endpoint='https://x.openai.azure.com/')\n_c.chat.completions.create(model='gpt-4',messages=[{'role':'user','content':'hi'}])\n",
+    "pattern_id": "azure.openai.chat_completion -> gcp.vertex_ai.generative_model"
+  },
+  {
+    "stem": "azure_ml_invoke",
+    "source": "azure",
+    "code": "import azure.ai.ml\nfrom azure.identity import DefaultAzureCredential\nclass MLClient:\n    def invoke(self, endpoint_name=None, request_file=None):\n        pass\nc = MLClient()\nc.invoke(endpoint_name='e', request_file='f.json')\n",
+    "pattern_id": "azure.ml.invoke -> gcp.aiplatform.predict"
+  },
+  {
+    "stem": "azure_eventgrid_publisher_new",
+    "source": "azure",
+    "code": "from azure.eventgrid import EventGridPublisherClient\nEventGridPublisherClient('https://x', 'key')\n",
+    "pattern_id": "azure.eventgrid.EventGridPublisherClient -> gcp.pubsub.PublisherClient"
+  },
+  {
+    "stem": "azure_tables_from_connection",
+    "source": "azure",
+    "code": "from azure.data.tables import TableServiceClient\nTableServiceClient.from_connection_string('x')\n",
+    "pattern_id": "azure.tables.TableServiceClient.from_connection_string -> gcp.firestore.Client"
+  },
+  {
+    "stem": "azure_applicationinsights_telemetryclient",
+    "source": "azure",
+    "code": "from applicationinsights import TelemetryClient\nTelemetryClient('key')\n",
+    "pattern_id": "azure.applicationinsights.TelemetryClient -> gcp.logging.Client"
+  },
+  {
+    "stem": "azure_compute_management_client",
+    "source": "azure",
+    "code": "from azure.identity import DefaultAzureCredential\nfrom azure.mgmt.compute import ComputeManagementClient\nComputeManagementClient(DefaultAzureCredential(),'sub')\n",
+    "pattern_id": "azure.mgmt.compute.ComputeManagementClient -> gcp.compute_v1.InstancesClient"
+  },
+  {
+    "stem": "azure_containerinstance_client",
+    "source": "azure",
+    "code": "from azure.identity import DefaultAzureCredential\nfrom azure.mgmt.containerinstance import ContainerInstanceManagementClient\nContainerInstanceManagementClient(DefaultAzureCredential(),'sub')\n",
+    "pattern_id": "azure.mgmt.containerinstance.ContainerInstanceManagementClient -> gcp.run_v2.ServicesClient"
+  },
+  {
+    "stem": "azure_webmanagement_client",
+    "source": "azure",
+    "code": "from azure.identity import DefaultAzureCredential\nfrom azure.mgmt.web import WebSiteManagementClient\nWebSiteManagementClient(DefaultAzureCredential(),'sub')\n",
+    "pattern_id": "azure.mgmt.web.WebSiteManagementClient -> gcp.run_v2.ServicesClient"
+  },
+  {
+    "stem": "azure_resource_management_client",
+    "source": "azure",
+    "code": "from azure.identity import DefaultAzureCredential\nfrom azure.mgmt.resource import ResourceManagementClient\nResourceManagementClient(DefaultAzureCredential(),'sub')\n",
+    "pattern_id": "azure.mgmt.resource.ResourceManagementClient -> gcp.resourcemanager_v3.ProjectsClient"
+  },
+  {
+    "stem": "azure_monitor_client",
+    "source": "azure",
+    "code": "from azure.identity import DefaultAzureCredential\nfrom azure.monitor import MonitorClient\nMonitorClient(DefaultAzureCredential(),'sub')\n",
+    "pattern_id": "azure.monitor.MonitorClient -> gcp.monitoring_v3.MetricServiceClient"
+  },
+  {
+    "stem": "azure_graphrbac_management_client",
+    "source": "azure",
+    "code": "from azure.identity import ClientSecretCredential\nfrom azure.graphrbac import GraphRbacManagementClient\nGraphRbacManagementClient(ClientSecretCredential('t','c','s'),'t')\n",
+    "pattern_id": "azure.graphrbac.GraphRbacManagementClient -> gcp.iam_credentials_v1.IAMCredentialsClient"
+  },
+  {
+    "stem": "azure_sql_management_client",
+    "source": "azure",
+    "code": "from azure.identity import DefaultAzureCredential\nfrom azure.mgmt.sql import SqlManagementClient\nSqlManagementClient(DefaultAzureCredential(),'sub')\n",
+    "pattern_id": "azure.mgmt.sql.SqlManagementClient -> gcp.bigquery.Client"
+  }
+]

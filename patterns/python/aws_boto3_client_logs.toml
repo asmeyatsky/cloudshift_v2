@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.logs -> gcp.logging.Client"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.84
+tags = ["logging", "cloudwatch-logs", "cloud-logging", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "logs"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''cloud_logging.Client()'''
+import_add = ["from google.cloud import logging as cloud_logging"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "CloudWatch Logs map to Cloud Logging. put_log_events becomes logger.log_struct or logging client batch; log groups map to log names. Review GCP Logging agent vs API writes."

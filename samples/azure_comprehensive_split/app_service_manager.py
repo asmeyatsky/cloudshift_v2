@@ -1,4 +1,11 @@
-"""Azure App Service — web apps."""
+"""Azure App Service — web apps.
+
+``WebSiteManagementClient`` — not HTTP handlers; no ``functions_framework``.
+Zip/one-deploy differs from GCP’s container model.
+
+GCP analogue: **Cloud Run** (build a container from your app), e.g.
+``gcp_reference/lambda_cloud_run_manager.py``.
+"""
 from azure.identity import DefaultAzureCredential
 
 

@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.route53 -> gcp.dns.Client"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["dns", "route53", "cloud-dns", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "route53"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''dns.Client()'''
+import_add = ["from google.cloud import dns"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Hosted zones and record sets map to Cloud DNS managed zones and record changes. See gcp_reference/cloud_dns_manager.py."

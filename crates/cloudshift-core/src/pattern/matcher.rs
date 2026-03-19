@@ -152,10 +152,12 @@ pub fn match_pattern(
 /// not `self`/`cls`, not dunder names. Rejects `def m(self, x):` and `__init__`.
 fn azure_http_handler_params_ok(fn_text: &str) -> bool {
     let s = fn_text.trim_start();
-    let Some(def_pos) = s.find("def ") else {
-        return false;
+    // Match span may start at the function name (merged captures) without "def ".
+    let after_def = if let Some(p) = s.find("def ") {
+        &s[p + 4..]
+    } else {
+        s
     };
-    let after_def = &s[def_pos + 4..];
     let Some(open) = after_def.find('(') else {
         return false;
     };

@@ -1,4 +1,11 @@
-"""Azure SQL Database — relational DB."""
+"""Azure SQL Database — relational DB.
+
+``SqlManagementClient`` — not HTTP handlers; no ``functions_framework``.
+``create_database`` includes ``admin_login`` / ``admin_password`` for parity
+with samples that provision servers separately.
+
+GCP analogue: ``gcp_reference/cloud_sql_manager.py``.
+"""
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.sql import SqlManagementClient
 

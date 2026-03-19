@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.apigateway -> gcp.apigateway_v1.ApiGatewayServiceClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["api", "apigateway", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "apigateway"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''apigateway_v1.ApiGatewayServiceClient()'''
+import_add = ["from google.cloud import apigateway_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "REST APIs map to API Gateway (GCP) + ApiConfig/Gateway resources. See gcp_reference/api_gateway_manager.py."

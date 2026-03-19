@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.mgmt.web.WebSiteManagementClient -> gcp.run_v2.ServicesClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.74
+tags = ["app-service", "cloud-run", "web"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "WebSiteManagementClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.mgmt.web"]
+
+[pattern.transform]
+template = '''run_v2.ServicesClient()'''
+import_add = ["from google.cloud import run_v2"]
+import_remove = ["from azure.mgmt.web import WebSiteManagementClient"]
+
+[pattern.notes]
+description = "App Service maps to Cloud Run (container). Zip deploy becomes image deploy. See gcp_reference/lambda_cloud_run_manager.py."

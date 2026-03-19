@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.eventgrid.EventGridPublisherClient -> gcp.pubsub.PublisherClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["eventgrid", "pubsub", "events"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "EventGridPublisherClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.eventgrid"]
+
+[pattern.transform]
+template = '''pubsub_v1.PublisherClient()'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["from azure.eventgrid import EventGridPublisherClient", "from azure.eventgrid import EventGridEvent"]
+
+[pattern.notes]
+description = "Map topic endpoint to Pub/Sub topic path; use publish() with JSON payload and attributes. See gcp_reference/eventgrid_pubsub_manager.py."

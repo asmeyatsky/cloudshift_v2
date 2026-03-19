@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.elasticache -> gcp.redis_v1.CloudRedisClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["cache", "elasticache", "memorystore", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "elasticache"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''redis_v1.CloudRedisClient()'''
+import_add = ["from google.cloud import redis_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "ElastiCache Redis clusters map to Memorystore (Cloud Redis API). See gcp_reference/memorystore_redis_manager.py."

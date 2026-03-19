@@ -1,4 +1,12 @@
-"""Azure Application Insights — telemetry."""
+"""Azure Application Insights — telemetry.
+
+``applicationinsights`` Python SDK (instrumentation key). Not HTTP handlers.
+
+GCP analogue: ``gcp_reference/application_insights_logging_analogue.py``
+(Cloud Logging); metrics → also consider Cloud Monitoring.
+
+Requires: ``pip install applicationinsights``
+"""
 
 
 class ApplicationInsightsManager:

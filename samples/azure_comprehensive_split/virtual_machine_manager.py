@@ -1,6 +1,12 @@
-"""Azure Virtual Machines — compute."""
-from azure.compute import ComputeManagementClient
+"""Azure Virtual Machines — compute.
+
+``ComputeManagementClient`` (mgmt SDK) — not HTTP handlers; no
+``functions_framework``.
+
+GCP analogue: ``gcp_reference/compute_engine_manager.py``.
+"""
 from azure.identity import DefaultAzureCredential
+from azure.mgmt.compute import ComputeManagementClient
 
 
 class VirtualMachineManager:
@@ -14,8 +20,14 @@ class VirtualMachineManager:
     def create_vm(self, vm_name, location, vm_size, admin_username, admin_password, image_reference):
         """Create a virtual machine"""
         try:
-            from azure.mgmt.compute.models import VirtualMachine, NetworkProfile, NetworkInterfaceReference, \
-                StorageProfile, ImageReference, OSDisk, ManagedDiskParameters, HardwareProfile
+            from azure.mgmt.compute.models import (
+                HardwareProfile,
+                ImageReference,
+                ManagedDiskParameters,
+                OSDisk,
+                StorageProfile,
+                VirtualMachine,
+            )
 
             vm_parameters = VirtualMachine(
                 location=location,

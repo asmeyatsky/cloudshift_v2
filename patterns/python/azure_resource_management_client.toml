@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.mgmt.resource.ResourceManagementClient -> gcp.resourcemanager_v3.ProjectsClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.72
+tags = ["resource-group", "projects", "arm"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "ResourceManagementClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.mgmt.resource"]
+
+[pattern.transform]
+template = '''resourcemanager_v3.ProjectsClient()'''
+import_add = ["from google.cloud import resourcemanager_v3"]
+import_remove = ["from azure.mgmt.resource import ResourceManagementClient"]
+
+[pattern.notes]
+description = "Resource groups map loosely to GCP projects/folders. See gcp_reference/resource_manager_projects_analogue.py."

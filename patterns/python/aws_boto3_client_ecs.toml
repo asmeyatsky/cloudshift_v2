@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.ecs -> gcp.run_v2.ServicesClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.81
+tags = ["containers", "ecs", "cloud-run", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "ecs"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''run_v2.ServicesClient()'''
+import_add = ["from google.cloud import run_v2"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "ECS services/tasks map to Cloud Run services or Jobs. See gcp_reference/cloud_run_jobs_manager.py and lambda_cloud_run_manager.py."

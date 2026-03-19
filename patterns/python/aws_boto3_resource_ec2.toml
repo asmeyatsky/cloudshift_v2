@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.resource.ec2 -> gcp.compute_v1.InstancesClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["compute", "ec2", "gce", "resource-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "resource"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "ec2"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''compute_v1.InstancesClient()'''
+import_add = ["from google.cloud import compute_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "boto3.resource('ec2') create_instances maps to instances.insert with machine_type, network_interfaces, etc. Review gcp_reference/compute_engine_manager.py."

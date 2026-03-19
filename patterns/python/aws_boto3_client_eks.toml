@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.eks -> gcp.container_v1.ClusterManagerClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["kubernetes", "eks", "gke", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "eks"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''container_v1.ClusterManagerClient()'''
+import_add = ["from google.cloud import container_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "EKS cluster operations map to GKE ClusterManagerClient. See gcp_reference/gke_cluster_manager.py."

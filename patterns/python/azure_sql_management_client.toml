@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.mgmt.sql.SqlManagementClient -> gcp.bigquery.Client"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.68
+tags = ["sql", "database", "azure-sql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "SqlManagementClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.mgmt.sql"]
+
+[pattern.transform]
+template = '''bigquery.Client()'''
+import_add = ["from google.cloud import bigquery"]
+import_remove = ["from azure.mgmt.sql import SqlManagementClient"]
+
+[pattern.notes]
+description = "Azure SQL Database admin API does not map to BigQuery. For managed SQL use Cloud SQL Admin API / connector (see gcp_reference/cloud_sql_manager.py). Replace this client manually after provisioning."

@@ -14,6 +14,7 @@ query = '''
     name: (identifier) @func_name
     parameters: (parameters
       (identifier) @event_param
+      .
       (identifier) @context_param)
     (#not-eq? @event_param "self")
     (#not-eq? @event_param "cls")

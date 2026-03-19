@@ -1,0 +1,25 @@
+[pattern]
+id = "azure.tables.TableServiceClient.from_connection_string -> gcp.firestore.Client"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["table-storage", "firestore", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @cls (#eq? @cls "TableServiceClient")
+      attribute: (identifier) @m (#eq? @m "from_connection_string"))
+    arguments: (_) @args)
+'''
+imports = ["azure.data.tables"]
+
+[pattern.transform]
+template = '''firestore.Client()'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["from azure.data.tables import TableServiceClient"]
+
+[pattern.notes]
+description = "Table Storage entities map to Firestore documents/collections. See gcp_reference/table_storage_firestore_analogue.py."

@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.graphrbac.GraphRbacManagementClient -> gcp.iam_credentials_v1.IAMCredentialsClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.65
+tags = ["aad", "graph", "identity"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "GraphRbacManagementClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.graphrbac"]
+
+[pattern.transform]
+template = '''iam_credentials_v1.IAMCredentialsClient()'''
+import_add = ["from google.cloud import iam_credentials_v1"]
+import_remove = ["from azure.graphrbac import GraphRbacManagementClient"]
+
+[pattern.notes]
+description = "Azure AD users/SPs map to Workspace Admin SDK, Cloud Identity, and IAM service accounts — not 1:1. Review gcp_reference/azure_ad_gcp_iam_analogue.py."

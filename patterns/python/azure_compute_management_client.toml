@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.mgmt.compute.ComputeManagementClient -> gcp.compute_v1.InstancesClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["vm", "compute", "gce"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "ComputeManagementClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.mgmt.compute"]
+
+[pattern.transform]
+template = '''compute_v1.InstancesClient()'''
+import_add = ["from google.cloud import compute_v1"]
+import_remove = ["from azure.mgmt.compute import ComputeManagementClient"]
+
+[pattern.notes]
+description = "Azure VM CRUD maps to Compute Engine instances.insert/get/delete. See gcp_reference/compute_engine_manager.py."

@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.monitor.MonitorClient -> gcp.monitoring_v3.MetricServiceClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["monitor", "metrics", "azure-monitor"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "MonitorClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.monitor"]
+
+[pattern.transform]
+template = '''monitoring_v3.MetricServiceClient()'''
+import_add = ["from google.cloud import monitoring_v3"]
+import_remove = ["from azure.monitor import MonitorClient"]
+
+[pattern.notes]
+description = "Metrics list/query map to Cloud Monitoring list_time_series. See gcp_reference/gcp_monitoring_manager.py."

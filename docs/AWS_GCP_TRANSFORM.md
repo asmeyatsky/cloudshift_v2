@@ -9,7 +9,7 @@
 
 ## What we do **not** guarantee
 
-- **Complete migration of every AWS service** — the catalogue has **finite** patterns (~50+ Python AWS entries). Services without patterns rely on the LLM or manual work.
+- **Complete migration of every AWS service** — the catalogue has **finite** patterns (~50+ Python AWS entries). Services without patterns rely on the LLM or manual work. See **`docs/PATTERN_COVERAGE_GAPS.md`** (regenerate with `python3 scripts/report_pattern_gaps.py --write docs/PATTERN_COVERAGE_GAPS.md`).
 - **Correctness after LLM** — models can hallucinate, omit edge cases, or hit context limits. **Human review** is required for production.
 - **Single pass on huge files** — very large multi-service modules often need **splitting** (see `samples/aws_comprehensive_split/` and `samples/gcp_reference/`).
 
@@ -28,6 +28,16 @@
 `needs_llm_fallback()` is true if **any** line matches heuristics: boto3 imports, `boto3.client`/`resource`, ARNs, `AWS_*` env vars, `.amazonaws.com`, etc. (see `llm_fallback/detector.rs`).
 
 It does **not** mean the LLM will succeed on every service; it means “there is still AWS-shaped surface area to address.”
+
+## Client-initialization patterns (AWS / Azure gaps)
+
+For boto3 services that had **no** call-level patterns (EC2, ECS, EKS, API Gateway, Route 53, ElastiCache, IAM, CloudWatch **Logs**, etc.), the catalogue includes **`aws_boto3_client_<service>.toml`** rules that replace `boto3.client('<service>')` with the closest **GCP client constructor**. Same idea for **`aws_boto3_resource_ec2`**.
+
+Azure **mgmt** and Table/EventGrid/App Insights clients have analogous **`azure_*_client.toml`** entries.
+
+These rewrites produce **valid GCP client imports** but **do not** rewrite individual RPC calls (`describe_instances`, `create_hosted_zone`, …). You still need follow-up patterns or manual/LLM migration for method bodies. **`azure_sql_management_client`** maps to `bigquery.Client()` only as a stub — prefer Cloud SQL (see pattern notes).
+
+**How to add method-level patterns:** see **`docs/ADDING_PYTHON_PATTERNS.md`**.
 
 ## Making new AWS services less likely to break
 

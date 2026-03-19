@@ -1,4 +1,9 @@
-"""Azure Table Storage."""
+"""Azure Table Storage.
+
+``TableServiceClient`` / ``TableClient`` — not HTTP handlers.
+
+GCP loose analogue: ``gcp_reference/table_storage_firestore_analogue.py``.
+"""
 
 
 class TableStorageManager:

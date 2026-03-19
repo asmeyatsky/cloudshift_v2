@@ -170,7 +170,15 @@ fn transform_source(
         }
     };
 
-    if constructs.is_empty() {
+    // Semantic constructs gate: skip pattern matching on files with no detected
+    // cloud usage (avoids false positives). CI pattern validation sets
+    // CLOUDSHIFT_MATCH_WITHOUT_CONSTRUCTS=1 so every catalogue pattern can be
+    // checked against minimal snippets that may not trigger heuristics.
+    let match_without_constructs = std::env::var("CLOUDSHIFT_MATCH_WITHOUT_CONSTRUCTS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if constructs.is_empty() && !match_without_constructs {
         return TransformResult::new(
             path.to_string(),
             language,

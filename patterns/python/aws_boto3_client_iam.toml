@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.iam -> gcp.iam_credentials_v1.IAMCredentialsClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.72
+tags = ["iam", "identity", "credentials", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "iam"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''iam_credentials_v1.IAMCredentialsClient()'''
+import_add = ["from google.cloud import iam_credentials_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "IAM roles/policies have no 1:1 client. IAMCredentialsClient signs blobs with service accounts. Use Workload Identity, service accounts, and Resource Manager for org policy. Manual redesign likely required."

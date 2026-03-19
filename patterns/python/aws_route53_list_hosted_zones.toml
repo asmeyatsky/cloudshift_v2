@@ -1,0 +1,25 @@
+[pattern]
+id = "aws.route53.list_hosted_zones -> gcp.dns.Client.list_zones"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["route53", "dns", "cloud-dns"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (_) @recv
+      attribute: (identifier) @method (#eq? @method "list_hosted_zones"))
+    arguments: (_) @args)
+'''
+imports = ["botocore"]
+
+[pattern.transform]
+template = '''list(dns.Client().list_zones())'''
+import_add = ["from google.cloud import dns"]
+import_remove = []
+
+[pattern.notes]
+description = "Returns an iterator of Zone objects, not {'HostedZones': [...]}. Replace response.get('HostedZones', []) with list(response) or map zone.dns_name. See gcp_reference/cloud_dns_manager.py."

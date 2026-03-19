@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.applicationinsights.TelemetryClient -> gcp.logging.Client"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["telemetry", "logging", "app-insights"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "TelemetryClient")
+    arguments: (_) @args)
+'''
+imports = ["applicationinsights"]
+
+[pattern.transform]
+template = '''cloud_logging.Client()'''
+import_add = ["from google.cloud import logging as cloud_logging"]
+import_remove = ["from applicationinsights import TelemetryClient"]
+
+[pattern.notes]
+description = "track_event/track_metric map to structured logs or Cloud Monitoring. See gcp_reference/application_insights_logging_analogue.py."

@@ -1,0 +1,23 @@
+[pattern]
+id = "azure.mgmt.containerinstance.ContainerInstanceManagementClient -> gcp.run_v2.ServicesClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.76
+tags = ["aci", "cloud-run", "containers"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "ContainerInstanceManagementClient")
+    arguments: (_) @args)
+'''
+imports = ["azure.mgmt.containerinstance"]
+
+[pattern.transform]
+template = '''run_v2.ServicesClient()'''
+import_add = ["from google.cloud import run_v2"]
+import_remove = ["from azure.mgmt.containerinstance import ContainerInstanceManagementClient"]
+
+[pattern.notes]
+description = "Container groups map to Cloud Run services or Jobs. See gcp_reference/cloud_run_jobs_manager.py."

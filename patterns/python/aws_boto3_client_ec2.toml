@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.ec2 -> gcp.compute_v1.InstancesClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["compute", "ec2", "gce", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "ec2"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''compute_v1.InstancesClient()'''
+import_add = ["from google.cloud import compute_v1"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "EC2 maps to Compute Engine. Replace describe_instances/create_security_group/terminate_instances with InstancesClient/FirewallsClient APIs; zone and project required."

@@ -1,5 +1,28 @@
 # Demo scripts
 
+## validate_all_patterns.py — every Python pattern, automatically
+
+Regenerates minimal snippets (optional), runs `cloudshift transform --dry-run` per
+pattern, and asserts each pattern id appears in the JSON report.
+
+```bash
+python3 scripts/_generate_smoke_cases.py   # after adding/changing patterns/python/*.toml
+python3 scripts/validate_all_patterns.py   # parallel; use --jobs 1 for quieter logs
+```
+
+The validator sets `CLOUDSHIFT_MATCH_WITHOUT_CONSTRUCTS=1` so snippets that do not
+trigger the semantic “cloud constructs” heuristics still get pattern matching.
+Normal CLI transforms are unchanged.
+
+## report_pattern_gaps.py — AWS/Azure vs catalogue (no network)
+
+Lists boto3 services used in `samples/aws_comprehensive_split/` and Azure managers
+with **no / partial** pattern coverage. Regenerate the doc anytime:
+
+```bash
+python3 scripts/report_pattern_gaps.py --write docs/PATTERN_COVERAGE_GAPS.md
+```
+
 ## demo_local.sh — prove patterns work (CLI)
 
 Runs `cloudshift transform` on every Python fixture under `tests/patterns/python/`.  

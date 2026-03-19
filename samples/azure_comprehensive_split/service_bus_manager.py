@@ -1,4 +1,9 @@
-"""Azure Service Bus — queues and topics."""
+"""Azure Service Bus — queues and topics.
+
+``ServiceBusClient`` — not HTTP handlers; no ``functions_framework``.
+
+GCP analogue: ``gcp_reference/service_bus_pubsub_analogue.py`` (Pub/Sub).
+"""
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 
 

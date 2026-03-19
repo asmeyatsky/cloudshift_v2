@@ -10,8 +10,12 @@ tags = ["compute", "azure-functions", "cloud-functions", "serverless"]
 query = '''
   (function_definition
     name: (identifier) @func_name
-    parameters: (parameters
-      (identifier) @req_param)
+    parameters: (parameters (identifier) @req_param)
+    body: (block) @func_body)
+
+  (function_definition
+    name: (identifier) @func_name
+    parameters: (parameters (typed_parameter (identifier) @req_param))
     body: (block) @func_body)
 '''
 imports = ["azure.functions"]

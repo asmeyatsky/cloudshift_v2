@@ -1,4 +1,11 @@
-"""Azure Container Instances."""
+"""Azure Container Instances.
+
+``ContainerInstanceManagementClient`` — not HTTP handlers; no
+``functions_framework``.
+
+GCP analogue: **Cloud Run** (service) or **Cloud Run Jobs** (batch); see
+``gcp_reference/lambda_cloud_run_manager.py`` and ``cloud_run_jobs_manager.py``.
+"""
 from azure.identity import DefaultAzureCredential
 
 
@@ -14,23 +21,28 @@ class ContainerInstancesManager:
     def create_container_group(self, container_group_name, location, image_name, cpu=1.0, memory=1.5):
         """Create a container group"""
         try:
-            from azure.mgmt.containerinstance.models import Container, \
-                ResourceRequirements, ResourceRequests
+            from azure.mgmt.containerinstance.models import (
+                Container,
+                ContainerGroup,
+                ResourceRequests,
+                ResourceRequirements,
+            )
 
             container_resource_requests = ResourceRequests(
                 memory_in_gb=memory,
-                cpu=cpu
+                cpu=cpu,
             )
-            container_resource_requirements = ResourceRequirements(requests=container_resource_requests)
+            container_resource_requirements = ResourceRequirements(
+                requests=container_resource_requests
+            )
 
             container = Container(
                 name=container_group_name,
                 image=image_name,
                 resources=container_resource_requirements,
-                ports=[{'port': 80}]
+                ports=[{"port": 80}],
             )
 
-            from azure.mgmt.containerinstance.models import ContainerGroup
             container_group = ContainerGroup(
                 location=location,
                 containers=[container],
