@@ -87,7 +87,7 @@ pub fn detect_dynamodb_put_chain(
         let item_payload = crate::fixup::dynamodb_item_json_string_to_standard(&item_data)
             .unwrap_or_else(|_| item_data.clone());
         let replacement = format!(
-            "db = firestore.Client()  # IBTE: consolidated boto3.resource + Table + put_item\ndb.collection('{}').document({}).set({})",
+            "# Migrated from DynamoDB put_item -> Firestore\ndb = firestore.Client()\ndb.collection('{}').document({}).set({})",
             table_name,
             doc_id,
             item_payload
@@ -171,6 +171,74 @@ fn extract_named_arg_expr(call: &str, name: &str) -> Option<String> {
     Some(after[..end].trim().to_string())
 }
 
+/// Detect inline S3 put_object: boto3.client('s3').put_object(...) with no variable.
+pub fn detect_s3_put_inline_chain(
+    source: &[u8],
+    tree: &tree_sitter::Tree,
+    _registry: &StatefulContextRegistry,
+) -> Result<Vec<PatternMatch>, AnalysisError> {
+    let mut out = Vec::new();
+    let lang = Language::Python;
+
+    let q = r#"
+    (call
+      function: (attribute
+        object: (call
+          function: (attribute
+            object: (identifier) @mod (#eq? @mod "boto3")
+            attribute: (identifier) @meth (#eq? @meth "client"))
+          arguments: (argument_list (string) @svc))
+        attribute: (identifier) @method (#eq? @method "put_object"))
+      arguments: (argument_list) @args)
+    "#;
+    let query = treesitter::compile_query(lang, q)?;
+    for m in treesitter::run_query(&query, tree, source) {
+        let caps: Vec<_> = m
+            .captures
+            .iter()
+            .map(|c| (c.name.clone(), c.text.clone(), c.span))
+            .collect();
+        let svc = caps
+            .iter()
+            .find(|(n, _, _)| n == "svc")
+            .map(|(_, t, _)| t.trim_matches(&['\'', '"'][..]));
+        if svc != Some("s3") {
+            continue;
+        }
+        let call_span = caps
+            .iter()
+            .fold((usize::MAX, 0usize), |(s, e), (_, _, sp)| {
+                (min(s, sp.start_byte), max(e, sp.end_byte))
+            });
+        let call_slice = std::str::from_utf8(&source[call_span.0..call_span.1]).unwrap_or("");
+        let (bucket, key) = extract_s3_call_args(call_slice);
+        let call_source_span = SourceSpan {
+            start_byte: call_span.0,
+            end_byte: call_span.1,
+            start_row: 0,
+            start_col: 0,
+            end_row: 0,
+            end_col: 0,
+        };
+        let replacement = format!(
+            "# Migrated from S3 put_object (inline) -> GCS\nstorage_client = storage.Client()\nstorage_client.bucket({}).blob({}).upload_from_string(raw_data)",
+            bucket, key
+        );
+        out.push(PatternMatch {
+            pattern_id: PatternId::new(
+                "ibte.aws.s3.put_object.inline -> gcp.gcs.blob.upload_from_string",
+            ),
+            span: call_source_span,
+            confidence: Confidence::new(0.88),
+            source_text: String::new(),
+            replacement_text: replacement,
+            import_add: vec!["from google.cloud import storage".into()],
+            import_remove: vec!["import boto3".into()],
+        });
+    }
+    Ok(out)
+}
+
 /// Detect AWS S3 chain (client + put_object) and produce one consolidated match.
 pub fn detect_s3_put_chain(
     source: &[u8],
@@ -223,7 +291,7 @@ pub fn detect_s3_put_chain(
         let call_slice = std::str::from_utf8(&source[call_span.0..call_span.1]).unwrap_or("");
         let (bucket, key) = extract_s3_call_args(call_slice);
         let replacement = format!(
-            "storage_client = storage.Client()  # IBTE: consolidated S3 put_object -> GCS\nstorage_client.bucket({}).blob({}).upload_from_string(raw_data)",
+            "# Migrated from S3 put_object -> GCS\nstorage_client = storage.Client()\nstorage_client.bucket({}).blob({}).upload_from_string(raw_data)",
             bucket, key
         );
         out.push(PatternMatch {
@@ -292,7 +360,7 @@ pub fn detect_s3_get_chain(
         let call_slice = std::str::from_utf8(&source[call_span.0..call_span.1]).unwrap_or("");
         let (bucket, key) = extract_s3_call_args(call_slice);
         let replacement = format!(
-            "storage_client = storage.Client()  # IBTE: consolidated S3 get_object -> GCS\ncontent = storage_client.bucket({}).blob({}).download_as_bytes()",
+            "# Migrated from S3 get_object -> GCS\nstorage_client = storage.Client()\ncontent = storage_client.bucket({}).blob({}).download_as_bytes()",
             bucket, key
         );
         out.push(PatternMatch {
@@ -306,6 +374,156 @@ pub fn detect_s3_get_chain(
         });
     }
 
+    Ok(out)
+}
+
+/// Extract QueueUrl=, MessageBody= from SQS send_message call.
+fn extract_sqs_send_args(call: &str) -> (String, String) {
+    let queue =
+        extract_named_arg_expr(call, "QueueUrl").unwrap_or_else(|| "'__queue__'".to_string());
+    let body =
+        extract_named_arg_expr(call, "MessageBody").unwrap_or_else(|| "message_body".to_string());
+    (queue, body)
+}
+
+/// Extract TopicArn=, Message=, Subject= from SNS publish call.
+fn extract_sns_publish_args(call: &str) -> (String, String, String) {
+    let topic =
+        extract_named_arg_expr(call, "TopicArn").unwrap_or_else(|| "'__topic_arn__'".to_string());
+    let msg = extract_named_arg_expr(call, "Message").unwrap_or_else(|| "message".to_string());
+    let subj = extract_named_arg_expr(call, "Subject").unwrap_or_else(|| "None".to_string());
+    (topic, msg, subj)
+}
+
+/// Detect AWS SQS chain (client + send_message) → consolidated Pub/Sub publish.
+pub fn detect_sqs_send_chain(
+    source: &[u8],
+    tree: &tree_sitter::Tree,
+    registry: &StatefulContextRegistry,
+) -> Result<Vec<PatternMatch>, AnalysisError> {
+    let mut out = Vec::new();
+    let lang = Language::Python;
+
+    let q = r#"
+    (call
+      function: (attribute
+        object: (identifier) @client_var
+        attribute: (identifier) @method (#eq? @method "send_message"))
+      arguments: (argument_list) @args)
+    "#;
+    let query = treesitter::compile_query(lang, q)?;
+    for m in treesitter::run_query(&query, tree, source) {
+        let caps: Vec<_> = m
+            .captures
+            .iter()
+            .map(|c| (c.name.clone(), c.text.clone(), c.span))
+            .collect();
+        let client_var = caps
+            .iter()
+            .find(|(n, _, _)| n == "client_var")
+            .map(|(_, t, _)| t.as_str());
+        let Some(client_var) = client_var else {
+            continue;
+        };
+        let Some(client_span) = registry.sqs_client_span(client_var) else {
+            continue;
+        };
+        let call_span = caps
+            .iter()
+            .fold((usize::MAX, 0usize), |(s, e), (_, _, sp)| {
+                (min(s, sp.start_byte), max(e, sp.end_byte))
+            });
+        let call_slice = std::str::from_utf8(&source[call_span.0..call_span.1]).unwrap_or("");
+        let (_queue_url, message_body) = extract_sqs_send_args(call_slice);
+        let call_source_span = SourceSpan {
+            start_byte: call_span.0,
+            end_byte: call_span.1,
+            start_row: 0,
+            start_col: 0,
+            end_row: 0,
+            end_col: 0,
+        };
+        let merged = merge_spans(&[client_span, call_source_span]);
+        let replacement = format!(
+            "# Migrated from SQS send_message -> Pub/Sub\npublisher = pubsub_v1.PublisherClient()\npublisher.publish(publisher.topic_path(project_id, topic_name), {}.encode(\"utf-8\"))",
+            message_body
+        );
+        out.push(PatternMatch {
+            pattern_id: PatternId::new("ibte.aws.sqs.send_message -> gcp.pubsub.publish"),
+            span: merged,
+            confidence: Confidence::new(0.90),
+            source_text: String::new(),
+            replacement_text: replacement,
+            import_add: vec!["from google.cloud import pubsub_v1".into()],
+            import_remove: vec!["import boto3".into()],
+        });
+    }
+    Ok(out)
+}
+
+/// Detect AWS SNS chain (client + publish) → consolidated Pub/Sub publish.
+pub fn detect_sns_publish_chain(
+    source: &[u8],
+    tree: &tree_sitter::Tree,
+    registry: &StatefulContextRegistry,
+) -> Result<Vec<PatternMatch>, AnalysisError> {
+    let mut out = Vec::new();
+    let lang = Language::Python;
+
+    let q = r#"
+    (call
+      function: (attribute
+        object: (identifier) @client_var
+        attribute: (identifier) @method (#eq? @method "publish"))
+      arguments: (argument_list) @args)
+    "#;
+    let query = treesitter::compile_query(lang, q)?;
+    for m in treesitter::run_query(&query, tree, source) {
+        let caps: Vec<_> = m
+            .captures
+            .iter()
+            .map(|c| (c.name.clone(), c.text.clone(), c.span))
+            .collect();
+        let client_var = caps
+            .iter()
+            .find(|(n, _, _)| n == "client_var")
+            .map(|(_, t, _)| t.as_str());
+        let Some(client_var) = client_var else {
+            continue;
+        };
+        let Some(client_span) = registry.sns_client_span(client_var) else {
+            continue;
+        };
+        let call_span = caps
+            .iter()
+            .fold((usize::MAX, 0usize), |(s, e), (_, _, sp)| {
+                (min(s, sp.start_byte), max(e, sp.end_byte))
+            });
+        let call_slice = std::str::from_utf8(&source[call_span.0..call_span.1]).unwrap_or("");
+        let (_topic_arn, message, subject) = extract_sns_publish_args(call_slice);
+        let call_source_span = SourceSpan {
+            start_byte: call_span.0,
+            end_byte: call_span.1,
+            start_row: 0,
+            start_col: 0,
+            end_row: 0,
+            end_col: 0,
+        };
+        let merged = merge_spans(&[client_span, call_source_span]);
+        let replacement = format!(
+            "# Migrated from SNS publish -> Pub/Sub\npublisher = pubsub_v1.PublisherClient()\npublisher.publish(publisher.topic_path(project_id, topic_name), {}.encode(\"utf-8\"), subject={})",
+            message, subject
+        );
+        out.push(PatternMatch {
+            pattern_id: PatternId::new("ibte.aws.sns.publish -> gcp.pubsub.publish"),
+            span: merged,
+            confidence: Confidence::new(0.90),
+            source_text: String::new(),
+            replacement_text: replacement,
+            import_add: vec!["from google.cloud import pubsub_v1".into()],
+            import_remove: vec!["import boto3".into()],
+        });
+    }
     Ok(out)
 }
 
@@ -361,8 +579,7 @@ pub fn detect_azure_blob_upload_chain(
         };
         let merged = merge_spans(&[client_span, container_span, call_source_span]);
         let replacement = format!(
-            "storage_client = storage.Client()  # IBTE: Mapped Azure Container '{}' to GCS bucket\nstorage_client.bucket('{}').blob(__key__).upload_from_string(raw_data)",
-            bucket_name,
+            "# Migrated from Azure Blob upload_blob -> GCS\nstorage_client = storage.Client()\nstorage_client.bucket('{}').blob(__key__).upload_from_string(raw_data)",
             bucket_name
         );
         out.push(PatternMatch {

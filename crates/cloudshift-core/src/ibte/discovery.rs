@@ -39,8 +39,8 @@ pub fn discover_python(
 ) -> Result<(), AnalysisError> {
     let lang = Language::Python;
 
-    // AWS: assignment left=identifier @client_var, right=call boto3.client('s3')
-    let aws_s3_client_q = r#"
+    // AWS: assignment left=identifier @client_var, right=call boto3.client('s3'|'sqs'|'sns')
+    let aws_client_q = r#"
     (assignment
       left: (identifier) @client_var
       right: (call
@@ -50,9 +50,9 @@ pub fn discover_python(
         arguments: (argument_list (string) @service_string))
     )
     "#;
-    let q_aws_s3 = treesitter::compile_query(lang, aws_s3_client_q)?;
-    let aws_s3_matches = treesitter::run_query(&q_aws_s3, tree, source);
-    for m in &aws_s3_matches {
+    let q_aws_client = treesitter::compile_query(lang, aws_client_q)?;
+    let aws_client_matches = treesitter::run_query(&q_aws_client, tree, source);
+    for m in &aws_client_matches {
         let caps: Vec<_> = m
             .captures
             .iter()
@@ -61,9 +61,12 @@ pub fn discover_python(
         if let Some((var, _)) = find_capture(&caps, "client_var") {
             let service = find_capture(&caps, "service_string")
                 .map(|(t, _)| t.trim_matches(&['\'', '"'][..]).to_string());
-            if service.as_deref() == Some("s3") {
-                let span = merged_span(&caps);
-                registry.set(var, RegistryEntry::AwsS3Client { span });
+            let span = merged_span(&caps);
+            match service.as_deref() {
+                Some("s3") => registry.set(var, RegistryEntry::AwsS3Client { span }),
+                Some("sqs") => registry.set(var, RegistryEntry::AwsSqsClient { span }),
+                Some("sns") => registry.set(var, RegistryEntry::AwsSnsClient { span }),
+                _ => {}
             }
         }
     }

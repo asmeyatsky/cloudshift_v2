@@ -28,6 +28,10 @@ pub enum RegistryEntry {
     },
     /// AWS: boto3.client('s3') -> variable is S3 client.
     AwsS3Client { span: SourceSpan },
+    /// AWS: boto3.client('sqs') -> variable is SQS client.
+    AwsSqsClient { span: SourceSpan },
+    /// AWS: boto3.client('sns') -> variable is SNS client.
+    AwsSnsClient { span: SourceSpan },
 }
 
 /// File-scoped Stateful Context Registry.
@@ -85,6 +89,22 @@ impl StatefulContextRegistry {
         }
     }
 
+    /// Return client span if this variable is an AWS SQS client.
+    pub fn sqs_client_span(&self, var_name: &str) -> Option<SourceSpan> {
+        match self.get(var_name)? {
+            RegistryEntry::AwsSqsClient { span } => Some(*span),
+            _ => None,
+        }
+    }
+
+    /// Return client span if this variable is an AWS SNS client.
+    pub fn sns_client_span(&self, var_name: &str) -> Option<SourceSpan> {
+        match self.get(var_name)? {
+            RegistryEntry::AwsSnsClient { span } => Some(*span),
+            _ => None,
+        }
+    }
+
     /// For a table variable (e.g. from put_item object), return resource span, table span, and table name.
     pub fn dynamodb_chain_spans(
         &self,
@@ -138,7 +158,9 @@ impl RegistryEntry {
             | RegistryEntry::AwsDynamoDbTable { span, .. }
             | RegistryEntry::AzureBlobClient { span }
             | RegistryEntry::AzureBlobContainer { span, .. }
-            | RegistryEntry::AwsS3Client { span } => span,
+            | RegistryEntry::AwsS3Client { span }
+            | RegistryEntry::AwsSqsClient { span }
+            | RegistryEntry::AwsSnsClient { span } => span,
         }
     }
 }

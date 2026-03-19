@@ -30,7 +30,12 @@ pub fn run_ibte_python(
     if source_cloud == SourceCloud::Aws {
         matches.extend(chains::detect_dynamodb_put_chain(source, &tree, &registry)?);
         matches.extend(chains::detect_s3_put_chain(source, &tree, &registry)?);
+        matches.extend(chains::detect_s3_put_inline_chain(
+            source, &tree, &registry,
+        )?);
         matches.extend(chains::detect_s3_get_chain(source, &tree, &registry)?);
+        matches.extend(chains::detect_sqs_send_chain(source, &tree, &registry)?);
+        matches.extend(chains::detect_sns_publish_chain(source, &tree, &registry)?);
     }
     if source_cloud == SourceCloud::Azure {
         matches.extend(chains::detect_azure_blob_upload_chain(

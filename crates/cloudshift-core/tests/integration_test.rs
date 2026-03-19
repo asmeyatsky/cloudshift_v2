@@ -90,6 +90,25 @@ fn test_load_python_s3_before_after() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn ibte_sqs_send_chain_produces_consolidated_match() {
+    use cloudshift_core::domain::value_objects::SourceCloud;
+    use cloudshift_core::ibte::run_ibte_python;
+
+    let src = r#"import boto3
+sqs = boto3.client('sqs')
+sqs.send_message(QueueUrl=url, MessageBody=body)
+"#;
+    let matches = run_ibte_python(src.as_bytes(), SourceCloud::Aws).expect("ibte");
+    assert!(
+        !matches.is_empty(),
+        "IBTE should produce SQS send_message chain match"
+    );
+    let m = &matches[0];
+    assert!(m.pattern_id.as_str().contains("sqs") && m.pattern_id.as_str().contains("pubsub"));
+    assert!(m.replacement_text.contains("pubsub_v1"));
+}
+
+#[test]
 fn ibte_s3_put_chain_produces_consolidated_match() {
     use cloudshift_core::domain::value_objects::SourceCloud;
     use cloudshift_core::ibte::run_ibte_python;
@@ -778,6 +797,41 @@ s3.put_object(Bucket="my-bucket", Key="path/to/file, with comma.txt", Body=b"dat
             .contains("\"path/to/file, with comma.txt\""),
         "Key binding should preserve string with comma, got: {}",
         put_match.replacement_text
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Regression corpus: full pipeline on fixtures, assert expected output
+// ---------------------------------------------------------------------------
+
+#[test]
+fn regression_transform_s3_fixture_produces_gcs() {
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("set cwd");
+    let catalogue_path = root.join("patterns");
+    let fixture_path = root.join("tests/patterns/python/aws_s3_to_gcs/before.py");
+    let config = cloudshift_core::TransformConfig {
+        source_cloud: cloudshift_core::SourceCloud::Aws,
+        catalogue_path: Some(catalogue_path.to_string_lossy().to_string()),
+        threshold: 0.0,
+        ..Default::default()
+    };
+    let result = cloudshift_core::transform_file(&fixture_path.to_string_lossy(), &config)
+        .expect("transform");
+    assert!(
+        result.pattern_count() > 0,
+        "expected at least one pattern match"
+    );
+    let out = &result.transformed_source;
+    assert!(
+        out.contains("storage") || out.contains("google.cloud"),
+        "output should contain GCP storage reference"
+    );
+    assert!(
+        out.contains("upload_from_string")
+            || out.contains("download_as_bytes")
+            || out.contains("list_blobs"),
+        "output should contain GCS API usage"
     );
 }
 

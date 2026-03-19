@@ -480,8 +480,43 @@ fn transform_source(
         }
     }
 
+    // Lambda + S3 hint: when both lambda handler and S3 usage are present, suggest Cloud Functions storage trigger
+    let has_lambda = matches
+        .iter()
+        .any(|m| m.pattern_id.as_str().contains("lambda"));
+    let has_s3 = matches.iter().any(|m| m.pattern_id.as_str().contains("s3"));
+    if has_lambda && has_s3 {
+        warnings.push(Warning {
+            message: "Lambda with S3 usage: consider Cloud Functions with storage trigger (event-driven).".into(),
+            span: None,
+            severity: WarningSeverity::Info,
+        });
+    }
+
     // Append LLM fallback warnings
     warnings.extend(llm_warnings);
+
+    // Post-transform lint: warn if output still contains cloud provider imports (migration incomplete)
+    if language == crate::domain::value_objects::Language::Python {
+        for line in final_source.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("import boto3")
+                || trimmed.starts_with("from boto3")
+                || trimmed.starts_with("from botocore")
+                || trimmed.starts_with("import azure")
+                || (trimmed.starts_with("from azure.") && !trimmed.contains("google"))
+            {
+                warnings.push(Warning {
+                    message:
+                        "Remaining cloud provider import detected; migration may be incomplete."
+                            .into(),
+                    span: None,
+                    severity: WarningSeverity::Warning,
+                });
+                break;
+            }
+        }
+    }
 
     TransformResult::new(
         path.to_string(),
