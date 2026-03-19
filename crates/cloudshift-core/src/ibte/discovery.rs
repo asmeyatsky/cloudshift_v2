@@ -6,7 +6,10 @@ use crate::domain::value_objects::{Language, SourceSpan};
 use crate::ibte::registry::{RegistryEntry, StatefulContextRegistry};
 use tree_sitter::Tree;
 
-fn find_capture(captures: &[(String, String, SourceSpan)], name: &str) -> Option<(String, SourceSpan)> {
+fn find_capture(
+    captures: &[(String, String, SourceSpan)],
+    name: &str,
+) -> Option<(String, SourceSpan)> {
     captures
         .iter()
         .find(|(n, _, _)| n == name)
@@ -56,7 +59,8 @@ pub fn discover_python(
             .map(|c| (c.name.clone(), c.text.clone(), c.span))
             .collect();
         if let Some((var, _)) = find_capture(&caps, "client_var") {
-            let service = find_capture(&caps, "service_string").map(|(t, _)| t.trim_matches(&['\'', '"'][..]).to_string());
+            let service = find_capture(&caps, "service_string")
+                .map(|(t, _)| t.trim_matches(&['\'', '"'][..]).to_string());
             if service.as_deref() == Some("dynamodb") {
                 let span = merged_span(&caps);
                 registry.set(var, RegistryEntry::AwsDynamoDbResource { span });

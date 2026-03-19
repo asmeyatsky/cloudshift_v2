@@ -76,7 +76,10 @@ impl StatefulContextRegistry {
     }
 
     /// For a table variable (e.g. from put_item object), return resource span, table span, and table name.
-    pub fn dynamodb_chain_spans(&self, table_var: &str) -> Option<(SourceSpan, SourceSpan, String)> {
+    pub fn dynamodb_chain_spans(
+        &self,
+        table_var: &str,
+    ) -> Option<(SourceSpan, SourceSpan, String)> {
         let table_entry = self.get(table_var)?;
         let RegistryEntry::AwsDynamoDbTable {
             table_name,
@@ -87,14 +90,20 @@ impl StatefulContextRegistry {
             return None;
         };
         let parent_entry = self.get(parent_var)?;
-        let RegistryEntry::AwsDynamoDbResource { span: resource_span } = parent_entry else {
+        let RegistryEntry::AwsDynamoDbResource {
+            span: resource_span,
+        } = parent_entry
+        else {
             return None;
         };
         Some((*resource_span, *table_span, table_name.clone()))
     }
 
     /// For a container variable (e.g. from upload_blob object), return client span, container span, and bucket name.
-    pub fn azure_blob_chain_spans(&self, container_var: &str) -> Option<(SourceSpan, SourceSpan, String)> {
+    pub fn azure_blob_chain_spans(
+        &self,
+        container_var: &str,
+    ) -> Option<(SourceSpan, SourceSpan, String)> {
         let cont_entry = self.get(container_var)?;
         let RegistryEntry::AzureBlobContainer {
             container_name,

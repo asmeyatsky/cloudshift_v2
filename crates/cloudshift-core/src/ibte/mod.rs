@@ -31,7 +31,9 @@ pub fn run_ibte_python(
         matches.extend(chains::detect_dynamodb_put_chain(source, &tree, &registry)?);
     }
     if source_cloud == SourceCloud::Azure {
-        matches.extend(chains::detect_azure_blob_upload_chain(source, &tree, &registry)?);
+        matches.extend(chains::detect_azure_blob_upload_chain(
+            source, &tree, &registry,
+        )?);
     }
 
     Ok(matches)

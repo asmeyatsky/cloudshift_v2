@@ -12,11 +12,9 @@ use std::cmp::{max, min};
 
 /// Merge multiple spans into one (min start_byte, max end_byte).
 fn merge_spans(spans: &[SourceSpan]) -> SourceSpan {
-    let (start_byte, end_byte) = spans
-        .iter()
-        .fold((usize::MAX, 0usize), |(s, e), sp| {
-            (min(s, sp.start_byte), max(e, sp.end_byte))
-        });
+    let (start_byte, end_byte) = spans.iter().fold((usize::MAX, 0usize), |(s, e), sp| {
+        (min(s, sp.start_byte), max(e, sp.end_byte))
+    });
     SourceSpan {
         start_byte,
         end_byte,
@@ -66,10 +64,11 @@ pub fn detect_dynamodb_put_chain(
             continue;
         };
         // Full call span from captures (call node region)
-        let call_span = caps.iter().fold(
-            (usize::MAX, 0usize),
-            |(s, e), (_, _, sp)| (min(s, sp.start_byte), max(e, sp.end_byte)),
-        );
+        let call_span = caps
+            .iter()
+            .fold((usize::MAX, 0usize), |(s, e), (_, _, sp)| {
+                (min(s, sp.start_byte), max(e, sp.end_byte))
+            });
         let call_source_span = SourceSpan {
             start_byte: call_span.0,
             end_byte: call_span.1,
@@ -79,7 +78,9 @@ pub fn detect_dynamodb_put_chain(
             end_col: 0,
         };
         let merged = merge_spans(&[resource_span, table_span, call_source_span]);
-        let source_slice = std::str::from_utf8(&source[call_source_span.start_byte..call_source_span.end_byte]).unwrap_or("");
+        let source_slice =
+            std::str::from_utf8(&source[call_source_span.start_byte..call_source_span.end_byte])
+                .unwrap_or("");
         // Simplified: document id and set payload from Item=... (AC 4.8.2: warn if DynamoDB marshaled types)
         let (doc_id, item_data) = extract_put_item_bindings(source, &caps, source_slice);
         let replacement = format!(
@@ -129,13 +130,7 @@ fn extract_put_item_bindings(
                 }
             }
             let item_str = &rest[..end];
-            // Use first key as document id placeholder if it looks like id
-            let doc_id = if item_str.contains("'id'") || item_str.contains("\"id\"") {
-                "__item_id__"
-            } else {
-                "__item_id__"
-            };
-            return (doc_id.to_string(), item_str.to_string());
+            return ("__item_id__".to_string(), item_str.to_string());
         }
     }
     ("__item_id__".to_string(), "{}".to_string())
@@ -178,10 +173,11 @@ pub fn detect_azure_blob_upload_chain(
         else {
             continue;
         };
-        let call_span = caps.iter().fold(
-            (usize::MAX, 0usize),
-            |(s, e), (_, _, sp)| (min(s, sp.start_byte), max(e, sp.end_byte)),
-        );
+        let call_span = caps
+            .iter()
+            .fold((usize::MAX, 0usize), |(s, e), (_, _, sp)| {
+                (min(s, sp.start_byte), max(e, sp.end_byte))
+            });
         let call_source_span = SourceSpan {
             start_byte: call_span.0,
             end_byte: call_span.1,
@@ -197,7 +193,9 @@ pub fn detect_azure_blob_upload_chain(
             bucket_name
         );
         out.push(PatternMatch {
-            pattern_id: PatternId::new("ibte.azure.blob.upload_blob -> gcp.gcs.blob.upload_from_string"),
+            pattern_id: PatternId::new(
+                "ibte.azure.blob.upload_blob -> gcp.gcs.blob.upload_from_string",
+            ),
             span: merged,
             confidence: Confidence::new(0.90),
             source_text: String::new(),

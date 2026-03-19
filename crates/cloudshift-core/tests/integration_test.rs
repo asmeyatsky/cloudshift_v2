@@ -165,7 +165,15 @@ fn debug_python_function_parameters_structure() {
         let n = cursor.node();
         let slice = &src[n.start_byte()..n.end_byte().min(src.len())];
         let preview: String = slice.chars().take(50).collect();
-        println!("{:indent$}{} [{}..{}] {:?}", "", n.kind(), n.start_byte(), n.end_byte(), preview, indent = depth * 2);
+        println!(
+            "{:indent$}{} [{}..{}] {:?}",
+            "",
+            n.kind(),
+            n.start_byte(),
+            n.end_byte(),
+            preview,
+            indent = depth * 2
+        );
         if !cursor.goto_first_child() {
             return;
         }
