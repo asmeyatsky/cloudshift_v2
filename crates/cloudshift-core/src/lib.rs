@@ -29,6 +29,7 @@ pub mod catalogue;
 pub mod diff;
 pub mod domain;
 pub mod fixup;
+pub mod ibte;
 pub mod ingestion;
 pub mod learning;
 pub mod llm_fallback;

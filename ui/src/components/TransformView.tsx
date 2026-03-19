@@ -6,6 +6,7 @@ import {
   FileCode,
   Copy,
   Check,
+  Download,
   Loader2,
   Code2,
   Sparkles,
@@ -341,6 +342,22 @@ export default function TransformView() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleDownload = () => {
+    if (!transformedCode.trim()) return
+    const ext = pathHint && /\.\w+$/.test(pathHint)
+      ? pathHint.replace(/^.*\./, '')
+      : (language === 'python' ? 'py' : language === 'typescript' ? 'ts' : language === 'javascript' ? 'js' : language === 'java' ? 'java' : language === 'go' ? 'go' : language === 'hcl' ? 'tf' : language === 'yaml' ? 'yml' : language === 'dockerfile' ? 'Dockerfile' : 'txt')
+    const base = pathHint && /\.\w+$/.test(pathHint) ? pathHint.replace(/\.[^/.]+$/, '').replace(/^.*[/\\]/, '') : 'transformed'
+    const filename = `${base}.${ext}`
+    const blob = new Blob([transformedCode], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const lang = MONACO_LANG[language] || 'plaintext'
   const hasResult = !!result
   const isBatch = workspaceMode === 'batch'
@@ -602,13 +619,23 @@ export default function TransformView() {
                 <div className="flex-1" />
 
                 {resultTab !== 'insights' && (
-                  <button
-                    onClick={handleCopy}
-                    className="h-6 px-2 text-[11px] rounded border border-[#27272a] text-zinc-500 hover:text-zinc-300 hover:bg-white/5 flex items-center gap-1"
-                  >
-                    {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
+                  <>
+                    <button
+                      onClick={handleCopy}
+                      className="h-6 px-2 text-[11px] rounded border border-[#27272a] text-zinc-500 hover:text-zinc-300 hover:bg-white/5 flex items-center gap-1"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                    <button
+                      onClick={handleDownload}
+                      className="h-6 px-2 text-[11px] rounded border border-[#27272a] text-zinc-500 hover:text-zinc-300 hover:bg-white/5 flex items-center gap-1"
+                      title="Download transformed code"
+                    >
+                      <Download className="w-3 h-3" />
+                      Download
+                    </button>
+                  </>
                 )}
               </div>
 

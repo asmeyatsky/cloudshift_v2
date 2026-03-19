@@ -90,6 +90,43 @@ fn test_load_python_s3_before_after() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn ibte_dynamodb_chain_produces_consolidated_match() {
+    use cloudshift_core::domain::value_objects::SourceCloud;
+    use cloudshift_core::ibte::run_ibte_python;
+
+    for src in [
+        r#"import boto3
+dyndb = boto3.resource('dynamodb')
+table = dyndb.Table('Orders')
+table.put_item(Item={'id': 'A1', 'status': 'shipped'})
+"#,
+        r#"import boto3
+dyndb = boto3.resource("dynamodb")
+table = dyndb.Table("Orders")
+table.put_item(Item={"id": "A1", "status": "shipped"})
+"#,
+        // No trailing newline (like echo -n)
+        "import boto3\ndyndb = boto3.resource(\"dynamodb\")\ntable = dyndb.Table(\"Orders\")\ntable.put_item(Item={\"id\": \"A1\", \"status\": \"shipped\"})",
+    ] {
+        let matches = run_ibte_python(src.as_bytes(), SourceCloud::Aws).expect("ibte");
+        assert!(
+            !matches.is_empty(),
+            "IBTE should produce consolidated match for DynamoDB chain (single and double quotes)"
+        );
+        let m = &matches[0];
+        assert!(
+            m.pattern_id.as_str().contains("ibte") && m.pattern_id.as_str().contains("firestore"),
+            "expected IBTE Firestore pattern, got {}",
+            m.pattern_id
+        );
+        assert!(
+            m.replacement_text.contains("firestore.Client()") && m.replacement_text.contains("collection("),
+            "replacement should contain consolidated Firestore code"
+        );
+    }
+}
+
+#[test]
 fn azure_functions_handler_pattern_matches_minimal_snippet() {
     use cloudshift_core::catalogue::loader::load_patterns_from_directory;
     use cloudshift_core::domain::value_objects::Language;

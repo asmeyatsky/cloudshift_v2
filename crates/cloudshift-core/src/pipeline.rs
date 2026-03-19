@@ -194,6 +194,22 @@ fn transform_source(
     let mut matches: Vec<PatternMatch> =
         matcher.match_patterns(source_bytes, language, source_cloud, patterns);
 
+    // Stage 2b: Intent-Based Transformation Engine (IBTE) — PRD §4.8
+    // Multi-pass: build SCR, detect chain patterns, add N-to-1 consolidated matches.
+    if language == crate::domain::value_objects::Language::Python
+        && (source_cloud == crate::domain::value_objects::SourceCloud::Aws
+            || source_cloud == crate::domain::value_objects::SourceCloud::Azure)
+    {
+        match crate::ibte::run_ibte_python(source_bytes, source_cloud) {
+            Ok(ibte_matches) => {
+                matches.extend(ibte_matches);
+            }
+            Err(e) => {
+                tracing::debug!("IBTE pass skipped or failed: {e}");
+            }
+        }
+    }
+
     // Filter by threshold
     matches.retain(|m| m.confidence.value() >= threshold);
 
