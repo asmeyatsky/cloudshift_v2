@@ -164,6 +164,8 @@ async fn api_auth_check(State(state): State<Arc<AppState>>, headers: HeaderMap) 
 
 const MAX_TRANSFORM_BODY: usize = 1024 * 1024;
 
+/// Live transform API for the UI: accepts source code and returns the transformed result
+/// (same as CLI transform in dry-run). Uses `transform_source_for_api` from the core.
 #[derive(Deserialize)]
 struct TransformRequestBody {
     source: String,
@@ -336,7 +338,7 @@ pub fn app(state: Arc<AppState>, static_dir: &str) -> Router {
                 )),
         )
         .route(
-            "/api/transform",
+            "/api/transform", // Live transform for UI: POST body { source, language, source_cloud?, path_hint? }
             post(api_transform)
                 .layer(DefaultBodyLimit::max(4 * 1024 * 1024))
                 .layer(middleware::from_fn_with_state(

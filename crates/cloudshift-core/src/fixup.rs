@@ -4,8 +4,134 @@
 //! surrounding code may reference old API response shapes that no
 //! longer exist. This module applies text-level fixups to make the
 //! output actually runnable on GCP.
+//!
+//! Also provides DynamoDB → standard JSON marshaling (AWS AttributeValue
+//! format → plain JSON) for Firestore document payloads.
 
 use crate::domain::value_objects::Language;
+
+// ---------------------------------------------------------------------------
+// DynamoDB → standard JSON (Firestore) marshaling
+// ---------------------------------------------------------------------------
+
+/// Convert a DynamoDB AttributeValue-style JSON value to standard JSON.
+/// Handles `{"S": "x"}`, `{"N": "123"}`, `{"M": {...}}`, `{"L": [...]}`, etc.
+/// Used when transforming DynamoDB put_item Item payloads to Firestore .set().
+pub fn dynamodb_item_to_standard_json(
+    value: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) if map.len() == 1 => {
+            let (k, v) = map.iter().next().expect("len is 1");
+            match k.as_str() {
+                "S" => {
+                    return Ok(Value::String(
+                        v.as_str().ok_or("S must be string")?.to_string(),
+                    ))
+                }
+                "N" => {
+                    let s = v.as_str().ok_or("N must be string")?;
+                    if let Ok(n) = s.parse::<i64>() {
+                        return Ok(Value::Number(serde_json::Number::from(n)));
+                    }
+                    if let Ok(n) = s.parse::<f64>() {
+                        return Ok(Value::Number(
+                            serde_json::Number::from_f64(n).ok_or("invalid N")?,
+                        ));
+                    }
+                    return Err(format!("N not a number: {}", s));
+                }
+                "BOOL" => return Ok(Value::Bool(v.as_bool().ok_or("BOOL must be bool")?)),
+                "NULL" => return Ok(Value::Null),
+                "M" => {
+                    let m = v.as_object().ok_or("M must be object")?;
+                    let mut out = serde_json::Map::new();
+                    for (key, val) in m {
+                        out.insert(key.clone(), dynamodb_item_to_standard_json(val)?);
+                    }
+                    return Ok(Value::Object(out));
+                }
+                "L" => {
+                    let arr = v.as_array().ok_or("L must be array")?;
+                    let out: Result<Vec<_>, _> =
+                        arr.iter().map(dynamodb_item_to_standard_json).collect();
+                    return Ok(Value::Array(out?));
+                }
+                "SS" => {
+                    let arr = v.as_array().ok_or("SS must be array")?;
+                    let out: Vec<_> = arr
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .map(String::from)
+                        .collect();
+                    return Ok(Value::Array(out.into_iter().map(Value::String).collect()));
+                }
+                "NS" => {
+                    let arr = v.as_array().ok_or("NS must be array")?;
+                    let mut out = Vec::with_capacity(arr.len());
+                    for v in arr {
+                        let s = v.as_str().ok_or("NS elements must be strings")?;
+                        if let Ok(n) = s.parse::<i64>() {
+                            out.push(Value::Number(serde_json::Number::from(n)));
+                        } else if let Ok(n) = s.parse::<f64>() {
+                            out.push(Value::Number(
+                                serde_json::Number::from_f64(n).ok_or("invalid NS")?,
+                            ));
+                        } else {
+                            return Err(format!("NS element not a number: {}", s));
+                        }
+                    }
+                    return Ok(Value::Array(out));
+                }
+                "B" | "BS" => {
+                    // Keep binary as base64 string for Firestore (no native binary type)
+                    if k == "B" {
+                        return Ok(Value::String(
+                            v.as_str().ok_or("B must be string")?.to_string(),
+                        ));
+                    }
+                    let arr = v.as_array().ok_or("BS must be array")?;
+                    let out: Vec<_> = arr
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .map(String::from)
+                        .map(Value::String)
+                        .collect();
+                    return Ok(Value::Array(out));
+                }
+                _ => {}
+            }
+        }
+        _ => {}
+    }
+    // Not a DynamoDB wrapper — return as-is (e.g. already plain JSON)
+    Ok(value.clone())
+}
+
+/// Convert a JSON object (DynamoDB Item) where each value may be AttributeValue format.
+pub fn dynamodb_item_map_to_standard_json(
+    value: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let map = value.as_object().ok_or("expected object")?;
+    let mut out = serde_json::Map::new();
+    for (k, v) in map {
+        out.insert(k.clone(), dynamodb_item_to_standard_json(v)?);
+    }
+    Ok(serde_json::Value::Object(out))
+}
+
+/// Parse a string as JSON and convert DynamoDB AttributeValue format to standard JSON.
+/// Returns the JSON string for embedding in generated code (e.g. Firestore .set({...})).
+pub fn dynamodb_item_json_string_to_standard(item_json: &str) -> Result<String, String> {
+    let value: serde_json::Value = serde_json::from_str(item_json).map_err(|e| e.to_string())?;
+    let standard = if value.is_object() {
+        dynamodb_item_map_to_standard_json(&value)?
+    } else {
+        dynamodb_item_to_standard_json(&value)?
+    };
+    serde_json::to_string(&standard).map_err(|e| e.to_string())
+}
 
 /// Apply post-transform fixups to make the output runnable.
 /// These are applied AFTER all pattern transforms and import management.
@@ -553,5 +679,49 @@ def upload_json_document(key: str, data: dict) -> str:
             fixed.contains("from google.cloud import exceptions"),
             "exceptions import not added:\n{fixed}"
         );
+    }
+
+    // ---------------------------------------------------------------------------
+    // DynamoDB → standard JSON marshaling tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn test_dynamodb_s_to_standard() {
+        let v = serde_json::json!({"S": "hello"});
+        let out = dynamodb_item_to_standard_json(&v).unwrap();
+        assert_eq!(out, serde_json::json!("hello"));
+    }
+
+    #[test]
+    fn test_dynamodb_n_to_standard() {
+        let v = serde_json::json!({"N": "42"});
+        let out = dynamodb_item_to_standard_json(&v).unwrap();
+        assert_eq!(out, serde_json::json!(42));
+    }
+
+    #[test]
+    fn test_dynamodb_m_to_standard() {
+        let v = serde_json::json!({"M": {"id": {"S": "1"}, "count": {"N": "10"}}});
+        let out = dynamodb_item_to_standard_json(&v).unwrap();
+        assert_eq!(out, serde_json::json!({"id": "1", "count": 10}));
+    }
+
+    #[test]
+    fn test_dynamodb_item_map_to_standard() {
+        let item = r#"{"id": {"S": "user-1"}, "name": {"S": "Alice"}, "score": {"N": "99"}}"#;
+        let out = dynamodb_item_json_string_to_standard(item).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["id"], "user-1");
+        assert_eq!(parsed["name"], "Alice");
+        assert_eq!(parsed["score"], 99);
+    }
+
+    #[test]
+    fn test_dynamodb_plain_json_passthrough() {
+        let item = r#"{"id": "1", "name": "Bob"}"#;
+        let out = dynamodb_item_json_string_to_standard(item).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["id"], "1");
+        assert_eq!(parsed["name"], "Bob");
     }
 }

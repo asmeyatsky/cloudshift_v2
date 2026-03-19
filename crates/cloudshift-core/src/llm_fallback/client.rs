@@ -13,17 +13,23 @@ pub struct ClaudeClient {
     base_url: String,
 }
 
+/// Default Claude model for migration fallback (current stable Sonnet).
+const DEFAULT_LLM_MODEL: &str = "claude-3-5-sonnet-20241022";
+
 impl ClaudeClient {
     /// Create a new Claude API client.
+    /// Model can be overridden via `CLOUDSHIFT_LLM_MODEL` env var.
     pub fn new(api_key: String) -> Self {
+        let model =
+            std::env::var("CLOUDSHIFT_LLM_MODEL").unwrap_or_else(|_| DEFAULT_LLM_MODEL.to_string());
         Self {
             api_key,
-            model: "claude-sonnet-4-20250514".to_string(),
+            model,
             base_url: "https://api.anthropic.com/v1/messages".to_string(),
         }
     }
 
-    /// Create with a custom model.
+    /// Create with a custom model (overrides env default).
     pub fn with_model(mut self, model: String) -> Self {
         self.model = model;
         self

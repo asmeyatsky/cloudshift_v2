@@ -20,6 +20,8 @@
 //! - Step 7 is a sequential fan-in (reduction).
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -40,7 +42,7 @@ use crate::ingestion::{DiscoveredFile, Ingestion, IngestionConfig};
 use crate::pattern::PatternEngine;
 
 /// Configuration for a transformation run (PRD section 6.2).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TransformConfig {
     /// Source cloud provider to migrate from.
     pub source_cloud: SourceCloud,
@@ -75,6 +77,39 @@ pub struct TransformConfig {
     pub llm_api_key: Option<String>,
     /// LLM model to use for fallback.
     pub llm_model: Option<String>,
+    /// Optional progress callback (completed_count, total_count). Used by CLI for progress bars.
+    #[serde(skip)]
+    pub progress_callback: Option<Arc<dyn Fn(usize, usize) + Send + Sync>>,
+}
+
+impl std::fmt::Debug for TransformConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransformConfig")
+            .field("source_cloud", &self.source_cloud)
+            .field("language_filter", &self.language_filter)
+            .field("dry_run", &self.dry_run)
+            .field("auto_apply_threshold", &self.auto_apply_threshold)
+            .field("threshold", &self.threshold)
+            .field("output_format", &self.output_format)
+            .field("parallel", &self.parallel)
+            .field("include_globs", &self.include_globs)
+            .field("exclude_globs", &self.exclude_globs)
+            .field("no_iac", &self.no_iac)
+            .field("no_ci", &self.no_ci)
+            .field("report_path", &self.report_path)
+            .field("catalogue_path", &self.catalogue_path)
+            .field("llm_fallback", &self.llm_fallback)
+            .field(
+                "llm_api_key",
+                &self.llm_api_key.as_ref().map(|_| "<redacted>"),
+            )
+            .field("llm_model", &self.llm_model)
+            .field(
+                "progress_callback",
+                &self.progress_callback.as_ref().map(|_| "Some(..)"),
+            )
+            .finish()
+    }
 }
 
 impl Default for TransformConfig {
@@ -96,6 +131,7 @@ impl Default for TransformConfig {
             llm_fallback: false,
             llm_api_key: None,
             llm_model: None,
+            progress_callback: None,
         }
     }
 }
@@ -616,6 +652,13 @@ pub fn transform_repo(path: &str, config: &TransformConfig) -> anyhow::Result<Re
         })
         .collect();
 
+    let total_files = files.len();
+    let progress_cb = config.progress_callback.clone();
+    if let Some(ref cb) = progress_cb {
+        cb(0, total_files);
+    }
+    let completed = Arc::new(AtomicUsize::new(0));
+
     // === DAG Level 1: Parallel fan-out — transform each file ===
     let results: Vec<(TransformResult, DiscoveredFile)> = files
         .par_iter()
@@ -649,6 +692,11 @@ pub fn transform_repo(path: &str, config: &TransformConfig) -> anyhow::Result<Re
                 None, // LLM fallback is wired at CLI level
                 Some(root),
             );
+
+            if let Some(ref cb) = progress_cb {
+                let n = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                cb(n, total_files);
+            }
 
             Some((result, file.clone()))
         })

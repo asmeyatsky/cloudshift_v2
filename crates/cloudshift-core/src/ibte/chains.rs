@@ -83,11 +83,14 @@ pub fn detect_dynamodb_put_chain(
                 .unwrap_or("");
         // Simplified: document id and set payload from Item=... (AC 4.8.2: warn if DynamoDB marshaled types)
         let (doc_id, item_data) = extract_put_item_bindings(source, &caps, source_slice);
+        // Convert DynamoDB AttributeValue JSON to standard JSON for Firestore (fixup helper)
+        let item_payload = crate::fixup::dynamodb_item_json_string_to_standard(&item_data)
+            .unwrap_or_else(|_| item_data.clone());
         let replacement = format!(
             "db = firestore.Client()  # IBTE: consolidated boto3.resource + Table + put_item\ndb.collection('{}').document({}).set({})",
             table_name,
             doc_id,
-            item_data
+            item_payload
         );
         out.push(PatternMatch {
             pattern_id: PatternId::new("ibte.aws.dynamodb.put_item -> gcp.firestore.document.set"),

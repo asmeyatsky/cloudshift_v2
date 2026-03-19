@@ -1,6 +1,7 @@
 //! Transform command — transforms code files or repositories to GCP.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -110,6 +111,7 @@ impl TransformArgs {
             llm_fallback: self.llm_fallback,
             llm_api_key: std::env::var("ANTHROPIC_API_KEY").ok(),
             llm_model: None,
+            progress_callback: None,
         }
     }
 }
@@ -136,8 +138,30 @@ pub fn run(args: TransformArgs) -> Result<()> {
             info!(path = %report_path, "Report written");
         }
     } else {
+        let pb = indicatif::ProgressBar::new(0);
+        pb.set_style(
+            indicatif::ProgressStyle::default_bar()
+                .template("{msg} [{bar:40.cyan/blue}] {pos}/{len}")
+                .expect("template"),
+        );
+        pb.set_message("Transforming…");
+        let progress_cb: Arc<dyn Fn(usize, usize) + Send + Sync> = Arc::new({
+            let pb = pb.clone();
+            move |done, total| {
+                if total > 0 && pb.length().unwrap_or(0) == 0 {
+                    pb.set_length(total as u64);
+                }
+                pb.set_position(done as u64);
+                pb.set_message(format!("Transformed {} / {} files", done, total));
+            }
+        });
+        let mut config = config;
+        config.progress_callback = Some(progress_cb);
+
         let report = transform_repo(path, &config)
             .with_context(|| format!("Failed to transform repository: {}", path))?;
+
+        pb.finish_with_message("Done");
 
         output::print_repo_report(&report, &args.output_format);
 
