@@ -167,7 +167,7 @@ fn extract_named_arg_expr(call: &str, name: &str) -> Option<String> {
         return Some(format!("'{}'", &content[..end]));
     }
     // Identifier or expression: take until comma or closing paren
-    let end = after.find(|c| c == ',' || c == ')').unwrap_or(after.len());
+    let end = after.find([',', ')']).unwrap_or(after.len());
     Some(after[..end].trim().to_string())
 }
 
