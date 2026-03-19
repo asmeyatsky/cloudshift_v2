@@ -61,6 +61,34 @@ async fn auth_check_with_valid_api_key_is_200() {
 
 #[tokio::test]
 #[serial]
+async fn transform_with_valid_key_returns_200_and_json() {
+    std::env::set_var("CLOUDSHIFT_API_KEY", "valid-key");
+    std::env::remove_var("CLOUDSHIFT_IAP_AUDIENCE");
+    std::env::set_var("CLOUDSHIFT_PATTERNS_DIR", patterns_dir());
+    let st = cloudshift_server::build_state().unwrap();
+    let app = cloudshift_server::app(st, "/nonexistent-static-xyz");
+
+    let body = r#"{"source":"x = 1","language":"python"}"#;
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/transform")
+                .header("content-type", "application/json")
+                .header("x-api-key", "valid-key")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(json.get("path").is_some() || json.get("transformed_source").is_some());
+}
+
+#[tokio::test]
+#[serial]
 async fn transform_rejects_wrong_api_key() {
     std::env::set_var("CLOUDSHIFT_API_KEY", "good-key");
     std::env::remove_var("CLOUDSHIFT_IAP_AUDIENCE");

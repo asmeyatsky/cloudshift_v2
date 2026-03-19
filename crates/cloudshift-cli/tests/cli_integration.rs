@@ -54,3 +54,25 @@ fn catalogue_list_runs() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+#[test]
+fn transform_output_json_succeeds() {
+    let mut cmd = Command::cargo_bin("cloudshift").expect("binary");
+    cmd.args(["transform", ".", "--output", "json"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"));
+    cmd.assert().success();
+}
+
+#[test]
+fn diff_help_exits_0() {
+    let mut cmd = Command::cargo_bin("cloudshift").expect("binary");
+    cmd.args(["diff", "--help"]);
+    cmd.assert().success().stderr(predicate::str::is_empty());
+}
+
+#[test]
+fn report_help_exits_0() {
+    let mut cmd = Command::cargo_bin("cloudshift").expect("binary");
+    cmd.args(["report", "--help"]);
+    cmd.assert().success().stderr(predicate::str::is_empty());
+}

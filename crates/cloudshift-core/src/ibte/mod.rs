@@ -29,6 +29,8 @@ pub fn run_ibte_python(
     let mut matches = Vec::new();
     if source_cloud == SourceCloud::Aws {
         matches.extend(chains::detect_dynamodb_put_chain(source, &tree, &registry)?);
+        matches.extend(chains::detect_s3_put_chain(source, &tree, &registry)?);
+        matches.extend(chains::detect_s3_get_chain(source, &tree, &registry)?);
     }
     if source_cloud == SourceCloud::Azure {
         matches.extend(chains::detect_azure_blob_upload_chain(

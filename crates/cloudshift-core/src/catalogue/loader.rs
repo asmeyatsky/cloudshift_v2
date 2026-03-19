@@ -59,6 +59,20 @@ pub fn load_patterns_from_directory(
         });
     }
 
+    // Validation: duplicate pattern IDs (same ID in multiple TOML files)
+    let mut by_id: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for p in &patterns {
+        *by_id.entry(p.id.as_str().to_string()).or_insert(0) += 1;
+    }
+    for (id, count) in by_id {
+        if count > 1 {
+            warnings.push(CatalogueLoadWarning {
+                file: String::new(),
+                message: format!("Duplicate pattern ID: {} ({} occurrences)", id, count),
+            });
+        }
+    }
+
     tracing::info!(
         "Loaded {} patterns ({} warnings)",
         patterns.len(),

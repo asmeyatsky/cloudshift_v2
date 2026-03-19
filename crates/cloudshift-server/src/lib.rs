@@ -148,6 +148,46 @@ async fn favicon() -> Response {
     (StatusCode::NO_CONTENT, ()).into_response()
 }
 
+/// Minimal OpenAPI 3.0 spec for the transform and auth-check APIs.
+const OPENAPI_SPEC: &str = r#"{
+  "openapi": "3.0.0",
+  "info": { "title": "CloudShift API", "version": "2.0.0" },
+  "paths": {
+    "/api/auth-check": {
+      "get": {
+        "summary": "Check authentication",
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" } }
+      }
+    },
+    "/api/transform": {
+      "post": {
+        "summary": "Transform source code to GCP",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["source", "language"],
+                "properties": {
+                  "source": { "type": "string" },
+                  "language": { "type": "string", "enum": ["python", "typescript", "javascript", "java", "go", "hcl", "yaml", "dockerfile", "json"] },
+                  "source_cloud": { "type": "string", "enum": ["aws", "azure", "any"] },
+                  "path_hint": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "TransformResult JSON" }, "401": { "description": "Unauthorized" }, "413": { "description": "Payload too large" } }
+      }
+    }
+  }
+}"#;
+
+async fn api_openapi() -> Response {
+    ([(header::CONTENT_TYPE, "application/json")], OPENAPI_SPEC).into_response()
+}
+
 async fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "Not found").into_response()
 }
@@ -327,6 +367,7 @@ pub fn app(state: Arc<AppState>, static_dir: &str) -> Router {
         .route("/favicon.ico", get(favicon))
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .route("/api/openapi.json", get(api_openapi))
         .route("/api/auth-check", get(api_auth_check))
         .route(
             "/api/github/repo",
@@ -379,12 +420,18 @@ pub fn app(state: Arc<AppState>, static_dir: &str) -> Router {
 }
 
 pub async fn run() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let use_json = std::env::var("CLOUDSHIFT_LOG_JSON")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    if use_json {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(env_filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(env_filter).init();
+    }
 
     let state = build_state()?;
     if state.api_key.is_some() {

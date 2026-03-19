@@ -147,6 +147,29 @@ impl RepoReport {
         self.domain_events.push(event);
         self
     }
+
+    /// Summary by confidence band: (high >= 0.9, medium >= 0.7, low < 0.7) file counts.
+    pub fn summary_by_confidence_bands(&self) -> (usize, usize, usize) {
+        let mut high = 0;
+        let mut medium = 0;
+        let mut low = 0;
+        for c in &self.changes {
+            let v = c.confidence.value();
+            if v >= 0.9 {
+                high += 1;
+            } else if v >= 0.7 {
+                medium += 1;
+            } else {
+                low += 1;
+            }
+        }
+        (high, medium, low)
+    }
+
+    /// Number of files with at least one pattern matched.
+    pub fn files_with_changes(&self) -> usize {
+        self.changes.len()
+    }
 }
 
 /// Summary of changes to a single file within a repo transform.

@@ -80,6 +80,8 @@ pub struct TransformConfig {
     /// Optional progress callback (completed_count, total_count). Used by CLI for progress bars.
     #[serde(skip)]
     pub progress_callback: Option<Arc<dyn Fn(usize, usize) + Send + Sync>>,
+    /// When set, only transform these files (e.g. from git diff --name-only). Paths are matched by suffix.
+    pub only_files: Option<Vec<String>>,
 }
 
 impl std::fmt::Debug for TransformConfig {
@@ -108,6 +110,7 @@ impl std::fmt::Debug for TransformConfig {
                 "progress_callback",
                 &self.progress_callback.as_ref().map(|_| "Some(..)"),
             )
+            .field("only_files", &self.only_files.as_ref().map(|v| v.len()))
             .finish()
     }
 }
@@ -132,6 +135,7 @@ impl Default for TransformConfig {
             llm_api_key: None,
             llm_model: None,
             progress_callback: None,
+            only_files: None,
         }
     }
 }
@@ -215,13 +219,18 @@ fn transform_source(
         .unwrap_or(false);
 
     if constructs.is_empty() && !match_without_constructs {
+        let msg = "No cloud constructs detected; file unchanged (already GCP or no cloud usage).";
         return TransformResult::new(
             path.to_string(),
             language,
             String::new(),
             Vec::new(),
             Confidence::new(1.0),
-            Vec::new(),
+            vec![Warning {
+                message: msg.into(),
+                span: None,
+                severity: WarningSeverity::Info,
+            }],
         )
         .with_transformed_source(source.to_string());
     }
@@ -643,7 +652,7 @@ pub fn transform_repo(path: &str, config: &TransformConfig) -> anyhow::Result<Re
     );
 
     // Apply language filter
-    let files: Vec<DiscoveredFile> = files
+    let mut files: Vec<DiscoveredFile> = files
         .into_iter()
         .filter(|f| {
             config
@@ -651,6 +660,21 @@ pub fn transform_repo(path: &str, config: &TransformConfig) -> anyhow::Result<Re
                 .is_none_or(|filter| f.language == filter)
         })
         .collect();
+
+    // Incremental: only transform listed files (e.g. from git diff --name-only)
+    if let Some(ref only) = config.only_files {
+        if !only.is_empty() {
+            let only_set: std::collections::HashSet<_> = only.iter().map(|s| s.as_str()).collect();
+            files.retain(|f| {
+                only_set.contains(f.path.as_str())
+                    || only.iter().any(|p| f.path.ends_with(p.as_str()))
+            });
+            tracing::info!(
+                "Incremental mode: {} files (filtered from only_files)",
+                files.len()
+            );
+        }
+    }
 
     let total_files = files.len();
     let progress_cb = config.progress_callback.clone();

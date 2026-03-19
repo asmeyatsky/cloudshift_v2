@@ -7,10 +7,28 @@ use anyhow::{Context, Result};
 use clap::Args;
 use tracing::info;
 
+use cloudshift_core::Language;
 use cloudshift_core::{transform_file, transform_repo, OutputFormat, TransformConfig};
 
 use crate::commands::{LanguageFilter, SourceCloudFilter};
 use crate::output;
+
+/// Preset migration scenarios (set source cloud and optionally language).
+#[derive(Debug, Clone, Default, clap::ValueEnum)]
+pub enum TransformPreset {
+    #[default]
+    #[value(name = "none")]
+    None,
+    /// AWS Lambda + DynamoDB → Cloud Functions + Firestore (Python).
+    #[value(name = "aws-lambda-dynamodb")]
+    AwsLambdaDynamodb,
+    /// AWS S3 → GCS (any language in path).
+    #[value(name = "aws-s3")]
+    AwsS3,
+    /// Azure Blob Storage → GCS (Python).
+    #[value(name = "azure-blob")]
+    AzureBlob,
+}
 
 /// CLI output format for the transform command.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -37,6 +55,10 @@ pub struct TransformArgs {
     /// File, directory, or Git repo URL (default: current directory).
     #[arg(default_value = ".")]
     pub path: String,
+
+    /// Preset migration scenario (overrides --source and optionally --language when set).
+    #[arg(long, value_enum, default_value = "none")]
+    pub preset: TransformPreset,
 
     /// Source cloud provider to migrate from.
     #[arg(long = "source", value_enum, default_value = "any")]
@@ -86,16 +108,41 @@ pub struct TransformArgs {
     #[arg(long)]
     pub exclude: Option<String>,
 
+    /// Only transform these files (e.g. from git diff: git diff --name-only | xargs cloudshift transform . --only-files).
+    #[arg(long = "only-files", value_name = "FILE", num_args = 1..)]
+    pub only_files: Option<Vec<String>>,
+
     /// Enable LLM-assisted fallback for remaining cloud references.
     #[arg(long)]
     pub llm_fallback: bool,
 }
 
 impl TransformArgs {
-    /// Build a core TransformConfig from CLI arguments.
+    /// Build a core TransformConfig from CLI arguments (preset overrides source/language when set).
     fn to_config(&self) -> TransformConfig {
+        let (source_cloud, language_filter) = match &self.preset {
+            TransformPreset::None => (self.source_cloud.to_core(), None),
+            TransformPreset::AwsLambdaDynamodb => {
+                (SourceCloudFilter::Aws.to_core(), Some(Language::Python))
+            }
+            TransformPreset::AwsS3 => (SourceCloudFilter::Aws.to_core(), None),
+            TransformPreset::AzureBlob => {
+                (SourceCloudFilter::Azure.to_core(), Some(Language::Python))
+            }
+        };
+        let language_filter = language_filter.or_else(|| {
+            self.language.as_ref().and_then(|l| match l {
+                LanguageFilter::Python => Some(Language::Python),
+                LanguageFilter::TypeScript => Some(Language::TypeScript),
+                LanguageFilter::Java => Some(Language::Java),
+                LanguageFilter::Go => Some(Language::Go),
+                LanguageFilter::Hcl => Some(Language::Hcl),
+                LanguageFilter::All => None,
+            })
+        });
         TransformConfig {
-            source_cloud: self.source_cloud.to_core(),
+            source_cloud,
+            language_filter,
             output_format: self.output_format.to_core(),
             dry_run: if self.auto { false } else { self.dry_run },
             parallel: self.parallel.unwrap_or(0),
@@ -107,7 +154,7 @@ impl TransformArgs {
             include_globs: self.include.iter().cloned().collect(),
             exclude_globs: self.exclude.iter().cloned().collect(),
             catalogue_path: crate::commands::discover_catalogue_path(),
-            language_filter: None,
+            only_files: self.only_files.clone(),
             llm_fallback: self.llm_fallback,
             llm_api_key: std::env::var("ANTHROPIC_API_KEY").ok(),
             llm_model: None,

@@ -48,11 +48,15 @@ pub fn print_repo_report(report: &RepoReport, format: &TransformOutputFormat) {
                 }
             }
 
+            let (high, medium, low) = report.summary_by_confidence_bands();
             println!(
-                "\nSummary: {} file(s), {} pattern(s) matched, avg confidence {}",
-                report.changes.len(),
+                "\nSummary: {} file(s), {} pattern(s) matched, avg confidence {} (high: {}, medium: {}, low: {})",
+                report.files_with_changes(),
                 report.total_patterns_matched,
                 report.average_confidence,
+                high,
+                medium,
+                low,
             );
         }
         TransformOutputFormat::Json | TransformOutputFormat::Sarif => {

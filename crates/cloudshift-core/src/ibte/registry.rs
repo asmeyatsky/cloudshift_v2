@@ -26,6 +26,8 @@ pub enum RegistryEntry {
         parent_var: String,
         span: SourceSpan,
     },
+    /// AWS: boto3.client('s3') -> variable is S3 client.
+    AwsS3Client { span: SourceSpan },
 }
 
 /// File-scoped Stateful Context Registry.
@@ -71,6 +73,14 @@ impl StatefulContextRegistry {
                 parent_var,
                 ..
             } => Some((container_name.as_str(), parent_var.as_str())),
+            _ => None,
+        }
+    }
+
+    /// Return client span if this variable is an AWS S3 client.
+    pub fn s3_client_span(&self, var_name: &str) -> Option<SourceSpan> {
+        match self.get(var_name)? {
+            RegistryEntry::AwsS3Client { span } => Some(*span),
             _ => None,
         }
     }
@@ -127,7 +137,8 @@ impl RegistryEntry {
             RegistryEntry::AwsDynamoDbResource { span }
             | RegistryEntry::AwsDynamoDbTable { span, .. }
             | RegistryEntry::AzureBlobClient { span }
-            | RegistryEntry::AzureBlobContainer { span, .. } => span,
+            | RegistryEntry::AzureBlobContainer { span, .. }
+            | RegistryEntry::AwsS3Client { span } => span,
         }
     }
 }

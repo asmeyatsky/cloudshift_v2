@@ -90,6 +90,30 @@ fn test_load_python_s3_before_after() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn ibte_s3_put_chain_produces_consolidated_match() {
+    use cloudshift_core::domain::value_objects::SourceCloud;
+    use cloudshift_core::ibte::run_ibte_python;
+
+    let src = r#"import boto3
+s3 = boto3.client('s3')
+s3.put_object(Bucket='mybucket', Key='path/to/key', Body=data)
+"#;
+    let matches = run_ibte_python(src.as_bytes(), SourceCloud::Aws).expect("ibte");
+    assert!(
+        !matches.is_empty(),
+        "IBTE should produce S3 put_object chain match"
+    );
+    let m = &matches[0];
+    assert!(
+        m.pattern_id.as_str().contains("s3") && m.pattern_id.as_str().contains("upload"),
+        "pattern_id should reference S3 and upload, got: {}",
+        m.pattern_id
+    );
+    assert!(m.replacement_text.contains("storage.Client"));
+    assert!(m.replacement_text.contains("upload_from_string"));
+}
+
+#[test]
 fn ibte_dynamodb_chain_produces_consolidated_match() {
     use cloudshift_core::domain::value_objects::SourceCloud;
     use cloudshift_core::ibte::run_ibte_python;
@@ -591,9 +615,10 @@ fn test_all_pattern_toml_files_compile() {
     let catalogue = cloudshift_core::catalogue::Catalogue::from_directory(&catalogue_path).unwrap();
     let warnings = catalogue.warnings();
 
-    // No pattern file should fail to compile
-    if !warnings.is_empty() {
-        let msgs: Vec<String> = warnings
+    // No pattern file should fail to compile (file non-empty = compile error; empty file = e.g. duplicate ID)
+    let compile_warnings: Vec<_> = warnings.iter().filter(|w| !w.file.is_empty()).collect();
+    if !compile_warnings.is_empty() {
+        let msgs: Vec<String> = compile_warnings
             .iter()
             .map(|w| format!("{}: {}", w.file, w.message))
             .collect();

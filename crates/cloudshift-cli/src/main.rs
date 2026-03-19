@@ -58,12 +58,18 @@ enum Command {
 }
 
 fn main() {
-    // Initialise tracing with env filter (RUST_LOG).
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
+    // Initialise tracing; use JSON when CLOUDSHIFT_LOG_JSON=1 (e.g. in production/CI).
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let use_json = std::env::var("CLOUDSHIFT_LOG_JSON")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    if use_json {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(env_filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(env_filter).init();
+    }
 
     let cli = Cli::parse();
 

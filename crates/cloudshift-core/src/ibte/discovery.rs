@@ -39,6 +39,35 @@ pub fn discover_python(
 ) -> Result<(), AnalysisError> {
     let lang = Language::Python;
 
+    // AWS: assignment left=identifier @client_var, right=call boto3.client('s3')
+    let aws_s3_client_q = r#"
+    (assignment
+      left: (identifier) @client_var
+      right: (call
+        function: (attribute
+          object: (identifier) @mod_name (#eq? @mod_name "boto3")
+          attribute: (identifier) @method (#eq? @method "client"))
+        arguments: (argument_list (string) @service_string))
+    )
+    "#;
+    let q_aws_s3 = treesitter::compile_query(lang, aws_s3_client_q)?;
+    let aws_s3_matches = treesitter::run_query(&q_aws_s3, tree, source);
+    for m in &aws_s3_matches {
+        let caps: Vec<_> = m
+            .captures
+            .iter()
+            .map(|c| (c.name.clone(), c.text.clone(), c.span))
+            .collect();
+        if let Some((var, _)) = find_capture(&caps, "client_var") {
+            let service = find_capture(&caps, "service_string")
+                .map(|(t, _)| t.trim_matches(&['\'', '"'][..]).to_string());
+            if service.as_deref() == Some("s3") {
+                let span = merged_span(&caps);
+                registry.set(var, RegistryEntry::AwsS3Client { span });
+            }
+        }
+    }
+
     // AWS: assignment left=identifier @client_var, right=call boto3.resource('dynamodb')
     let aws_resource_q = r#"
     (assignment
