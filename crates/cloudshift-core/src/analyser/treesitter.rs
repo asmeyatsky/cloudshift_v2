@@ -13,12 +13,13 @@ use tree_sitter::{Language as TsLanguage, Node, Parser, Query, QueryCursor, Tree
 
 /// Convert a domain `Language` to a tree-sitter `Language` grammar.
 ///
+/// TypeScript uses the TSX grammar so both .ts and .tsx (including JSX) parse correctly.
 /// Note: `Dockerfile` is handled via string-based analysis because
 /// `tree-sitter-dockerfile` depends on an incompatible tree-sitter version (0.20).
 pub fn get_language(lang: Language) -> Result<TsLanguage, AnalysisError> {
     match lang {
         Language::Python => Ok(tree_sitter_python::LANGUAGE.into()),
-        Language::TypeScript => Ok(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+        Language::TypeScript => Ok(tree_sitter_typescript::LANGUAGE_TSX.into()),
         Language::JavaScript => Ok(tree_sitter_javascript::LANGUAGE.into()),
         Language::Java => Ok(tree_sitter_java::LANGUAGE.into()),
         Language::Go => Ok(tree_sitter_go::LANGUAGE.into()),

@@ -214,11 +214,21 @@ fn transform_source(
     // cloud usage (avoids false positives). CI pattern validation sets
     // CLOUDSHIFT_MATCH_WITHOUT_CONSTRUCTS=1 so every catalogue pattern can be
     // checked against minimal snippets that may not trigger heuristics.
+    // For TS/JS, allow matching when source clearly references AWS/CDK (e.g. CDK
+    // stacks, Next.js on Lambda) even if tree-sitter didn't find constructs.
     let match_without_constructs = std::env::var("CLOUDSHIFT_MATCH_WITHOUT_CONSTRUCTS")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
-    if constructs.is_empty() && !match_without_constructs {
+    let ts_js_has_aws_strings = (language == Language::TypeScript || language == Language::JavaScript)
+        && source_cloud != crate::domain::value_objects::SourceCloud::Azure
+        && (source.contains("aws-cdk-lib")
+            || source.contains("@aws-sdk/")
+            || source.contains("aws-sdk")
+            || source.contains("from 'aws-cdk-lib'")
+            || source.contains("from \"aws-cdk-lib\""));
+
+    if constructs.is_empty() && !match_without_constructs && !ts_js_has_aws_strings {
         let msg = "No cloud constructs detected; file unchanged (already GCP or no cloud usage).";
         return TransformResult::new(
             path.to_string(),
