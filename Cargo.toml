@@ -5,8 +5,15 @@ members = [
     "crates/cloudshift-cli",
     "crates/cloudshift-server",
     "crates/cloudshift-lsp",
+    "crates/cloudshift-py",
 ]
-# cloudshift-py is a cdylib built via maturin, not cargo --workspace.
+default-members = [
+    "crates/cloudshift-core",
+    "crates/cloudshift-cli",
+    "crates/cloudshift-server",
+    "crates/cloudshift-lsp",
+]
+# cloudshift-py is a workspace member but excluded from default-members.
 # Build it with: maturin develop -m crates/cloudshift-py/Cargo.toml
 
 [workspace.package]
