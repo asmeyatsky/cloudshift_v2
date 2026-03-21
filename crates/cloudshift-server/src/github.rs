@@ -262,7 +262,9 @@ pub async fn import_github_repo(
                         files: vec![],
                         resolved_ref: None,
                         truncated: false,
-                        error: Some("Could not access repository — check URL and permissions".to_string()),
+                        error: Some(
+                            "Could not access repository — check URL and permissions".to_string(),
+                        ),
                     };
                 }
             },

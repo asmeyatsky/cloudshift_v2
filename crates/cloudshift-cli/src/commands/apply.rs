@@ -221,11 +221,7 @@ pub fn run(args: ApplyArgs) -> Result<()> {
             .with_context(|| format!("Failed to read {}", patch.path))?;
         let result = apply_hunks(&original, &patch.hunks)?;
         if args.dry_run {
-            println!(
-                "Would patch {} ({} hunk(s))",
-                patch.path,
-                patch.hunks.len()
-            );
+            println!("Would patch {} ({} hunk(s))", patch.path, patch.hunks.len());
         } else {
             std::fs::write(target, &result)
                 .with_context(|| format!("Failed to write {}", patch.path))?;

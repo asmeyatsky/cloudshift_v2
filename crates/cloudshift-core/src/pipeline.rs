@@ -220,7 +220,8 @@ fn transform_source(
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
-    let ts_js_has_aws_strings = (language == Language::TypeScript || language == Language::JavaScript)
+    let ts_js_has_aws_strings = (language == Language::TypeScript
+        || language == Language::JavaScript)
         && source_cloud != crate::domain::value_objects::SourceCloud::Azure
         && (source.contains("aws-cdk-lib")
             || source.contains("@aws-sdk/")

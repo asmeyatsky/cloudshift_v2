@@ -62,7 +62,10 @@ fn client_key(headers: &HeaderMap, addr: SocketAddr) -> String {
 
 fn check_rate(rl: &RateLimitState, key: &str, rpm: u32) -> bool {
     let max = rpm.max(1) as usize;
-    let mut map = rl.rate.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut map = rl
+        .rate
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let now = Instant::now();
     // Evict stale client entries periodically
     if map.len() > 10_000 {

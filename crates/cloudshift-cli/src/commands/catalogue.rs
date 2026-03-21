@@ -168,11 +168,7 @@ pub fn run(args: CatalogueArgs) -> Result<()> {
             if results.is_empty() {
                 println!("No patterns matching \"{}\".", query);
             } else {
-                println!(
-                    "{} pattern(s) matching \"{}\":\n",
-                    results.len(),
-                    query
-                );
+                println!("{} pattern(s) matching \"{}\":\n", results.len(), query);
                 println!(
                     "{:<55} {:<12} {:<8} {:<6}",
                     "ID", "Language", "Source", "Conf"
@@ -242,9 +238,7 @@ pub fn run(args: CatalogueArgs) -> Result<()> {
             // Count by language
             let mut by_language: HashMap<String, usize> = HashMap::new();
             for p in patterns {
-                *by_language
-                    .entry(format!("{:?}", p.language))
-                    .or_insert(0) += 1;
+                *by_language.entry(format!("{:?}", p.language)).or_insert(0) += 1;
             }
             println!("By language:");
             let mut lang_entries: Vec<_> = by_language.iter().collect();
