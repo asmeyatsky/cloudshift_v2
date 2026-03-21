@@ -1,0 +1,135 @@
+[pattern]
+id = "azure.kubernetes_cluster -> gcp.container_cluster"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.84
+tags = ["terraform", "compute", "kubernetes", "aks", "gke"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_kubernetes_cluster\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_container_cluster" {resource_name} {
+    name     = {cluster_name}
+    project  = {project_id}
+    location = {region}
+
+    # AKS kubernetes_version: {kubernetes_version}
+    min_master_version = {kubernetes_version}
+
+    # Use separately managed node pools
+    remove_default_node_pool = true
+    initial_node_count       = 1
+
+    network    = {vpc_network}
+    subnetwork = {subnet}
+
+    # AKS dns_prefix: {dns_prefix}
+    # GKE clusters are accessed via the GKE API, not DNS prefix
+
+    # AKS private_cluster_enabled: {private_cluster_enabled}
+    private_cluster_config {
+      enable_private_nodes    = true
+      enable_private_endpoint = false
+      master_ipv4_cidr_block  = "172.16.0.0/28"
+    }
+
+    # AKS network_profile: {network_profile}
+    # AKS network_plugin: azure (Azure CNI) / kubenet
+    # GKE uses VPC-native by default (equivalent to Azure CNI)
+    ip_allocation_policy {
+      # cluster_secondary_range_name  = "pods"
+      # services_secondary_range_name = "services"
+    }
+
+    # AKS role_based_access_control_enabled: {rbac_enabled}
+    # GKE RBAC is always enabled
+
+    # AKS azure_active_directory_role_based_access_control: {aad_rbac}
+    # master_auth {
+    #   # GKE supports Google Groups for RBAC
+    # }
+
+    # AKS identity (managed identity): {identity}
+    workload_identity_config {
+      workload_pool = "{project_id}.svc.id.goog"
+    }
+
+    logging_config {
+      enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
+    }
+
+    monitoring_config {
+      enable_components = ["SYSTEM_COMPONENTS"]
+      managed_prometheus {
+        enabled = true
+      }
+    }
+
+    # AKS addon_profile / oms_agent: {oms_agent}
+    # GKE includes built-in monitoring and logging
+  }
+
+  # AKS default_node_pool maps to google_container_node_pool
+  resource "google_container_node_pool" "{resource_name}_default" {
+    name       = "{cluster_name}-default"
+    cluster    = google_container_cluster.{resource_name}.name
+    project    = {project_id}
+    location   = {region}
+    node_count = {node_count}
+
+    node_config {
+      machine_type = {vm_size}
+      # AKS vm_size: {vm_size}
+      # TODO: Map Azure VM size to GCP machine type:
+      #   Standard_DS2_v2 -> e2-standard-2
+      #   Standard_DS3_v2 -> e2-standard-4
+      #   Standard_D4s_v3 -> n2-standard-4
+      disk_size_gb = {os_disk_size_gb}
+      disk_type    = "pd-balanced"
+
+      oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    }
+
+    autoscaling {
+      min_node_count = {min_count}
+      max_node_count = {max_count}
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+cluster_name = "resource_body.name"
+kubernetes_version = "resource_body.kubernetes_version"
+dns_prefix = "resource_body.dns_prefix"
+private_cluster_enabled = "resource_body.private_cluster_enabled"
+network_profile = "resource_body.network_profile"
+rbac_enabled = "resource_body.role_based_access_control_enabled"
+aad_rbac = "resource_body.azure_active_directory_role_based_access_control"
+identity = "resource_body.identity"
+oms_agent = "resource_body.oms_agent"
+node_count = "resource_body.default_node_pool.node_count"
+vm_size = "resource_body.default_node_pool.vm_size"
+os_disk_size_gb = "resource_body.default_node_pool.os_disk_size_gb"
+min_count = "resource_body.default_node_pool.min_count"
+max_count = "resource_body.default_node_pool.max_count"
+tags = "resource_body.tags"
+vpc_network = "__vpc_network__"
+subnet = "__subnet__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AKS and GKE are both managed Kubernetes services. AKS default_node_pool is inline; GKE uses separate google_container_node_pool resources. AKS Azure CNI maps to GKE VPC-native mode. AKS managed identity maps to GKE Workload Identity. AKS Azure AD integration maps to Google Groups for GKE RBAC. AKS VM sizes need mapping to GCP machine types. AKS Container Insights (oms_agent) maps to GKE built-in monitoring. AKS Azure Policy addon maps to GKE Policy Controller (Anthos Config Management)."

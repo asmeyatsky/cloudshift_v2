@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.elasticache.redis.get -> gcp.memorystore.redis.get"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.93
+tags = ["cache", "elasticache", "memorystore", "redis"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get"))
+    arguments: (argument_list
+      (_) @key_arg) @args)
+'''
+imports = ["redis"]
+
+[pattern.transform]
+template = '''redis.StrictRedis(host={memorystore_host}, port=6379, db=0).get({key_arg})  # TODO: set memorystore_host to Memorystore instance IP'''
+import_add = ["import redis"]
+import_remove = []
+
+[pattern.bindings]
+key_arg = "args[0]"
+memorystore_host = "__memorystore_host__"
+
+[pattern.notes]
+description = "ElastiCache Redis and Memorystore Redis both use the standard redis-py client, so the API calls are identical. The primary difference is connection configuration: ElastiCache uses AWS endpoints with optional auth tokens and encryption, while Memorystore uses private IP addresses accessible only from the same VPC. ElastiCache cluster mode and automatic failover map to Memorystore HA replicas."

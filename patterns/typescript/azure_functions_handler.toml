@@ -1,0 +1,39 @@
+[pattern]
+id = "azure.functions.handler -> gcp.cloud_functions.handler"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.88
+tags = ["compute", "azure-functions", "cloud-functions", "serverless"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @app
+      property: (property_identifier) @method (#eq? @method "http"))
+    arguments: (arguments
+      (string) @func_name
+      (object
+        (pair
+          key: (property_identifier) @handler_key (#eq? @handler_key "handler")
+          value: (_) @handler_func))) @args)
+'''
+imports = ["@azure/functions"]
+
+[pattern.transform]
+template = '''functions.http("{func_name}", (req: Request, res: Response) => {
+    const context = { req, res };
+    const handler = {handler_func};
+    const result = handler(req, context);
+    res.status(200).send(result);
+})'''
+import_add = ["import {Request, Response} from \"@google-cloud/functions-framework\"", "import * as functions from \"@google-cloud/functions-framework\""]
+import_remove = ["import {app, HttpRequest, HttpResponseInit, InvocationContext} from \"@azure/functions\""]
+
+[pattern.bindings]
+func_name = "func_name"
+handler_func = "handler_func"
+
+[pattern.notes]
+description = "Azure Functions v4 uses app.http() for HTTP triggers with HttpRequest/InvocationContext parameters returning HttpResponseInit. Cloud Functions uses Express-style Request/Response. Azure Functions supports multiple trigger types (HTTP, timer, queue, blob) via app.http/app.timer/etc; Cloud Functions uses separate event-driven signatures. Azure Functions bindings (input/output) have no direct Cloud Functions equivalent and need explicit SDK calls. Azure HttpResponseInit with status/body maps to res.status().send()."

@@ -1,0 +1,90 @@
+[pattern]
+id = "aws.autoscaling_group -> gcp.compute_instance_group_manager"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.83
+tags = ["terraform", "compute", "autoscaling", "instance-group"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_autoscaling_group\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_instance_group_manager" {resource_name} {
+    name               = {asg_name}
+    project            = {project_id}
+    base_instance_name = {asg_name}
+    zone               = {zone}
+    target_size        = {desired_capacity}
+
+    version {
+      instance_template = google_compute_instance_template.{resource_name}_tpl.id
+    }
+
+    named_port {
+      name = "http"
+      port = 80
+    }
+
+    auto_healing_policies {
+      health_check      = google_compute_health_check.{resource_name}_hc.id
+      initial_delay_sec = {health_check_grace_period}
+    }
+
+    # TODO: For multi-zone, use google_compute_region_instance_group_manager instead
+    # and set distribution_policy_zones
+
+    # AWS launch_template: {launch_template}
+    # Map to google_compute_instance_template (see aws_launch_template pattern)
+  }
+
+  resource "google_compute_autoscaler" "{resource_name}_autoscaler" {
+    name    = "{asg_name}-autoscaler"
+    project = {project_id}
+    zone    = {zone}
+    target  = google_compute_instance_group_manager.{resource_name}.id
+
+    autoscaling_policy {
+      min_replicas    = {min_size}
+      max_replicas    = {max_size}
+      cooldown_period = {default_cooldown}
+
+      cpu_utilization {
+        target = 0.6
+      }
+
+      # TODO: Map aws_autoscaling_policy target_tracking / step_scaling policies
+      # to metric-based scaling:
+      # metric {
+      #   name   = "compute.googleapis.com/instance/cpu/utilization"
+      #   target = 0.6
+      #   type   = "GAUGE"
+      # }
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+asg_name = "resource_body.name"
+desired_capacity = "resource_body.desired_capacity"
+min_size = "resource_body.min_size"
+max_size = "resource_body.max_size"
+default_cooldown = "resource_body.default_cooldown"
+health_check_grace_period = "resource_body.health_check_grace_period"
+launch_template = "resource_body.launch_template"
+zone = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS ASGs combine instance management, scaling, and health checks. GCP separates these into instance_group_manager (manages instances) and autoscaler (scaling policies). ASG availability_zones map to region_instance_group_manager distribution_policy_zones. ASG launch_template maps to instance_template. ASG lifecycle hooks have no direct GCP equivalent; use instance metadata scripts or startup-script instead. Target tracking policies map to autoscaler cpu_utilization or custom metrics."

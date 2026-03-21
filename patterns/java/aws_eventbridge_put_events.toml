@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.eventbridge.EventBridgeClient.putEvents -> gcp.pubsub.Publisher.publish"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.83
+tags = ["messaging", "eventbridge", "pubsub", "event"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "putEvents")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.eventbridge"]
+
+[pattern.transform]
+template = '''Publisher.newBuilder(TopicName.of({project_id}, {topic_name})).build().publish(PubsubMessage.newBuilder().setData(ByteString.copyFromUtf8({detail})).putAttributes("source", {source}).putAttributes("detailType", {detail_type}).build()).get()'''
+import_add = ["import com.google.api.core.ApiFuture", "import com.google.cloud.pubsub.v1.Publisher", "import com.google.protobuf.ByteString", "import com.google.pubsub.v1.PubsubMessage", "import com.google.pubsub.v1.TopicName"]
+import_remove = ["import software.amazon.awssdk.services.eventbridge.EventBridgeClient", "import software.amazon.awssdk.services.eventbridge.model.PutEventsRequest", "import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry"]
+
+[pattern.bindings]
+source = "request.entries().get(0).source()"
+detail_type = "request.entries().get(0).detailType()"
+detail = "request.entries().get(0).detail()"
+event_bus_name = "request.entries().get(0).eventBusName()"
+topic_name = "request.entries().get(0).eventBusName()"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "EventBridge putEvents sends events with source, detail-type, and JSON detail to an event bus with rule-based routing. Pub/Sub uses topic-based routing with message attributes. EventBridge rules with pattern matching map to Pub/Sub message filtering on subscriptions. EventBridge supports multiple entries per request; Pub/Sub publishes one message at a time (use batching settings on Publisher). Eventarc is the closer GCP equivalent for event-driven architectures."

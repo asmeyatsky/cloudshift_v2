@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import ErrorBoundary from './components/ErrorBoundary'
 import Header from './components/Header'
 import HomeView from './components/HomeView'
 import TransformView from './components/TransformView'
@@ -23,10 +24,12 @@ export default function App() {
   }, [apiKey, setAuthVerified])
 
   return (
-    <div className="h-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden">
-      <Header />
-      {screen === 'home' ? <HomeView /> : <TransformView />}
-      <SettingsModal />
-    </div>
+    <ErrorBoundary>
+      <div className="h-screen flex flex-col bg-[#09090b] text-zinc-100 overflow-hidden">
+        <Header />
+        {screen === 'home' ? <HomeView /> : <TransformView />}
+        <SettingsModal />
+      </div>
+    </ErrorBoundary>
   )
 }

@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.lambda.LambdaClient.invoke -> gcp.cloudfunctions.CloudFunctionsServiceClient.callFunction"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.85
+tags = ["compute", "lambda", "cloud-functions", "serverless", "invoke"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "invoke")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.lambda"]
+
+[pattern.transform]
+template = '''CloudFunctionsServiceClient.create().callFunction(CallFunctionRequest.newBuilder().setName(CloudFunctionName.of({project_id}, {region}, {function_name}).toString()).setData({payload}).build())'''
+import_add = ["import com.google.cloud.functions.v1.CloudFunctionsServiceClient", "import com.google.cloud.functions.v1.CallFunctionRequest", "import com.google.cloud.functions.v1.CallFunctionResponse", "import com.google.cloud.functions.v1.CloudFunctionName"]
+import_remove = ["import software.amazon.awssdk.services.lambda.LambdaClient", "import software.amazon.awssdk.services.lambda.model.InvokeRequest", "import software.amazon.awssdk.services.lambda.model.InvokeResponse"]
+
+[pattern.bindings]
+function_name = "request.functionName()"
+payload = "request.payload().asUtf8String()"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Lambda invoke calls a function synchronously (RequestResponse) or asynchronously (Event). Cloud Functions callFunction is synchronous only; for async invocation use Pub/Sub triggers. Lambda payload is SdkBytes; Cloud Functions data is a JSON string. Lambda InvocationType.EVENT maps to publishing to the function's trigger topic. Lambda versions/aliases map to Cloud Functions traffic splitting. For Cloud Functions 2nd gen, consider using Cloud Run client instead."

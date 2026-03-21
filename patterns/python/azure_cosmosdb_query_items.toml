@@ -1,0 +1,37 @@
+[pattern]
+id = "azure.cosmosdb.query_items -> gcp.firestore.collection.where"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["database", "cosmosdb", "firestore", "nosql", "query"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @container
+      attribute: (identifier) @method (#eq? @method "query_items"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.cosmos"]
+
+[pattern.transform]
+template = '''firestore.Client().collection({collection_name}).where({field_path}, {op}, {value}).stream()  # TODO: translate SQL query to Firestore where() chains; complex Cosmos SQL requires multiple where() calls or restructured queries'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["from azure.cosmos import CosmosClient", "from azure.cosmos import exceptions"]
+
+[pattern.bindings]
+collection_name = "container.__container_id__"
+sql_query = "args.query"
+parameters = "args.parameters"
+partition_key = "args.partition_key"
+field_path = "__field_path__"
+op = "__operator__"
+value = "__value__"
+
+[pattern.notes]
+description = "Cosmos DB query_items uses SQL-like queries (SELECT * FROM c WHERE c.field = @val) with parameterized values and partition keys. Firestore uses chained where() calls with field path, operator, and value. Cosmos DB supports JOINs, aggregates, and UDFs that have no direct Firestore equivalent. Cross-partition queries map to Firestore collection group queries. Cosmos DB's enable_cross_partition_query has no equivalent since Firestore queries are always distributed."

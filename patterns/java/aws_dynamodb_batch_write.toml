@@ -1,0 +1,29 @@
+[pattern]
+id = "aws.dynamodb.DynamoDbClient.batchWriteItem -> gcp.firestore.Firestore.bulkWriter"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.76
+tags = ["database", "dynamodb", "firestore", "nosql", "batch"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "batchWriteItem")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.dynamodb"]
+
+[pattern.transform]
+template = '''{ Firestore db = FirestoreOptions.getDefaultInstance().getService(); BulkWriter bulkWriter = db.bulkWriter(); {write_operations}; bulkWriter.close(); }'''
+import_add = ["import com.google.cloud.firestore.BulkWriter", "import com.google.cloud.firestore.Firestore", "import com.google.cloud.firestore.FirestoreOptions"]
+import_remove = ["import software.amazon.awssdk.services.dynamodb.DynamoDbClient", "import software.amazon.awssdk.services.dynamodb.model.BatchWriteItemRequest", "import software.amazon.awssdk.services.dynamodb.model.BatchWriteItemResponse", "import software.amazon.awssdk.services.dynamodb.model.WriteRequest"]
+
+[pattern.bindings]
+table_name = "request.requestItems().__first_key__"
+write_operations = "request.requestItems()"
+
+[pattern.notes]
+description = "DynamoDB batchWriteItem supports up to 25 PutItem/DeleteItem operations across multiple tables. Firestore BulkWriter handles batching automatically with no item limit and supports set/update/delete operations. DynamoDB returns UnprocessedItems for retry; BulkWriter handles retries internally. DynamoDB batch does not support UpdateItem; Firestore BulkWriter supports update(). BulkWriter.close() flushes all pending operations."

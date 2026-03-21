@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.s3.S3Presigner.presignGetObject -> gcp.storage.BlobInfo.signUrl"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.91
+tags = ["storage", "s3", "gcs", "presigned", "url"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "presignGetObject")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.s3.presigner"]
+
+[pattern.transform]
+template = '''StorageOptions.getDefaultInstance().getService().signUrl(BlobInfo.newBuilder(BlobId.of({bucket_name}, {key})).build(), {duration}, TimeUnit.MINUTES, Storage.SignUrlOption.withV4Signature())'''
+import_add = ["import com.google.cloud.storage.BlobId", "import com.google.cloud.storage.BlobInfo", "import com.google.cloud.storage.Storage", "import com.google.cloud.storage.StorageOptions", "import java.util.concurrent.TimeUnit"]
+import_remove = ["import software.amazon.awssdk.services.s3.presigner.S3Presigner", "import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest", "import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest"]
+
+[pattern.bindings]
+bucket_name = "request.getObjectRequest().bucket()"
+key = "request.getObjectRequest().key()"
+duration = "request.signatureDuration().toMinutes()"
+
+[pattern.notes]
+description = "S3 presignGetObject creates a presigned URL for temporary GET access. GCS signUrl creates a V4 signed URL. S3 presigned URLs support up to 7 days expiry; GCS V4 signed URLs support up to 7 days as well. S3Presigner is a separate client; GCS uses the Storage client directly. For PUT presigned URLs, use Storage.SignUrlOption.httpMethod(HttpMethod.PUT). GCS also supports V2 signatures but V4 is recommended."

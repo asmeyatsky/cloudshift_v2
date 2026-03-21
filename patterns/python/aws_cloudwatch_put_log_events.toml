@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.cloudwatch_logs.put_log_events -> gcp.logging.write_entries"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["logging", "cloudwatch", "cloud-logging", "observability"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "put_log_events"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''logging_v2.Client().logger({log_name}).log_struct({entries_expr})'''
+import_add = ["from google.cloud import logging as logging_v2"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+log_name = "args.logGroupName"
+entries_expr = "args.logEvents"
+sequence_token = "args.sequenceToken"
+
+[pattern.notes]
+description = "CloudWatch Logs put_log_events sends batched log events to a log group/stream using sequence tokens. Cloud Logging write_entries uses a logger name (replacing log group/stream) and does not require sequence tokens. Each CloudWatch log event has timestamp+message; Cloud Logging entries support structured payloads with severity levels."

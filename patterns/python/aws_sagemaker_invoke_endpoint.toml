@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.sagemaker.invoke_endpoint -> gcp.vertex_ai.predict"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.83
+tags = ["ml", "sagemaker", "vertex-ai", "inference", "prediction"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "invoke_endpoint"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''aiplatform.Endpoint({endpoint_id}).predict(instances={payload_expr})'''
+import_add = ["from google.cloud import aiplatform"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+endpoint_name = "args.EndpointName"
+endpoint_id = "__endpoint_id__"
+payload_expr = "args.Body"
+content_type = "args.ContentType"
+
+[pattern.notes]
+description = "SageMaker invoke_endpoint sends raw bytes (Body) with a ContentType to a named endpoint. Vertex AI predict() accepts structured instances as dicts/lists. SageMaker supports custom inference containers with arbitrary content types; Vertex AI expects JSON instances or uses raw_predict for custom formats. The response format also differs: SageMaker returns Body as a streaming blob while Vertex AI returns structured predictions."

@@ -1,5 +1,17 @@
 import { TransformRequest, TransformResult } from './types'
 
+function fetchWithTimeout(
+  url: string,
+  opts: RequestInit,
+  timeoutMs = 30_000,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...opts, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  )
+}
+
 export async function transform(
   req: TransformRequest,
   apiKey?: string,
@@ -11,7 +23,7 @@ export async function transform(
     headers['X-API-Key'] = apiKey.trim()
   }
 
-  const res = await fetch('/api/transform', {
+  const res = await fetchWithTimeout('/api/transform', {
     method: 'POST',
     headers,
     body: JSON.stringify(req),
@@ -45,14 +57,14 @@ export async function importGithubRepo(
     headers['X-API-Key'] = opts.apiKey.trim()
   }
 
-  const res = await fetch('/api/github/repo', {
+  const res = await fetchWithTimeout('/api/github/repo', {
     method: 'POST',
     headers,
     body: JSON.stringify({
       url: url.trim(),
       ...(opts?.ref?.trim() ? { ref: opts.ref.trim() } : {}),
     }),
-  })
+  }, 90_000)
 
   if (res.status === 401) {
     throw new Error('Unauthorized — add API key in Settings or use IAP')
@@ -75,7 +87,7 @@ export async function checkAuth(apiKey?: string): Promise<boolean> {
   }
 
   try {
-    const res = await fetch('/api/auth-check', { headers })
+    const res = await fetchWithTimeout('/api/auth-check', { headers }, 5_000)
     if (!res.ok) return false
     const data = await res.json()
     return data.ok === true

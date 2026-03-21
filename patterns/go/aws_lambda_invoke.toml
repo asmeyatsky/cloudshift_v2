@@ -1,0 +1,62 @@
+[pattern]
+id = "aws.lambda.InvokeInput -> gcp.cloudfunctions.CallFunction"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.80
+tags = ["compute", "lambda", "cloud-functions", "serverless", "invoke"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "Invoke"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "lambda")
+            name: (type_identifier) @type (#eq? @type "InvokeInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/lambda"]
+
+[pattern.transform]
+template = '''
+url := fmt.Sprintf("https://%s-%s.cloudfunctions.net/%s", {region}, {project_id}, {function_name})
+reqBody := bytes.NewReader({payload})
+httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, reqBody)
+if err != nil {
+    return nil, fmt.Errorf("NewRequest: %%w", err)
+}
+httpReq.Header.Set("Content-Type", "application/json")
+
+tokenSrc, err := idtoken.NewTokenSource(ctx, url)
+if err != nil {
+    return nil, fmt.Errorf("idtoken.NewTokenSource: %%w", err)
+}
+token, err := tokenSrc.Token()
+if err != nil {
+    return nil, fmt.Errorf("Token: %%w", err)
+}
+token.SetAuthHeader(httpReq)
+
+resp, err := http.DefaultClient.Do(httpReq)
+if err != nil {
+    return nil, fmt.Errorf("HTTP call: %%w", err)
+}
+defer resp.Body.Close()
+'''
+import_add = ["google.golang.org/api/idtoken"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/lambda"]
+
+[pattern.bindings]
+function_name = "params.FunctionName"
+payload = "params.Payload"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Lambda Invoke calls a function synchronously or asynchronously (InvocationType). Cloud Functions v2 are invoked via authenticated HTTP requests using an identity token. Lambda returns StatusCode, Payload, and FunctionError. Cloud Functions returns an HTTP response. Lambda supports InvocationType (RequestResponse, Event, DryRun); Cloud Functions HTTP invocation is always synchronous. For async invocation, use Pub/Sub as a trigger instead."

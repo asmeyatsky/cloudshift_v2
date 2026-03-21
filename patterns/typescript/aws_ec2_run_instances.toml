@@ -1,0 +1,36 @@
+[pattern]
+id = "aws.ec2.RunInstancesCommand -> gcp.compute.instances.insert"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.78
+tags = ["compute", "ec2", "compute-engine", "vm"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "RunInstancesCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-ec2"]
+
+[pattern.transform]
+template = '''await new InstancesClient().insert({ project: {project_id}, zone: {zone}, instanceResource: { name: {instance_name}, machineType: `zones/${zone}/machineTypes/${machine_type}`, disks: [{ initializeParams: { sourceImage: {image_id} }, autoDelete: true, boot: true }], networkInterfaces: [{ network: "global/networks/default" }] } })'''
+import_add = ["import {InstancesClient} from \"@google-cloud/compute\""]
+import_remove = ["import {EC2Client, RunInstancesCommand} from \"@aws-sdk/client-ec2\""]
+
+[pattern.bindings]
+image_id = "params.ImageId"
+instance_name = "params.TagSpecifications[0].Tags[0].Value"
+machine_type = "params.InstanceType"
+zone = "__zone__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "EC2 RunInstances creates one or more instances in a single call with MinCount/MaxCount. Compute Engine insert() creates one instance at a time; use bulk insert for multiple. EC2 instance types (t3.micro) map to Compute Engine machine types (e2-micro). AMI IDs map to Compute Engine images. EC2 security groups map to VPC firewall rules. EC2 key pairs map to OS Login or metadata SSH keys. SubnetId maps to subnetwork resource path."

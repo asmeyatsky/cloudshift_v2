@@ -1,0 +1,36 @@
+[pattern]
+id = "azure.tables.query_entities -> gcp.firestore.collection.where"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["table-storage", "firestore", "nosql", "query"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "query_entities"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.data.tables"]
+
+[pattern.transform]
+template = '''firestore.Client().collection({collection_name}).where({field_path}, {op}, {value}).stream()  # TODO: translate OData filter to Firestore where() chains; select maps to field_paths in stream()'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["from azure.data.tables import TableServiceClient", "from azure.data.tables import TableClient"]
+
+[pattern.bindings]
+collection_name = "client.__table_name__"
+filter_expr = "args.query_filter"
+select_fields = "args.select"
+field_path = "__field_path__"
+op = "__operator__"
+value = "__value__"
+
+[pattern.notes]
+description = "Azure Table Storage query_entities uses OData filter strings (e.g., \"PartitionKey eq 'pk' and RowKey eq 'rk'\") and optional select for projections. Firestore uses chained where() calls with Pythonic operators. Table Storage PartitionKey/RowKey map to Firestore document paths (collection/document). OData operators (eq, ne, gt, lt, ge, le) map to Firestore operators (==, !=, >, <, >=, <=). Complex OData filters with 'or' require multiple Firestore queries merged client-side."

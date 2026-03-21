@@ -1,0 +1,36 @@
+[pattern]
+id = "aws.ecs.RunTaskCommand -> gcp.run.jobs.run"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.78
+tags = ["compute", "ecs", "cloud-run", "containers"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "RunTaskCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-ecs"]
+
+[pattern.transform]
+template = '''await new JobsClient().runJob({ name: `projects/${project_id}/locations/${location}/jobs/${job_name}`, overrides: { containerOverrides: [{ env: {environment} }] } })'''
+import_add = ["import {JobsClient} from \"@google-cloud/run\""]
+import_remove = ["import {ECSClient, RunTaskCommand} from \"@aws-sdk/client-ecs\""]
+
+[pattern.bindings]
+job_name = "params.taskDefinition"
+cluster = "params.cluster"
+environment = "params.overrides.containerOverrides[0].environment"
+project_id = "__project_id__"
+location = "__region__"
+
+[pattern.notes]
+description = "ECS RunTask launches a new task from a task definition on a cluster. Cloud Run Jobs execute containerized tasks to completion. ECS task definitions map to Cloud Run job templates. ECS Fargate launch type is closest to Cloud Run's serverless model. ECS supports EC2 and Fargate launch types; Cloud Run is always serverless. ECS networking (awsvpc, bridge, host) maps to Cloud Run's VPC connector. ECS task role maps to Cloud Run service account."

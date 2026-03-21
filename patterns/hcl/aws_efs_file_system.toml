@@ -1,0 +1,82 @@
+[pattern]
+id = "aws.efs_file_system -> gcp.filestore_instance"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.82
+tags = ["terraform", "storage", "efs", "filestore", "nfs"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_efs_file_system\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_filestore_instance" {resource_name} {
+    name     = {fs_name}
+    project  = {project_id}
+    location = {region}
+    tier     = {tier}
+
+    file_shares {
+      name       = "share1"
+      capacity_gb = {capacity_gb}
+
+      # AWS lifecycle_policy transition_to_ia: {lifecycle_policy}
+      # Filestore does not have automatic storage tiering.
+      # Consider using different tiers: BASIC_HDD, BASIC_SSD,
+      # HIGH_SCALE_SSD, ENTERPRISE, ZONAL, REGIONAL
+    }
+
+    networks {
+      network = {vpc_network}
+      modes   = ["MODE_IPV4"]
+
+      # TODO: Set to the VPC network used by EFS mount targets
+      # AWS security groups on mount targets map to GCP firewall rules
+      # for NFS port 2049
+    }
+
+    # AWS performance_mode: {performance_mode}
+    # generalPurpose -> BASIC_SSD or BASIC_HDD
+    # maxIO -> HIGH_SCALE_SSD
+
+    # AWS throughput_mode: {throughput_mode}
+    # AWS provisioned_throughput_in_mibps: {provisioned_throughput}
+    # Filestore throughput is determined by tier and capacity
+
+    # AWS encrypted: {encrypted}
+    # AWS kms_key_id: {kms_key_id}
+    # Filestore Enterprise tier supports CMEK:
+    # kms_key_name = google_kms_crypto_key.example.id
+
+    labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+fs_name = "resource_body.creation_token"
+performance_mode = "resource_body.performance_mode"
+throughput_mode = "resource_body.throughput_mode"
+provisioned_throughput = "resource_body.provisioned_throughput_in_mibps"
+encrypted = "resource_body.encrypted"
+kms_key_id = "resource_body.kms_key_id"
+lifecycle_policy = "resource_body.lifecycle_policy"
+tags = "resource_body.tags"
+tier = "__filestore_tier__"
+capacity_gb = "__filestore_capacity_gb__"
+vpc_network = "__vpc_network__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "EFS provides elastic NFS storage that auto-scales. Filestore requires fixed capacity provisioned upfront. EFS mount targets in subnets map to Filestore network configuration. EFS performance modes (generalPurpose/maxIO) map to Filestore tiers (BASIC_SSD/HIGH_SCALE_SSD). EFS lifecycle policies for IA tiering have no Filestore equivalent. EFS access points map to NFS export options. EFS security groups on mount targets map to GCP firewall rules for port 2049."

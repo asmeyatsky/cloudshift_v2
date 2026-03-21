@@ -1,0 +1,110 @@
+[pattern]
+id = "aws.eks_cluster -> gcp.container_cluster"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.85
+tags = ["terraform", "compute", "kubernetes", "eks", "gke"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_eks_cluster\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_container_cluster" {resource_name} {
+    name     = {cluster_name}
+    project  = {project_id}
+    location = {region}
+
+    # AWS EKS version: {version}
+    # GKE version format is similar (e.g., 1.27)
+    min_master_version = {version}
+
+    # Use separately managed node pools
+    remove_default_node_pool = true
+    initial_node_count       = 1
+
+    network    = {vpc_network}
+    subnetwork = {subnet}
+
+    # AWS vpc_config endpoint access: {endpoint_public_access}
+    private_cluster_config {
+      enable_private_nodes    = true
+      enable_private_endpoint = false
+      master_ipv4_cidr_block  = "172.16.0.0/28"
+    }
+
+    # AWS enabled_cluster_log_types: {enabled_cluster_log_types}
+    logging_config {
+      enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
+    }
+
+    monitoring_config {
+      enable_components = ["SYSTEM_COMPONENTS"]
+    }
+
+    # AWS encryption_config: {encryption_config}
+    # database_encryption {
+    #   state    = "ENCRYPTED"
+    #   key_name = google_kms_crypto_key.example.id
+    # }
+
+    # AWS kubernetes_network_config service_ipv4_cidr: {service_ipv4_cidr}
+    ip_allocation_policy {
+      # GKE uses VPC-native clusters by default
+      # cluster_secondary_range_name  = "pods"
+      # services_secondary_range_name = "services"
+    }
+
+    # AWS role_arn: {role_arn}
+    # TODO: Map IAM role to GCP service account
+    # Workload Identity is recommended for pod-level access:
+    workload_identity_config {
+      workload_pool = "{project_id}.svc.id.goog"
+    }
+  }
+
+  # AWS eks_node_group maps to google_container_node_pool
+  # resource "google_container_node_pool" "{resource_name}_nodes" {
+  #   name       = "{cluster_name}-node-pool"
+  #   cluster    = google_container_cluster.{resource_name}.name
+  #   location   = {region}
+  #   node_count = 1
+  #
+  #   node_config {
+  #     machine_type = "e2-medium"
+  #     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  #   }
+  #
+  #   autoscaling {
+  #     min_node_count = 1
+  #     max_node_count = 10
+  #   }
+  # }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+cluster_name = "resource_body.name"
+version = "resource_body.version"
+role_arn = "resource_body.role_arn"
+endpoint_public_access = "resource_body.vpc_config.endpoint_public_access"
+enabled_cluster_log_types = "resource_body.enabled_cluster_log_types"
+encryption_config = "resource_body.encryption_config"
+service_ipv4_cidr = "resource_body.kubernetes_network_config.service_ipv4_cidr"
+vpc_network = "__vpc_network__"
+subnet = "__subnet__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "EKS and GKE are both managed Kubernetes services but differ in configuration. EKS node groups are separate resources; GKE uses node pools. EKS uses IAM roles for service accounts (IRSA); GKE uses Workload Identity. EKS VPC config maps to GKE private_cluster_config and ip_allocation_policy. EKS add-ons (CoreDNS, kube-proxy, VPC CNI) are built into GKE. EKS Fargate profiles map to GKE Autopilot mode. Security groups map to GKE network policies and firewall rules."

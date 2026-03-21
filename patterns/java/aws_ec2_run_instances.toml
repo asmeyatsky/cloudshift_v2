@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.ec2.Ec2Client.runInstances -> gcp.compute.InstancesClient.insert"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.75
+tags = ["compute", "ec2", "gce", "vm", "instance"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "runInstances")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.ec2"]
+
+[pattern.transform]
+template = '''InstancesClient.create().insertAsync(InsertInstanceRequest.newBuilder().setProject({project_id}).setZone({zone}).setInstanceResource(Instance.newBuilder().setName({instance_name}).setMachineType("zones/" + {zone} + "/machineTypes/" + {instance_type}).addDisks(AttachedDisk.newBuilder().setBoot(true).setAutoDelete(true).setInitializeParams(AttachedDiskInitializeParams.newBuilder().setSourceImage({image_id}).build()).build()).addNetworkInterfaces(NetworkInterface.newBuilder().setNetwork("global/networks/default").build()).build()).build()).get()'''
+import_add = ["import com.google.cloud.compute.v1.InstancesClient", "import com.google.cloud.compute.v1.Instance", "import com.google.cloud.compute.v1.InsertInstanceRequest", "import com.google.cloud.compute.v1.AttachedDisk", "import com.google.cloud.compute.v1.AttachedDiskInitializeParams", "import com.google.cloud.compute.v1.NetworkInterface", "import com.google.cloud.compute.v1.Operation"]
+import_remove = ["import software.amazon.awssdk.services.ec2.Ec2Client", "import software.amazon.awssdk.services.ec2.model.RunInstancesRequest", "import software.amazon.awssdk.services.ec2.model.RunInstancesResponse"]
+
+[pattern.bindings]
+image_id = "request.imageId()"
+instance_type = "request.instanceType()"
+instance_name = "__instance_name__"
+project_id = "__project_id__"
+zone = "__zone__"
+
+[pattern.notes]
+description = "EC2 RunInstances can launch multiple instances at once (MinCount/MaxCount); GCE insert creates one instance per call. EC2 instance types (t3.micro) need mapping to GCE machine types (e2-micro). EC2 AMIs map to GCE images. Security groups map to GCE firewall rules (separate API). EC2 key pairs map to OS Login or metadata SSH keys. Subnet/VPC mapping requires separate network configuration."

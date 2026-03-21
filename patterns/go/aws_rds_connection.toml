@@ -1,0 +1,61 @@
+[pattern]
+id = "aws.rdsdata.ExecuteStatementInput -> gcp.cloudsql.Connection"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.76
+tags = ["database", "rds", "cloudsql", "sql", "relational"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "ExecuteStatement"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "rdsdata")
+            name: (type_identifier) @type (#eq? @type "ExecuteStatementInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/rdsdata"]
+
+[pattern.transform]
+template = '''
+db, err := sql.Open("pgx", fmt.Sprintf(
+    "host=%s user=%s password=%s dbname=%s sslmode=disable",
+    {instance_connection}, {db_user}, {db_password}, {database}))
+if err != nil {
+    return nil, fmt.Errorf("sql.Open: %%w", err)
+}
+defer db.Close()
+
+cleanup, err := pgxv5.RegisterDriver("cloudsql-pgx", cloudsqlconn.WithIAMAuthN())
+if err != nil {
+    return nil, fmt.Errorf("RegisterDriver: %%w", err)
+}
+defer cleanup()
+
+rows, err := db.QueryContext(ctx, {sql_statement})
+if err != nil {
+    return nil, fmt.Errorf("QueryContext: %%w", err)
+}
+defer rows.Close()
+'''
+import_add = ["cloud.google.com/go/cloudsqlconn", "cloud.google.com/go/cloudsqlconn/postgres/pgxv5", "database/sql"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/rdsdata"]
+
+[pattern.bindings]
+sql_statement = "params.Sql"
+database = "params.Database"
+resource_arn = "params.ResourceArn"
+secret_arn = "params.SecretArn"
+instance_connection = "__instance_connection_name__"
+db_user = "__db_user__"
+db_password = "__db_password__"
+
+[pattern.notes]
+description = "RDS Data API ExecuteStatement provides a serverless HTTP-based interface to Aurora. Cloud SQL uses the Cloud SQL Go Connector (cloudsqlconn) for secure connections without exposing a public IP. RDS Data API abstracts connection management; Cloud SQL requires explicit database/sql driver setup. RDS Data API uses SecretArn for credentials; Cloud SQL supports IAM database authentication. RDS parameters use named :placeholders; standard sql uses $1 positional placeholders."

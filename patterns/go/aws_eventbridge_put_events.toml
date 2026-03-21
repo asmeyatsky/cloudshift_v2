@@ -1,0 +1,50 @@
+[pattern]
+id = "aws.eventbridge.PutEventsInput -> gcp.pubsub.Topic.Publish"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.82
+tags = ["messaging", "eventbridge", "pubsub", "events"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "PutEvents"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "eventbridge")
+            name: (type_identifier) @type (#eq? @type "PutEventsInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/eventbridge"]
+
+[pattern.transform]
+template = '''
+result := topic.Publish(ctx, &pubsub.Message{
+    Data: []byte({detail}),
+    Attributes: map[string]string{
+        "source":      {source},
+        "detail-type": {detail_type},
+    },
+})
+msgID, err := result.Get(ctx)
+if err != nil {
+    return fmt.Errorf("Topic.Publish: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/pubsub"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/eventbridge"]
+
+[pattern.bindings]
+source = "params.Entries[0].Source"
+detail_type = "params.Entries[0].DetailType"
+detail = "params.Entries[0].Detail"
+event_bus = "params.Entries[0].EventBusName"
+
+[pattern.notes]
+description = "EventBridge PutEvents sends events to an event bus with rules for routing. Pub/Sub uses topics and subscriptions for routing. EventBridge Source and DetailType map to Pub/Sub message attributes for subscription-level filtering. EventBridge supports content-based filtering rules; Pub/Sub supports attribute-based subscription filters. EventBridge can batch multiple entries; each entry maps to a separate Pub/Sub Publish call."

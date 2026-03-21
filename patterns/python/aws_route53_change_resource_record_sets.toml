@@ -1,0 +1,40 @@
+[pattern]
+id = "aws.route53.change_resource_record_sets -> gcp.dns.changes.create"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["route53", "dns", "cloud-dns", "records"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "change_resource_record_sets"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''zone = dns.Client(project={project_id}).zone({zone_name})
+changes = zone.changes()
+changes.add_record_set(zone.resource_record_set({record_name}, {record_type}, {ttl}, {rrdatas}))
+changes.create()'''
+import_add = ["from google.cloud import dns"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+hosted_zone_id = "args.HostedZoneId"
+zone_name = "__zone_name__"
+record_name = "args.ChangeBatch.Changes[0].ResourceRecordSet.Name"
+record_type = "args.ChangeBatch.Changes[0].ResourceRecordSet.Type"
+ttl = "args.ChangeBatch.Changes[0].ResourceRecordSet.TTL"
+rrdatas = "args.ChangeBatch.Changes[0].ResourceRecordSet.ResourceRecords"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Route 53 change_resource_record_sets accepts a ChangeBatch with CREATE/DELETE/UPSERT actions on multiple records. Cloud DNS uses changes().create() with explicit add/delete record sets — there is no UPSERT, so updates require deleting the old record and adding the new one. Route 53 alias records map to Cloud DNS CNAME or routing policies. Weighted/latency routing requires Cloud DNS routing policies."

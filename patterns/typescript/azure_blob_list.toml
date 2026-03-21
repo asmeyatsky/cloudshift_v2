@@ -1,0 +1,30 @@
+[pattern]
+id = "azure.blob.listBlobsFlat -> gcp.gcs.bucket.getFiles"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.92
+tags = ["storage", "blob", "gcs", "list"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "listBlobsFlat"))
+    arguments: (arguments
+      (_)? @options) @args)
+'''
+imports = ["@azure/storage-blob"]
+
+[pattern.transform]
+template = '''await new Storage().bucket({container}).getFiles({ prefix: {prefix} })'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {BlobServiceClient, ContainerClient} from \"@azure/storage-blob\""]
+
+[pattern.bindings]
+container = "client.__container_name__"
+prefix = "options.prefix"
+
+[pattern.notes]
+description = "Azure ContainerClient.listBlobsFlat() returns an async iterable of BlobItem objects. GCS bucket.getFiles() returns a [File[]] tuple. Azure supports listBlobsFlat (no hierarchy) and listBlobsByHierarchy (with delimiter); GCS getFiles uses delimiter option. Azure listing supports prefix filtering; GCS uses the prefix option. For large listings, Azure uses continuation tokens via byPage(); GCS uses autoPaginate or pageToken."

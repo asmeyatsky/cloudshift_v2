@@ -1,0 +1,71 @@
+[pattern]
+id = "aws.ebs_volume -> gcp.compute_disk"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.90
+tags = ["terraform", "storage", "ebs", "persistent-disk"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_ebs_volume\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_disk" {resource_name} {
+    name    = {disk_name}
+    project = {project_id}
+    zone    = {availability_zone}
+    type    = {disk_type}
+    size    = {size}
+
+    # AWS volume_type: {volume_type}
+    # Mapping: gp2/gp3 -> pd-balanced, io1/io2 -> pd-ssd, st1/sc1 -> pd-standard
+    # For extreme IOPS: pd-extreme (maps to io2 Block Express)
+
+    # AWS iops: {iops}
+    # TODO: For pd-ssd provisioned IOPS, set:
+    # provisioned_iops = {iops}
+
+    # AWS throughput: {throughput}
+    # GCP throughput is determined by disk type and size
+
+    # AWS encrypted: {encrypted}
+    # AWS kms_key_id: {kms_key_id}
+    # disk_encryption_key {
+    #   raw_key            = ""
+    #   kms_key_self_link  = google_kms_crypto_key.example.id
+    # }
+
+    # AWS snapshot_id: {snapshot_id}
+    # source_snapshot = google_compute_snapshot.example.id
+
+    labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+disk_name = "resource_body.tags.Name"
+availability_zone = "resource_body.availability_zone"
+volume_type = "resource_body.type"
+disk_type = "resource_body.type"
+size = "resource_body.size"
+iops = "resource_body.iops"
+throughput = "resource_body.throughput"
+encrypted = "resource_body.encrypted"
+kms_key_id = "resource_body.kms_key_id"
+snapshot_id = "resource_body.snapshot_id"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "EBS volumes map to Compute Engine persistent disks. Volume types: gp2/gp3 -> pd-balanced, io1/io2 -> pd-ssd, st1 -> pd-standard, sc1 -> pd-standard. EBS provisioned IOPS (io1/io2) map to pd-ssd with provisioned_iops. EBS multi-attach maps to multi-writer mode on pd-ssd. EBS snapshots map to google_compute_snapshot. Volume encryption with default key is automatic in GCP; CMEK requires disk_encryption_key block."

@@ -1,0 +1,36 @@
+[pattern]
+id = "aws.ses.send_raw_email -> gcp.sendgrid.send_raw"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.70
+tags = ["email", "ses", "sendgrid", "messaging", "raw-email"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "send_raw_email"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''SendGridAPIClient({api_key}).client.mail.send.post(request_body=Mail(from_email={from_expr}, to_emails={to_expr}, subject={subject_expr}, html_content={body_expr}).get())  # TODO: parse RawMessage.Data MIME content to extract fields; attach files via Attachment()'''
+import_add = ["from sendgrid import SendGridAPIClient", "from sendgrid.helpers.mail import Mail, Attachment"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+raw_message = "args.RawMessage.Data"
+from_expr = "__from_email__"
+to_expr = "__to_email__"
+subject_expr = "__subject__"
+body_expr = "__body__"
+api_key = "__sendgrid_api_key__"
+
+[pattern.notes]
+description = "SES send_raw_email accepts a complete MIME message as raw bytes, supporting multipart content, attachments, and custom headers. GCP has no native email service; SendGrid is the recommended alternative. The raw MIME message must be parsed to extract sender, recipients, subject, body, and attachments, then reconstructed using SendGrid helper objects. DKIM/SPF configuration moves from SES domain verification to SendGrid sender authentication."

@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.dynamodb.DynamoDbClient.updateItem -> gcp.firestore.Firestore.update"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.80
+tags = ["database", "dynamodb", "firestore", "nosql", "update"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "updateItem")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.dynamodb"]
+
+[pattern.transform]
+template = '''FirestoreOptions.getDefaultInstance().getService().collection({table_name}).document({key_value}).update({update_fields}).get()'''
+import_add = ["import com.google.cloud.firestore.DocumentReference", "import com.google.cloud.firestore.Firestore", "import com.google.cloud.firestore.FirestoreOptions", "import com.google.cloud.firestore.WriteResult"]
+import_remove = ["import software.amazon.awssdk.services.dynamodb.DynamoDbClient", "import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest", "import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse"]
+
+[pattern.bindings]
+table_name = "request.tableName()"
+key_value = "request.key().__key__"
+update_fields = "request.expressionAttributeValues()"
+
+[pattern.notes]
+description = "DynamoDB updateItem uses UpdateExpression (SET, REMOVE, ADD, DELETE) with ExpressionAttributeNames/Values. Firestore update() takes a Map<String, Object> of field paths to values. Conditional updates via ConditionExpression map to Firestore Precondition or transactions. DynamoDB atomic counters (SET count = count + :incr) map to FieldValue.increment(). Return values (ALL_OLD, ALL_NEW) require a separate get() in Firestore."

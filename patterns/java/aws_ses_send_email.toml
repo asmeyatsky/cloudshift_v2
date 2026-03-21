@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.ses.SesV2Client.sendEmail -> gcp.cloudtasks.CloudTasksClient.createTask"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.70
+tags = ["messaging", "ses", "email", "cloud-tasks", "sendgrid"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "sendEmail")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.sesv2"]
+
+[pattern.transform]
+template = '''CloudTasksClient.create().createTask(QueueName.of({project_id}, {region}, "email-queue").toString(), Task.newBuilder().setHttpRequest(HttpRequest.newBuilder().setUrl({sendgrid_api_url}).setHttpMethod(HttpMethod.POST).putHeaders("Authorization", "Bearer " + {sendgrid_api_key}).putHeaders("Content-Type", "application/json").setBody(ByteString.copyFromUtf8("{\"personalizations\":[{\"to\":[{\"email\":\"" + {to_address} + "\"}]}],\"from\":{\"email\":\"" + {from_address} + "\"},\"subject\":\"" + {subject} + "\",\"content\":[{\"type\":\"text/plain\",\"value\":\"" + {body_text} + "\"}]}")).build()).build())'''
+import_add = ["import com.google.cloud.tasks.v2.CloudTasksClient", "import com.google.cloud.tasks.v2.QueueName", "import com.google.cloud.tasks.v2.Task", "import com.google.cloud.tasks.v2.HttpRequest", "import com.google.cloud.tasks.v2.HttpMethod", "import com.google.protobuf.ByteString"]
+import_remove = ["import software.amazon.awssdk.services.sesv2.SesV2Client", "import software.amazon.awssdk.services.sesv2.model.SendEmailRequest", "import software.amazon.awssdk.services.sesv2.model.SendEmailResponse"]
+
+[pattern.bindings]
+to_address = "request.destination().toAddresses().get(0)"
+from_address = "request.fromEmailAddress()"
+subject = "request.content().simple().subject().data()"
+body_text = "request.content().simple().body().text().data()"
+sendgrid_api_url = "__sendgrid_api_url__"
+sendgrid_api_key = "__sendgrid_api_key__"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "GCP has no direct SES equivalent. The recommended approach uses Cloud Tasks to dispatch email via SendGrid, Mailgun, or a similar third-party provider. Alternatively, use Gmail API for Google Workspace users. SES templates map to SendGrid dynamic templates. SES configuration sets (tracking, reputation) map to SendGrid categories and tracking settings. For high-volume email, consider using Cloud Tasks to queue delivery with rate limiting."

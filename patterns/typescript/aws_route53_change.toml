@@ -1,0 +1,36 @@
+[pattern]
+id = "aws.route53.ChangeResourceRecordSetsCommand -> gcp.dns.change.create"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.82
+tags = ["networking", "route53", "cloud-dns", "dns"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "ChangeResourceRecordSetsCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-route-53"]
+
+[pattern.transform]
+template = '''await new DNS().zone({hosted_zone_id}).addRecords([{ name: {record_name}, type: {record_type}, ttl: {ttl}, data: {record_value} }])'''
+import_add = ["import {DNS} from \"@google-cloud/dns\""]
+import_remove = ["import {Route53Client, ChangeResourceRecordSetsCommand} from \"@aws-sdk/client-route-53\""]
+
+[pattern.bindings]
+hosted_zone_id = "params.HostedZoneId"
+record_name = "params.ChangeBatch.Changes[0].ResourceRecordSet.Name"
+record_type = "params.ChangeBatch.Changes[0].ResourceRecordSet.Type"
+ttl = "params.ChangeBatch.Changes[0].ResourceRecordSet.TTL"
+record_value = "params.ChangeBatch.Changes[0].ResourceRecordSet.ResourceRecords[0].Value"
+
+[pattern.notes]
+description = "Route 53 ChangeResourceRecordSets supports CREATE, DELETE, and UPSERT actions in a single batch. Cloud DNS uses separate addRecords/deleteRecords methods or change.create for atomic changes. Route 53 hosted zones map to Cloud DNS managed zones. Route 53 alias records map to Cloud DNS CNAME or routing policies. Route 53 health checks map to Cloud DNS routing policies with health checks. Weighted/latency/failover routing policies differ significantly between services."

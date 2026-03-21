@@ -1,0 +1,32 @@
+[pattern]
+id = "azure.eventgrid.send -> gcp.pubsub.topic.publishMessage"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.85
+tags = ["events", "eventgrid", "pubsub", "eventing"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (array) @events))
+'''
+imports = ["@azure/eventgrid"]
+
+[pattern.transform]
+template = '''await new PubSub().topic({topic_name}).publishMessage({ data: Buffer.from(JSON.stringify({event_data})), attributes: { eventType: {event_type}, subject: {subject} } })'''
+import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
+import_remove = ["import {EventGridPublisherClient} from \"@azure/eventgrid\""]
+
+[pattern.bindings]
+topic_name = "client.__topic__"
+event_data = "events[0].data"
+event_type = "events[0].eventType"
+subject = "events[0].subject"
+
+[pattern.notes]
+description = "Azure Event Grid uses a push-based event delivery model with topics, event subscriptions, and event handlers. GCP Pub/Sub uses topic-subscription based messaging. Event Grid supports event schemas (Event Grid, CloudEvents, custom); Pub/Sub uses messages with data and attributes. Event Grid dead-lettering maps to Pub/Sub dead-letter topics. Event Grid filtering by event type/subject maps to Pub/Sub subscription filters on message attributes. Batch event sending requires multiple publishMessage calls or topic.publishMany()."

@@ -1,0 +1,114 @@
+[pattern]
+id = "azure.mssql_server -> gcp.sql_database_instance"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.82
+tags = ["terraform", "database", "azure-sql", "cloud-sql", "mssql"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_mssql_server\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_sql_database_instance" {resource_name} {
+    name             = {server_name}
+    project          = {project_id}
+    region           = {region}
+    database_version = "SQLSERVER_2019_STANDARD"
+
+    # Azure version: {version}
+    # Mapping:
+    #   "12.0" -> SQLSERVER_2019_STANDARD (or ENTERPRISE/EXPRESS/WEB)
+    #   Also available: SQLSERVER_2017_STANDARD, SQLSERVER_2022_STANDARD
+
+    settings {
+      tier              = "db-custom-2-7680"
+      availability_type = "REGIONAL"
+      disk_size         = 100
+      disk_type         = "PD_SSD"
+
+      # Azure minimum_tls_version: {minimum_tls_version}
+      # Cloud SQL enforces TLS by default
+
+      ip_configuration {
+        ipv4_enabled    = true
+        private_network = {vpc_network}
+
+        # Azure public_network_access_enabled: {public_network_access_enabled}
+        # Set ipv4_enabled = false for private-only access
+
+        # Azure firewall rules map to authorized_networks:
+        # authorized_networks {
+        #   name  = "office"
+        #   value = "203.0.113.0/24"
+        # }
+      }
+
+      backup_configuration {
+        enabled                        = true
+        point_in_time_recovery_enabled = true
+        transaction_log_retention_days = 7
+      }
+
+      # Azure azuread_administrator: {azuread_administrator}
+      # Cloud SQL for SQL Server uses built-in SQL auth
+      # and supports Windows Authentication via Managed AD
+
+      # active_directory_config {
+      #   domain = "example.com"
+      # }
+    }
+
+    root_password = {administrator_login_password}
+
+    deletion_protection = true
+  }
+
+  # Azure databases within the server
+  # resource "google_sql_database" "{resource_name}_db" {
+  #   name     = "mydb"
+  #   instance = google_sql_database_instance.{resource_name}.name
+  # }
+
+  resource "google_sql_user" "{resource_name}_admin" {
+    name     = {administrator_login}
+    instance = google_sql_database_instance.{resource_name}.name
+    password = {administrator_login_password}
+  }
+
+  # Azure azurerm_mssql_firewall_rule resources map to
+  # authorized_networks in ip_configuration above.
+
+  # NOTE: Azure elastic pools (azurerm_mssql_elasticpool) have no
+  # direct Cloud SQL equivalent. Each database needs its own instance.
+
+  # NOTE: Azure SQL Database serverless tier has no Cloud SQL equivalent.
+  # Consider Cloud SQL Editions or AlloyDB for PostgreSQL workloads.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+server_name = "resource_body.name"
+version = "resource_body.version"
+administrator_login = "resource_body.administrator_login"
+administrator_login_password = "resource_body.administrator_login_password"
+minimum_tls_version = "resource_body.minimum_tls_version"
+public_network_access_enabled = "resource_body.public_network_access_enabled"
+azuread_administrator = "resource_body.azuread_administrator"
+tags = "resource_body.tags"
+vpc_network = "__vpc_network__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Azure SQL Server (azurerm_mssql_server) hosts multiple databases; Cloud SQL for SQL Server uses one instance per logical server. Azure SQL elastic pools have no Cloud SQL equivalent. Azure AD authentication maps to Cloud SQL Managed AD integration. Azure SQL firewall rules map to Cloud SQL authorized_networks. Azure SQL auditing maps to Cloud SQL audit logging. Azure SQL Transparent Data Encryption is automatic in Cloud SQL. Azure serverless tier has no equivalent. For large-scale migration, consider Database Migration Service (DMS)."

@@ -1,0 +1,39 @@
+[pattern]
+id = "aws.rds.ExecuteStatementCommand -> gcp.cloud_sql.connector.execute"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.78
+tags = ["database", "rds", "cloud-sql", "relational"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "ExecuteStatementCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-rds-data"]
+
+[pattern.transform]
+template = '''const connector = new Connector();
+const clientOpts = await connector.getOptions({ instanceConnectionName: {resource_arn}, ipType: IpAddressTypes.PUBLIC });
+const pool = await createPool({ ...clientOpts, user: {database_user}, database: {database} });
+await pool.execute({sql}, {parameters})'''
+import_add = ["import {Connector, IpAddressTypes} from \"@google-cloud/cloud-sql-connector\"", "import {createPool} from \"mysql2/promise\""]
+import_remove = ["import {RDSDataClient, ExecuteStatementCommand} from \"@aws-sdk/client-rds-data\""]
+
+[pattern.bindings]
+resource_arn = "params.resourceArn"
+sql = "params.sql"
+parameters = "params.parameters"
+database = "params.database"
+database_user = "__database_user__"
+
+[pattern.notes]
+description = "RDS Data API provides a serverless HTTP-based interface to Aurora databases. Cloud SQL Connector provides IAM-based authentication and encrypted connections to Cloud SQL instances. RDS Data API uses resourceArn and secretArn for auth; Cloud SQL Connector uses instance connection names and IAM. RDS parameters use typed fields (stringValue, longValue); Cloud SQL uses native driver parameterization. The secret ARN for credentials maps to Cloud SQL IAM authentication or SQL user credentials."

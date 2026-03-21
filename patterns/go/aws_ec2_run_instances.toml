@@ -1,0 +1,64 @@
+[pattern]
+id = "aws.ec2.RunInstancesInput -> gcp.compute.Instances.Insert"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.75
+tags = ["compute", "ec2", "gce", "vm", "instances"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "RunInstances"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "ec2")
+            name: (type_identifier) @type (#eq? @type "RunInstancesInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/ec2"]
+
+[pattern.transform]
+template = '''
+op, err := client.Insert(ctx, &computepb.InsertInstanceRequest{
+    Project:  {project_id},
+    Zone:     {zone},
+    InstanceResource: &computepb.Instance{
+        Name:        &{instance_name},
+        MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", {zone}, {instance_type})),
+        Disks: []*computepb.AttachedDisk{{
+            InitializeParams: &computepb.AttachedDiskInitializeParams{
+                SourceImage: &{image_id},
+            },
+            AutoDelete: proto.Bool(true),
+            Boot:       proto.Bool(true),
+        }},
+        NetworkInterfaces: []*computepb.NetworkInterface{{
+            Name: proto.String("global/networks/default"),
+        }},
+    },
+})
+if err != nil {
+    return nil, fmt.Errorf("Instances.Insert: %%w", err)
+}
+if err = op.Wait(ctx); err != nil {
+    return nil, fmt.Errorf("operation.Wait: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/compute/apiv1", "cloud.google.com/go/compute/apiv1/computepb", "google.golang.org/protobuf/proto"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/ec2"]
+
+[pattern.bindings]
+image_id = "params.ImageId"
+instance_type = "params.InstanceType"
+instance_name = "params.TagSpecifications[0].Tags.__Name__"
+project_id = "__project_id__"
+zone = "__zone__"
+
+[pattern.notes]
+description = "EC2 RunInstances can launch multiple instances at once (MinCount/MaxCount). GCE Insert creates one instance per call. EC2 instance types (t3.micro) must map to GCE machine types (e2-micro). EC2 AMIs map to GCE images. EC2 SecurityGroups map to GCE firewall rules. EC2 KeyName maps to GCE SSH keys in instance metadata. The operation is asynchronous in both cases; GCE returns an Operation to poll."

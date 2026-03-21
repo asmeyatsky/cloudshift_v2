@@ -3,6 +3,7 @@
 use anyhow::{anyhow, Context};
 use serde::Serialize;
 use std::io::{Cursor, Read};
+use tracing::warn;
 
 pub const MAX_ZIP_BYTES: usize = 25 * 1024 * 1024;
 pub const MAX_REPO_FILES: usize = 80;
@@ -256,11 +257,12 @@ pub async fn import_github_repo(
             None => match fetch_default_branch(client, &owner, &repo).await {
                 Ok(b) => b,
                 Err(e) => {
+                    warn!("fetch_default_branch failed for {owner}/{repo}: {e:#}");
                     return GithubRepoResponse {
                         files: vec![],
                         resolved_ref: None,
                         truncated: false,
-                        error: Some(e.to_string()),
+                        error: Some("Could not access repository — check URL and permissions".to_string()),
                     };
                 }
             },
@@ -270,11 +272,12 @@ pub async fn import_github_repo(
     let zip_bytes = match download_repo_zip(client, &owner, &repo, &git_ref).await {
         Ok(z) => z,
         Err(e) => {
+            warn!("download_repo_zip failed for {owner}/{repo}@{git_ref}: {e:#}");
             return GithubRepoResponse {
                 files: vec![],
                 resolved_ref: Some(git_ref),
                 truncated: false,
-                error: Some(e.to_string()),
+                error: Some("Failed to download repository archive".to_string()),
             };
         }
     };
@@ -282,11 +285,12 @@ pub async fn import_github_repo(
     let (files, truncated) = match extract_repo_files(&zip_bytes) {
         Ok(x) => x,
         Err(e) => {
+            warn!("extract_repo_files failed for {owner}/{repo}@{git_ref}: {e:#}");
             return GithubRepoResponse {
                 files: vec![],
                 resolved_ref: Some(git_ref),
                 truncated: false,
-                error: Some(e.to_string()),
+                error: Some("Failed to process repository archive".to_string()),
             };
         }
     };

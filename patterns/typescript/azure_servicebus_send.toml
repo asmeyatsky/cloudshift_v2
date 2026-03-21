@@ -1,0 +1,31 @@
+[pattern]
+id = "azure.servicebus.sendMessages -> gcp.pubsub.topic.publishMessage"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.88
+tags = ["messaging", "servicebus", "pubsub", "queue"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @sender
+      property: (property_identifier) @method (#eq? @method "sendMessages"))
+    arguments: (arguments
+      (_) @messages))
+'''
+imports = ["@azure/service-bus"]
+
+[pattern.transform]
+template = '''await new PubSub().topic({topic_name}).publishMessage({ data: Buffer.from(JSON.stringify({message_body})), attributes: {message_properties} })'''
+import_add = ["import {PubSub} from \"@google-cloud/pubsub\""]
+import_remove = ["import {ServiceBusClient, ServiceBusSender} from \"@azure/service-bus\""]
+
+[pattern.bindings]
+topic_name = "sender.__entity_name__"
+message_body = "messages.body"
+message_properties = "messages.applicationProperties"
+
+[pattern.notes]
+description = "Azure Service Bus provides queues (point-to-point) and topics (pub-sub) with features like sessions, dead-lettering, and scheduled delivery. GCP Pub/Sub uses topics and subscriptions for all messaging patterns. Service Bus message sessions map to Pub/Sub ordering keys. Service Bus dead-letter queues map to Pub/Sub dead-letter topics. Service Bus scheduled messages map to Pub/Sub publish with ordering. Service Bus message locks and completion map to Pub/Sub acknowledge/modifyAckDeadline. Service Bus batching via sendMessages array maps to Pub/Sub topic.publishMany()."

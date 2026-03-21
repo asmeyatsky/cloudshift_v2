@@ -1,0 +1,76 @@
+[pattern]
+id = "aws.subnet -> gcp.compute_subnetwork"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.90
+tags = ["terraform", "networking", "subnet", "vpc"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_subnet\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_subnetwork" {resource_name} {
+    name          = {subnet_name}
+    project       = {project_id}
+    region        = {region}
+    network       = {vpc_network}
+    ip_cidr_range = {cidr_block}
+
+    # AWS availability_zone: {availability_zone}
+    # GCP subnets are regional, not zonal. A single GCP subnet
+    # spans all zones in the region.
+
+    # AWS map_public_ip_on_launch: {map_public_ip_on_launch}
+    # GCP instances get external IPs via access_config in network_interface,
+    # not at the subnet level. Use Cloud NAT for private instances.
+
+    private_ip_google_access = true
+
+    # Secondary IP ranges for GKE pods/services:
+    # secondary_ip_range {
+    #   range_name    = "pods"
+    #   ip_cidr_range = "10.1.0.0/16"
+    # }
+    # secondary_ip_range {
+    #   range_name    = "services"
+    #   ip_cidr_range = "10.2.0.0/20"
+    # }
+
+    # AWS enable_dns64 / ipv6_cidr_block: {ipv6_cidr_block}
+    # stack_type = "IPV4_IPV6"
+    # ipv6_access_type = "EXTERNAL"
+
+    log_config {
+      aggregation_interval = "INTERVAL_5_SEC"
+      flow_sampling        = 0.5
+      metadata             = "INCLUDE_ALL_METADATA"
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+subnet_name = "resource_body.tags.Name"
+cidr_block = "resource_body.cidr_block"
+availability_zone = "resource_body.availability_zone"
+vpc_id = "resource_body.vpc_id"
+map_public_ip_on_launch = "resource_body.map_public_ip_on_launch"
+ipv6_cidr_block = "resource_body.ipv6_cidr_block"
+tags = "resource_body.tags"
+vpc_network = "__vpc_network__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS subnets are zonal; GCP subnets are regional (span all zones). AWS public/private subnet distinction (via route table to IGW) maps to GCP Cloud NAT and external IP configuration. AWS subnet NACL associations have no direct GCP equivalent; use firewall rules. IPv6 subnets map to dual-stack (IPV4_IPV6) subnets in GCP. Multiple AWS subnets in different AZs within the same VPC often collapse into a single GCP regional subnet."

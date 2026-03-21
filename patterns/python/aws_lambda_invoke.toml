@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.lambda.invoke -> gcp.cloud_functions.call_function"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["compute", "lambda", "cloud-functions", "serverless", "invoke"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "invoke"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''CloudFunctionsServiceClient().call_function(name=f"projects/{project_id}/locations/{region}/functions/{function_name}", data={payload_expr})'''
+import_add = ["from google.cloud.functions_v1 import CloudFunctionsServiceClient"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+function_name = "args.FunctionName"
+payload_expr = "args.Payload"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Lambda invoke() calls a function synchronously or asynchronously (InvocationType). Cloud Functions call_function only supports synchronous invocation; for async, publish to Pub/Sub and trigger the function via subscription. Lambda's Payload is bytes; Cloud Functions data is a string. Qualifier (version/alias) maps to Cloud Functions traffic splitting or versioned URLs."

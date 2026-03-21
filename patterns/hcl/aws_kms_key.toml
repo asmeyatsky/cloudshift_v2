@@ -1,0 +1,91 @@
+[pattern]
+id = "aws.kms_key -> gcp.kms_crypto_key"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.87
+tags = ["terraform", "security", "encryption", "kms"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_kms_key\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_kms_key_ring" "{resource_name}_keyring" {
+    name     = "{key_name}-keyring"
+    project  = {project_id}
+    location = {region}
+
+    # GCP requires a key ring to contain crypto keys.
+    # AWS KMS does not have this grouping concept.
+  }
+
+  resource "google_kms_crypto_key" {resource_name} {
+    name     = {key_name}
+    key_ring = google_kms_key_ring.{resource_name}_keyring.id
+    purpose  = "ENCRYPT_DECRYPT"
+
+    # AWS key_usage: {key_usage}
+    # Mapping: ENCRYPT_DECRYPT -> ENCRYPT_DECRYPT
+    #          SIGN_VERIFY     -> ASYMMETRIC_SIGN
+    #          GENERATE_VERIFY_MAC -> MAC
+
+    # AWS customer_master_key_spec: {customer_master_key_spec}
+    # version_template {
+    #   algorithm        = "GOOGLE_SYMMETRIC_ENCRYPTION"
+    #   protection_level = "SOFTWARE"
+    #   # For HSM-backed: protection_level = "HSM"
+    # }
+
+    rotation_period = {rotation_period}
+    # AWS enable_key_rotation: {enable_key_rotation}
+    # AWS rotation period is fixed at 365 days.
+    # GCP allows custom rotation periods (minimum 24 hours).
+    # Default: "7776000s" (90 days)
+
+    # AWS deletion_window_in_days: {deletion_window_in_days}
+    destroy_scheduled_duration = "{deletion_window_in_days}d"
+    # GCP minimum is 24 hours, maximum is 120 days
+
+    # AWS is_enabled: {is_enabled}
+    # To disable, remove IAM bindings or destroy all key versions
+
+    labels = {tags}
+  }
+
+  # AWS KMS key policy maps to IAM bindings:
+  # resource "google_kms_crypto_key_iam_member" "{resource_name}_iam" {
+  #   crypto_key_id = google_kms_crypto_key.{resource_name}.id
+  #   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  #   member        = "serviceAccount:example@{project_id}.iam.gserviceaccount.com"
+  # }
+
+  # AWS KMS alias maps to:
+  # No direct equivalent. Use labels or naming conventions.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+key_name = "resource_body.description"
+key_usage = "resource_body.key_usage"
+customer_master_key_spec = "resource_body.customer_master_key_spec"
+enable_key_rotation = "resource_body.enable_key_rotation"
+rotation_period = "resource_body.enable_key_rotation"
+deletion_window_in_days = "resource_body.deletion_window_in_days"
+is_enabled = "resource_body.is_enabled"
+policy = "resource_body.policy"
+tags = "resource_body.tags"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS KMS keys are standalone resources. GCP KMS requires a key ring (regional container) to hold crypto keys. AWS key policies (resource-based) map to GCP IAM bindings on the crypto key. AWS KMS aliases have no direct GCP equivalent. AWS automatic rotation (365-day fixed) maps to GCP rotation_period (configurable). AWS multi-region keys map to creating keys in multiple GCP regions. AWS KMS grants map to IAM conditions with time-based or request-based constraints."

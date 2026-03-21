@@ -4,9 +4,10 @@ members = [
     "crates/cloudshift-core",
     "crates/cloudshift-cli",
     "crates/cloudshift-server",
-    "crates/cloudshift-py",
     "crates/cloudshift-lsp",
 ]
+# cloudshift-py is a cdylib built via maturin, not cargo --workspace.
+# Build it with: maturin develop -m crates/cloudshift-py/Cargo.toml
 
 [workspace.package]
 version = "2.0.0"
@@ -53,6 +54,6 @@ glob = "0.3"
 similar = "2"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.12", features = ["json", "blocking"] }
+reqwest = { version = "0.13", features = ["json", "blocking", "rustls"] }
 axum = "0.7"
 tower-http = { version = "0.6", features = ["fs", "set-header"] }

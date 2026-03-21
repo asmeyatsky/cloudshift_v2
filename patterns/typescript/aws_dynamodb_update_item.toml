@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.dynamodb.UpdateItemCommand -> gcp.firestore.doc.update"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.80
+tags = ["database", "dynamodb", "firestore", "nosql", "update"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "UpdateItemCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-dynamodb"]
+
+[pattern.transform]
+template = '''await new Firestore().collection({table_name}).doc({key}).update({expression_values})'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {DynamoDBClient, UpdateItemCommand} from \"@aws-sdk/client-dynamodb\""]
+
+[pattern.bindings]
+table_name = "params.TableName"
+key = "params.Key.__first_value__"
+expression_values = "params.ExpressionAttributeValues"
+
+[pattern.notes]
+description = "DynamoDB UpdateItem uses UpdateExpression with SET/REMOVE/ADD/DELETE actions plus ExpressionAttributeNames and ExpressionAttributeValues. Firestore update() takes a flat object with field-value pairs. DynamoDB supports conditional updates via ConditionExpression; Firestore uses transactions or preconditions. DynamoDB atomic counters (SET counter = counter + :val) map to Firestore FieldValue.increment(). The UpdateExpression needs to be parsed and decomposed into a Firestore update object."

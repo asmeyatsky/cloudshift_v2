@@ -1,0 +1,29 @@
+[pattern]
+id = "aws.dynamodb.DynamoDbClient.scan -> gcp.firestore.Firestore.collectionGet"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.80
+tags = ["database", "dynamodb", "firestore", "nosql", "scan"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "scan")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.dynamodb"]
+
+[pattern.transform]
+template = '''FirestoreOptions.getDefaultInstance().getService().collection({table_name}).get().get().getDocuments()'''
+import_add = ["import com.google.cloud.firestore.Firestore", "import com.google.cloud.firestore.FirestoreOptions", "import com.google.cloud.firestore.QueryDocumentSnapshot", "import com.google.cloud.firestore.QuerySnapshot"]
+import_remove = ["import software.amazon.awssdk.services.dynamodb.DynamoDbClient", "import software.amazon.awssdk.services.dynamodb.model.ScanRequest", "import software.amazon.awssdk.services.dynamodb.model.ScanResponse"]
+
+[pattern.bindings]
+table_name = "request.tableName()"
+limit = "request.limit()"
+
+[pattern.notes]
+description = "DynamoDB scan reads every item in a table with optional FilterExpression. Firestore collection get() retrieves all documents. DynamoDB scan supports Limit and ExclusiveStartKey for pagination; Firestore uses limit() and startAfter(). DynamoDB scan can be parallelized with Segment/TotalSegments; Firestore has no direct equivalent. FilterExpressions need manual conversion to Firestore where clauses."

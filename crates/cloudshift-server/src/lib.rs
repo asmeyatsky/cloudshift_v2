@@ -62,8 +62,12 @@ fn client_key(headers: &HeaderMap, addr: SocketAddr) -> String {
 
 fn check_rate(rl: &RateLimitState, key: &str, rpm: u32) -> bool {
     let max = rpm.max(1) as usize;
-    let mut map = rl.rate.lock().unwrap();
+    let mut map = rl.rate.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let now = Instant::now();
+    // Evict stale client entries periodically
+    if map.len() > 10_000 {
+        map.retain(|_, timestamps| !timestamps.is_empty());
+    }
     let v = map.entry(key.to_string()).or_default();
     v.retain(|t| now.duration_since(*t) < RATE_WINDOW);
     if v.len() >= max {
@@ -107,13 +111,24 @@ async fn rate_limit_github(
     next.run(req).await
 }
 
+/// Constant-time byte comparison to prevent timing attacks on API key.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
+}
+
 pub async fn auth_valid(state: &AppState, headers: &HeaderMap) -> bool {
     if let Some(ref k) = state.api_key {
         if !k.is_empty()
             && headers
                 .get("x-api-key")
                 .and_then(|v| v.to_str().ok())
-                .map(|s| s.trim() == k.as_str())
+                .map(|s| constant_time_eq(s.trim().as_bytes(), k.as_bytes()))
                 .unwrap_or(false)
         {
             return true;

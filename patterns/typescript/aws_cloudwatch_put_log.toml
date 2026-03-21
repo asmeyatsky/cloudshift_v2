@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.cloudwatchlogs.PutLogEventsCommand -> gcp.logging.log.write"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.88
+tags = ["logging", "cloudwatch", "cloud-logging", "observability"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "PutLogEventsCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-cloudwatch-logs"]
+
+[pattern.transform]
+template = '''await new Logging().log({log_group}).write(new Entry({ resource: { type: "global" }, jsonPayload: {log_events} }))'''
+import_add = ["import {Logging, Entry} from \"@google-cloud/logging\""]
+import_remove = ["import {CloudWatchLogsClient, PutLogEventsCommand} from \"@aws-sdk/client-cloudwatch-logs\""]
+
+[pattern.bindings]
+log_group = "params.logGroupName"
+log_stream = "params.logStreamName"
+log_events = "params.logEvents"
+
+[pattern.notes]
+description = "CloudWatch Logs uses log groups and log streams as a two-level hierarchy. Cloud Logging uses log names with labels for organization. CloudWatch requires a sequence token for ordering; Cloud Logging handles ordering automatically. CloudWatch logEvents have timestamp/message; Cloud Logging entries use jsonPayload or textPayload. Log stream name can be mapped to a Cloud Logging label."

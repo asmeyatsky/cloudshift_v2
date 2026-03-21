@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.dynamodb.DynamoDbClient.query -> gcp.firestore.Firestore.query"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.78
+tags = ["database", "dynamodb", "firestore", "nosql", "query"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "query")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.dynamodb"]
+
+[pattern.transform]
+template = '''FirestoreOptions.getDefaultInstance().getService().collection({table_name}).whereEqualTo({partition_key}, {partition_value}).get().get().getDocuments()'''
+import_add = ["import com.google.cloud.firestore.Firestore", "import com.google.cloud.firestore.FirestoreOptions", "import com.google.cloud.firestore.QueryDocumentSnapshot", "import com.google.cloud.firestore.QuerySnapshot"]
+import_remove = ["import software.amazon.awssdk.services.dynamodb.DynamoDbClient", "import software.amazon.awssdk.services.dynamodb.model.QueryRequest", "import software.amazon.awssdk.services.dynamodb.model.QueryResponse"]
+
+[pattern.bindings]
+table_name = "request.tableName()"
+partition_key = "request.keyConditionExpression().__partition_key__"
+partition_value = "request.expressionAttributeValues().__partition_value__"
+
+[pattern.notes]
+description = "DynamoDB query uses KeyConditionExpression with ExpressionAttributeValues for partition/sort key lookups. Firestore uses whereEqualTo/whereGreaterThan/etc chained queries. DynamoDB supports begins_with, between on sort keys; Firestore supports similar operators but syntax differs. Pagination via ExclusiveStartKey maps to Firestore startAfter(). Result sets: DynamoDB returns items() as List<Map<String, AttributeValue>>, Firestore returns QueryDocumentSnapshot list."

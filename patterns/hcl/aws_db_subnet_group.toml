@@ -1,0 +1,72 @@
+[pattern]
+id = "aws.db_subnet_group -> gcp.sql_database_instance_networking"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.70
+tags = ["terraform", "database", "networking", "rds", "cloud-sql"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_db_subnet_group\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  # AWS db_subnet_group has no direct GCP equivalent.
+  # Cloud SQL uses private_network in ip_configuration to connect to a VPC.
+  #
+  # Original db_subnet_group: {group_name}
+  # Subnets: {subnet_ids}
+  #
+  # To use private IP with Cloud SQL, configure:
+  # 1. A google_compute_global_address for private services
+  # 2. A google_service_networking_connection
+  # 3. Reference the VPC in google_sql_database_instance.settings.ip_configuration
+
+  resource "google_compute_global_address" "{resource_name}_private_ip" {
+    name          = "{group_name}-private-ip"
+    project       = {project_id}
+    purpose       = "VPC_PEERING"
+    address_type  = "INTERNAL"
+    prefix_length = 16
+    network       = {vpc_network}
+
+    # TODO: Set network to the google_compute_network that corresponds
+    # to the VPC containing the original subnets: {subnet_ids}
+  }
+
+  resource "google_service_networking_connection" "{resource_name}_vpc_conn" {
+    network                 = {vpc_network}
+    service                 = "servicenetworking.googleapis.com"
+    reserved_peering_ranges = [google_compute_global_address.{resource_name}_private_ip.name]
+  }
+
+  # Then reference in google_sql_database_instance:
+  # settings {
+  #   ip_configuration {
+  #     ipv4_enabled    = false
+  #     private_network = {vpc_network}
+  #   }
+  # }
+  # depends_on = [google_service_networking_connection.{resource_name}_vpc_conn]
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+group_name = "resource_body.name"
+subnet_ids = "resource_body.subnet_ids"
+description = "resource_body.description"
+vpc_network = "__vpc_network__"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS db_subnet_group defines which subnets an RDS instance can use. GCP Cloud SQL does not have subnet groups. Instead, private connectivity is configured via VPC peering using google_compute_global_address and google_service_networking_connection, then referenced in the Cloud SQL instance ip_configuration.private_network. The subnet_ids should be used to identify the VPC network for the peering connection."

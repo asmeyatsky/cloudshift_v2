@@ -1,0 +1,74 @@
+[pattern]
+id = "aws.iam_user -> gcp.service_account"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.80
+tags = ["terraform", "iam", "security", "identity"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_iam_user\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_service_account" {resource_name} {
+    account_id   = {user_name}
+    project      = {project_id}
+    display_name = {user_name}
+    description  = "Migrated from AWS IAM user: {user_name}"
+
+    # AWS path: {path}
+    # GCP service accounts do not have path hierarchy.
+    # Use display_name or description for organizational context.
+
+    # AWS permissions_boundary: {permissions_boundary}
+    # GCP does not have permissions boundaries on service accounts.
+    # Use organization policy constraints for similar guardrails.
+
+    # AWS force_destroy: {force_destroy}
+    # Service accounts can be deleted; keys are automatically revoked.
+  }
+
+  # AWS IAM user policies map to IAM bindings on the service account
+  # resource "google_project_iam_member" "{resource_name}_role" {
+  #   project = {project_id}
+  #   role    = "roles/editor"
+  #   member  = "serviceAccount:${google_service_account.{resource_name}.email}"
+  # }
+
+  # AWS IAM access keys map to service account keys
+  # resource "google_service_account_key" "{resource_name}_key" {
+  #   service_account_id = google_service_account.{resource_name}.name
+  #   # NOTE: Prefer Workload Identity Federation over long-lived keys
+  # }
+
+  # AWS IAM user group memberships map to role bindings
+  # TODO: Map aws_iam_user_group_membership to google_project_iam_member
+  # with appropriate roles for each group's policies.
+
+  # NOTE: For human users, GCP uses Google Workspace or Cloud Identity
+  # accounts, not service accounts. Service accounts are for applications.
+  # If this IAM user represents a person, use google_cloud_identity_group_membership
+  # or manage access via Google Workspace.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+user_name = "resource_body.name"
+path = "resource_body.path"
+permissions_boundary = "resource_body.permissions_boundary"
+force_destroy = "resource_body.force_destroy"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS IAM users represent both human users and service identities. GCP separates these: human users are managed via Google Workspace/Cloud Identity, while service identities use google_service_account. IAM user policies and group memberships map to google_project_iam_member bindings. IAM access keys map to service account keys, but Workload Identity Federation is preferred. IAM user login profiles have no GCP equivalent for service accounts. For programmatic access migration, consider Workload Identity Federation."

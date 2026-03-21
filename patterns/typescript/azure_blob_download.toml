@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.blob.download -> gcp.gcs.file.download"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.93
+tags = ["storage", "blob", "gcs", "download"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "download"))
+    arguments: (arguments) @args)
+'''
+imports = ["@azure/storage-blob"]
+
+[pattern.transform]
+template = '''await new Storage().bucket({container}).file({blob_name}).download()'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {BlobServiceClient, BlobClient} from \"@azure/storage-blob\""]
+
+[pattern.bindings]
+container = "client.__container__"
+blob_name = "client.__blob_name__"
+
+[pattern.notes]
+description = "Azure BlobClient.download() returns a BlobDownloadResponseParsed with a readableStreamBody property. GCS file.download() returns a [Buffer] tuple. Azure download supports range requests via offset/count parameters; GCS uses createReadStream() with start/end options for range reads. Azure connection strings map to GCS application default credentials."

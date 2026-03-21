@@ -1,0 +1,55 @@
+[pattern]
+id = "aws.athena.StartQueryExecutionInput -> gcp.bigquery.Query"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.82
+tags = ["analytics", "athena", "bigquery", "query"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "StartQueryExecution"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "athena")
+            name: (type_identifier) @type (#eq? @type "StartQueryExecutionInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/athena"]
+
+[pattern.transform]
+template = '''
+q := client.Query({query_string})
+q.Location = "US"
+job, err := q.Run(ctx)
+if err != nil {
+    return nil, fmt.Errorf("Query.Run: %%w", err)
+}
+status, err := job.Wait(ctx)
+if err != nil {
+    return nil, fmt.Errorf("Job.Wait: %%w", err)
+}
+if err := status.Err(); err != nil {
+    return nil, fmt.Errorf("job completed with error: %%w", err)
+}
+it, err := job.Read(ctx)
+if err != nil {
+    return nil, fmt.Errorf("Job.Read: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/bigquery"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/athena"]
+
+[pattern.bindings]
+query_string = "params.QueryString"
+database = "params.QueryExecutionContext.Database"
+output_location = "params.ResultConfiguration.OutputLocation"
+
+[pattern.notes]
+description = "Athena StartQueryExecution is async and returns a QueryExecutionId used for polling. BigQuery Query.Run returns a Job that can be awaited with Job.Wait. Athena writes results to S3; BigQuery results are read directly via Job.Read iterator. Athena uses Presto/Trino SQL dialect while BigQuery uses GoogleSQL."

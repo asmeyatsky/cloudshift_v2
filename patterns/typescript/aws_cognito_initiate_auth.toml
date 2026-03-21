@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.cognito.InitiateAuthCommand -> gcp.firebase_auth.signInWithEmailAndPassword"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.75
+tags = ["auth", "cognito", "firebase-auth", "identity"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "InitiateAuthCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-cognito-identity-provider"]
+
+[pattern.transform]
+template = '''await signInWithEmailAndPassword(getAuth(), {username}, {password})'''
+import_add = ["import {getAuth, signInWithEmailAndPassword} from \"firebase/auth\""]
+import_remove = ["import {CognitoIdentityProviderClient, InitiateAuthCommand} from \"@aws-sdk/client-cognito-identity-provider\""]
+
+[pattern.bindings]
+username = "params.AuthParameters.USERNAME"
+password = "params.AuthParameters.PASSWORD"
+auth_flow = "params.AuthFlow"
+
+[pattern.notes]
+description = "Cognito supports multiple auth flows (USER_PASSWORD_AUTH, USER_SRP_AUTH, CUSTOM_AUTH, REFRESH_TOKEN_AUTH). Firebase Auth uses separate methods for each flow type. SRP-based auth has no direct Firebase equivalent. Cognito user pools map to Firebase Auth projects. Cognito tokens (IdToken, AccessToken, RefreshToken) map to Firebase ID tokens. User pool client ID has no direct Firebase equivalent."

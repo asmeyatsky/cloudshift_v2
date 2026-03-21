@@ -1,0 +1,34 @@
+[pattern]
+id = "azure.cosmos.query -> gcp.firestore.collection.where"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.75
+tags = ["database", "cosmos", "firestore", "nosql", "query"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (member_expression
+        object: (identifier) @container
+        property: (property_identifier) @items (#eq? @items "items"))
+      property: (property_identifier) @method (#eq? @method "query"))
+    arguments: (arguments
+      (_) @query_spec))
+'''
+imports = ["@azure/cosmos"]
+
+[pattern.transform]
+template = '''await new Firestore().collection({collection_name}).where({filter_field}, {filter_op}, {filter_value}).get()'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {CosmosClient, Container} from \"@azure/cosmos\""]
+
+[pattern.bindings]
+collection_name = "container.__name__"
+filter_field = "query_spec.parameters[0].name"
+filter_op = "query_spec.__operator__"
+filter_value = "query_spec.parameters[0].value"
+
+[pattern.notes]
+description = "Cosmos DB uses SQL-like query syntax (SELECT * FROM c WHERE c.field = @value) with parameterized queries. Firestore uses chained where() calls with field-operator-value triples. Cosmos supports JOINs within a document, aggregate functions, and UDFs; Firestore has limited query operators and requires composite indexes. Cosmos cross-partition queries map to Firestore collection group queries. Pagination differs: Cosmos uses continuationToken; Firestore uses startAfter() with document cursors."

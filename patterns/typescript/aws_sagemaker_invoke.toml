@@ -1,0 +1,36 @@
+[pattern]
+id = "aws.sagemaker.InvokeEndpointCommand -> gcp.vertex_ai.predict"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.80
+tags = ["ml", "ai", "sagemaker", "vertex-ai", "prediction"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "InvokeEndpointCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-sagemaker-runtime"]
+
+[pattern.transform]
+template = '''await new PredictionServiceClient().predict({ endpoint: `projects/${project_id}/locations/${location}/endpoints/${endpoint_name}`, instances: JSON.parse({body}) })'''
+import_add = ["import {PredictionServiceClient} from \"@google-cloud/aiplatform\""]
+import_remove = ["import {SageMakerRuntimeClient, InvokeEndpointCommand} from \"@aws-sdk/client-sagemaker-runtime\""]
+
+[pattern.bindings]
+endpoint_name = "params.EndpointName"
+body = "params.Body"
+content_type = "params.ContentType"
+project_id = "__project_id__"
+location = "__region__"
+
+[pattern.notes]
+description = "SageMaker InvokeEndpoint sends raw bytes with a ContentType header. Vertex AI predict() uses structured instances/parameters format. SageMaker endpoint names are ARNs or names; Vertex AI uses full resource paths. SageMaker supports custom inference containers with arbitrary content types; Vertex AI uses a standardized prediction protocol. Response parsing differs: SageMaker returns raw Body; Vertex AI returns structured predictions."

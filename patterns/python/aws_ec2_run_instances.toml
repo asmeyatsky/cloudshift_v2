@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.ec2.run_instances -> gcp.compute_v1.instances.insert"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["ec2", "compute", "gce", "lifecycle"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "run_instances"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''compute_v1.InstancesClient().insert(project={project_id}, zone={zone}, instance_resource=compute_v1.Instance(name={instance_name}, machine_type=f"zones/{zone}/machineTypes/{machine_type}", disks=[compute_v1.AttachedDisk(initialize_params=compute_v1.AttachedDiskInitializeParams(source_image={image_id}), auto_delete=True, boot=True)], network_interfaces=[compute_v1.NetworkInterface()]))'''
+import_add = ["from google.cloud import compute_v1"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+image_id = "args.ImageId"
+instance_name = "__instance_name__"
+machine_type = "args.InstanceType"
+project_id = "__project_id__"
+zone = "__zone__"
+
+[pattern.notes]
+description = "EC2 run_instances creates one or more instances with an AMI, instance type, key pair, and security groups. GCE instances().insert() uses machine types (not instance types), source images (not AMIs), and VPC/subnet references differ. EC2 MinCount/MaxCount has no direct GCE equivalent — use instance templates with managed instance groups for multiple instances. Security groups map to GCP firewall rules."

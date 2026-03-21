@@ -1,0 +1,93 @@
+[pattern]
+id = "aws.sns_topic_subscription -> gcp.pubsub_subscription"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.84
+tags = ["terraform", "messaging", "sns", "pubsub", "subscription"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_sns_topic_subscription\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_pubsub_subscription" {resource_name} {
+    name    = {subscription_name}
+    project = {project_id}
+    topic   = {topic}
+
+    # AWS protocol: {protocol}
+    # Mapping:
+    #   "https"  -> push_config with push_endpoint
+    #   "http"   -> push_config with push_endpoint
+    #   "sqs"    -> pull subscription (SQS consumer reads from Pub/Sub)
+    #   "lambda" -> push to Cloud Function endpoint
+    #   "email"  -> no Pub/Sub equivalent; use notification channels
+    #   "sms"    -> no Pub/Sub equivalent; use notification channels
+
+    # For HTTP/HTTPS endpoints:
+    # push_config {
+    #   push_endpoint = {endpoint}
+    #
+    #   # AWS raw_message_delivery: {raw_message_delivery}
+    #   # attributes = {
+    #   #   x-goog-version = "v1"
+    #   # }
+    #
+    #   oidc_token {
+    #     service_account_email = "push-invoker@{project_id}.iam.gserviceaccount.com"
+    #   }
+    # }
+
+    # For SQS/Lambda (pull mode):
+    # Omit push_config; consumers pull messages
+
+    ack_deadline_seconds = 20
+
+    message_retention_duration = "604800s"
+
+    # AWS filter_policy: {filter_policy}
+    # filter = "attributes.key = \"value\""
+
+    retry_policy {
+      minimum_backoff = "10s"
+      maximum_backoff = "600s"
+    }
+
+    # AWS redrive_policy (dead-letter queue): {redrive_policy}
+    # dead_letter_policy {
+    #   dead_letter_topic     = google_pubsub_topic.dlq.id
+    #   max_delivery_attempts = 5
+    # }
+
+    # AWS confirmation_timeout_in_minutes: {confirmation_timeout}
+    # Pub/Sub subscriptions are active immediately; no confirmation needed
+
+    labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+subscription_name = "resource_body.endpoint"
+topic = "resource_body.topic_arn"
+protocol = "resource_body.protocol"
+endpoint = "resource_body.endpoint"
+filter_policy = "resource_body.filter_policy"
+raw_message_delivery = "resource_body.raw_message_delivery"
+redrive_policy = "resource_body.redrive_policy"
+confirmation_timeout = "resource_body.confirmation_timeout_in_minutes"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "SNS subscriptions support multiple protocols (HTTP, HTTPS, email, SMS, SQS, Lambda). Pub/Sub subscriptions support push (HTTP/HTTPS) and pull delivery. SNS email/SMS have no direct Pub/Sub equivalent; use Cloud Monitoring notification channels. SNS SQS subscriptions map to Pub/Sub pull subscriptions. SNS Lambda subscriptions map to Pub/Sub push to Cloud Functions. SNS filter policies map to Pub/Sub subscription filters. SNS dead-letter queues map to Pub/Sub dead_letter_policy."

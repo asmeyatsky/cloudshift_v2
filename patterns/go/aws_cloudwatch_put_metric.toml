@@ -1,0 +1,62 @@
+[pattern]
+id = "aws.cloudwatch.PutMetricDataInput -> gcp.monitoring.CreateTimeSeries"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.80
+tags = ["observability", "cloudwatch", "monitoring", "metrics"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "PutMetricData"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "cloudwatch")
+            name: (type_identifier) @type (#eq? @type "PutMetricDataInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/cloudwatch"]
+
+[pattern.transform]
+template = '''
+err = client.CreateTimeSeries(ctx, &monitoringpb.CreateTimeSeriesRequest{
+    Name: fmt.Sprintf("projects/%s", {project_id}),
+    TimeSeries: []*monitoringpb.TimeSeries{{
+        Metric: &metricpb.Metric{
+            Type: fmt.Sprintf("custom.googleapis.com/%s/%s", {namespace}, {metric_name}),
+        },
+        Resource: &monitoredrespb.MonitoredResource{
+            Type: "global",
+            Labels: map[string]string{"project_id": {project_id}},
+        },
+        Points: []*monitoringpb.Point{{
+            Interval: &monitoringpb.TimeInterval{
+                EndTime: timestamppb.Now(),
+            },
+            Value: &monitoringpb.TypedValue{
+                Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: {value}},
+            },
+        }},
+    }},
+})
+if err != nil {
+    return fmt.Errorf("CreateTimeSeries: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/monitoring/apiv3/v2", "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb", "google.golang.org/genproto/googleapis/api/metric", "google.golang.org/genproto/googleapis/api/monitoredres", "google.golang.org/protobuf/types/known/timestamppb"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/cloudwatch"]
+
+[pattern.bindings]
+namespace = "params.Namespace"
+metric_name = "params.MetricData[0].MetricName"
+value = "params.MetricData[0].Value"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "CloudWatch PutMetricData accepts multiple MetricDatum entries with Dimensions. Cloud Monitoring CreateTimeSeries accepts TimeSeries with Metric, MonitoredResource, and Points. CloudWatch Dimensions map to Metric labels. CloudWatch namespaces map to custom metric type prefixes (custom.googleapis.com/). CloudWatch supports Statistics and Units; Cloud Monitoring uses MetricDescriptor for similar metadata."

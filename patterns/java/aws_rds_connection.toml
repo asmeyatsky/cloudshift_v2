@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.rdsdata.RdsDataClient.executeStatement -> gcp.cloudsql.Connection"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.77
+tags = ["database", "rds", "cloud-sql", "relational"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "executeStatement")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.rdsdata"]
+
+[pattern.transform]
+template = '''{ HikariDataSource pool = new HikariConfig(); pool.setJdbcUrl(String.format("jdbc:postgresql:///%s", {database})); pool.addDataSourceProperty("socketFactory", "com.google.cloud.sql.postgres.SocketFactory"); pool.addDataSourceProperty("cloudSqlInstance", {instance_connection_name}); Connection conn = new HikariDataSource(pool).getConnection(); PreparedStatement stmt = conn.prepareStatement({sql}); stmt.executeQuery(); }'''
+import_add = ["import com.zaxxer.hikari.HikariConfig", "import com.zaxxer.hikari.HikariDataSource", "import com.google.cloud.sql.postgres.SocketFactory", "import java.sql.Connection", "import java.sql.PreparedStatement", "import java.sql.ResultSet"]
+import_remove = ["import software.amazon.awssdk.services.rdsdata.RdsDataClient", "import software.amazon.awssdk.services.rdsdata.model.ExecuteStatementRequest", "import software.amazon.awssdk.services.rdsdata.model.ExecuteStatementResponse"]
+
+[pattern.bindings]
+sql = "request.sql()"
+database = "request.database()"
+resource_arn = "request.resourceArn()"
+secret_arn = "request.secretArn()"
+instance_connection_name = "__cloud_sql_instance__"
+
+[pattern.notes]
+description = "RDS Data API executeStatement provides a serverless HTTP-based SQL interface. Cloud SQL uses standard JDBC with the Cloud SQL Connector (socket factory) for secure connections. RDS Data API parameters use field() records; Cloud SQL uses standard PreparedStatement parameter binding. HikariCP connection pooling is recommended. For serverless, consider Cloud SQL Connector/J with IAM authentication instead of username/password."

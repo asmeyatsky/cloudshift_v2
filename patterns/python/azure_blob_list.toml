@@ -1,0 +1,32 @@
+[pattern]
+id = "azure.blob.list_blobs -> gcp.gcs.list_blobs"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.92
+tags = ["storage", "azure-blob", "gcs", "list"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "list_blobs"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.storage.blob"]
+
+[pattern.transform]
+template = '''storage.Client().list_blobs({bucket_name}, prefix={prefix_expr})  # TODO: set bucket_name from original container name'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["from azure.storage.blob import BlobServiceClient", "from azure.storage.blob import ContainerClient"]
+
+[pattern.bindings]
+bucket_name = "client.__container_name__"
+prefix_expr = "args.name_starts_with"
+
+[pattern.notes]
+description = "Azure ContainerClient.list_blobs() returns an iterator of BlobProperties with name_starts_with filter. GCS list_blobs() returns an iterator of Blob objects with a prefix parameter. Azure uses container/blob hierarchy while GCS uses bucket/object. Pagination is automatic in both; Azure uses by_page() while GCS returns an iterator that handles pages transparently."

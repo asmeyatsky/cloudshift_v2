@@ -1,0 +1,34 @@
+[pattern]
+id = "azure.eventgrid.send_events -> gcp.pubsub.publish"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.84
+tags = ["eventgrid", "pubsub", "events", "messaging"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "send"))
+    arguments: (argument_list
+      (_) @events_arg
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.eventgrid"]
+
+[pattern.transform]
+template = '''pubsub_v1.PublisherClient().publish({topic_path}, data=json.dumps({event_data}).encode("utf-8"), event_type={event_type})  # TODO: map EventGridEvent schema to Pub/Sub message attributes'''
+import_add = ["from google.cloud import pubsub_v1", "import json"]
+import_remove = ["from azure.eventgrid import EventGridPublisherClient", "from azure.eventgrid import EventGridEvent"]
+
+[pattern.bindings]
+topic_path = "client.__topic_path__"
+event_data = "args[0].data"
+event_type = "args[0].event_type"
+
+[pattern.notes]
+description = "Event Grid send() publishes EventGridEvent or CloudEvent objects with structured schemas (subject, event_type, data, data_version). Pub/Sub publish() sends bytes with optional attributes. Event Grid's event filtering by subject/type maps to Pub/Sub message filtering on attributes. Event Grid's dead-lettering and retry policies require separate Pub/Sub subscription configuration. Eventarc provides a closer mapping for CloudEvents on GCP."

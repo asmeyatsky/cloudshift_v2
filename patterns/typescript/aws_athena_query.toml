@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.athena.StartQueryExecutionCommand -> gcp.bigquery.createQueryJob"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.85
+tags = ["analytics", "athena", "bigquery", "query"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "StartQueryExecutionCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-athena"]
+
+[pattern.transform]
+template = '''await new BigQuery().createQueryJob({ query: {query_string}, location: {output_location}, defaultDataset: { datasetId: {database} } })'''
+import_add = ["import {BigQuery} from \"@google-cloud/bigquery\""]
+import_remove = ["import {AthenaClient, StartQueryExecutionCommand} from \"@aws-sdk/client-athena\""]
+
+[pattern.bindings]
+query_string = "params.QueryString"
+database = "params.QueryExecutionContext.Database"
+output_location = "params.ResultConfiguration.OutputLocation"
+
+[pattern.notes]
+description = "Athena StartQueryExecution is async and returns a QueryExecutionId for polling. BigQuery createQueryJob returns a [job, apiResponse] tuple; the job can be awaited with job.getQueryResults(). Athena uses S3 for output; BigQuery stores results internally. Athena databases map to BigQuery datasets. SQL dialect differences (Presto/Trino vs GoogleSQL) require separate query rewriting."

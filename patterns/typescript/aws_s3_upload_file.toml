@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.s3.Upload -> gcp.gcs.file.upload"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.92
+tags = ["storage", "s3", "gcs", "upload", "multipart"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (new_expression
+        constructor: (identifier) @upload_class (#eq? @upload_class "Upload")
+        arguments: (arguments
+          (object) @upload_params))
+      property: (property_identifier) @method (#eq? @method "done")))
+'''
+imports = ["@aws-sdk/lib-storage"]
+
+[pattern.transform]
+template = '''await new Storage().bucket({bucket_name}).upload({file_body}, { destination: {key}, metadata: { contentType: {content_type} }, resumable: true })'''
+import_add = ["import {Storage} from \"@google-cloud/storage\""]
+import_remove = ["import {Upload} from \"@aws-sdk/lib-storage\"", "import {S3Client} from \"@aws-sdk/client-s3\""]
+
+[pattern.bindings]
+bucket_name = "upload_params.params.Bucket"
+key = "upload_params.params.Key"
+file_body = "upload_params.params.Body"
+content_type = "upload_params.params.ContentType"
+
+[pattern.notes]
+description = "AWS SDK v3 Upload from @aws-sdk/lib-storage handles multipart uploads automatically with configurable part size and concurrency. GCS upload() with resumable: true provides equivalent functionality. AWS Upload exposes progress events via Upload.on('httpUploadProgress'); GCS resumable uploads support progress monitoring via stream events. AWS multipart upload part size defaults to 5MB; GCS resumable uploads use 256KB chunks by default."

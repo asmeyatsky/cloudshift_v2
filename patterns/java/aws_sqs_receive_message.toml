@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.sqs.SqsClient.receiveMessage -> gcp.pubsub.SubscriberStub.pull"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.88
+tags = ["messaging", "sqs", "pubsub", "queue", "pull"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "receiveMessage")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.sqs"]
+
+[pattern.transform]
+template = '''SubscriberStubSettings.newBuilder().build(); GrpcSubscriberStub.create(subscriberStubSettings).pull(PullRequest.newBuilder().setSubscription(ProjectSubscriptionName.of({project_id}, {subscription_name}).toString()).setMaxMessages({max_messages}).build()).getReceivedMessagesList()'''
+import_add = ["import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub", "import com.google.cloud.pubsub.v1.stub.SubscriberStubSettings", "import com.google.pubsub.v1.ProjectSubscriptionName", "import com.google.pubsub.v1.PullRequest", "import com.google.pubsub.v1.PullResponse", "import com.google.pubsub.v1.ReceivedMessage"]
+import_remove = ["import software.amazon.awssdk.services.sqs.SqsClient", "import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest", "import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse", "import software.amazon.awssdk.services.sqs.model.Message"]
+
+[pattern.bindings]
+queue_url = "request.queueUrl()"
+subscription_name = "request.queueUrl()"
+max_messages = "request.maxNumberOfMessages()"
+wait_time = "request.waitTimeSeconds()"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "SQS receiveMessage does synchronous long-polling. Pub/Sub pull() is also synchronous. SQS WaitTimeSeconds maps to Pub/Sub subscription-level ackDeadline. SQS VisibilityTimeout maps to Pub/Sub ackDeadlineSeconds. After processing, SQS requires deleteMessage(); Pub/Sub requires acknowledge(). For streaming pull, use Subscriber with MessageReceiver callback instead. SQS message attributes map to Pub/Sub message attributes."

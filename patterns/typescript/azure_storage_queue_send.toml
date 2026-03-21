@@ -1,0 +1,33 @@
+[pattern]
+id = "azure.storage_queue.sendMessage -> gcp.cloud_tasks.createTask"
+source = "azure"
+target = "gcp"
+language = "typescript"
+confidence = 0.83
+tags = ["messaging", "storage-queue", "cloud-tasks", "queue"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "sendMessage"))
+    arguments: (arguments
+      (string) @message_text))
+'''
+imports = ["@azure/storage-queue"]
+
+[pattern.transform]
+template = '''await new CloudTasksClient().createTask({ parent: `projects/${project_id}/locations/${location}/queues/${queue_name}`, task: { httpRequest: { url: {handler_url}, httpMethod: "POST", body: Buffer.from({message_text}).toString("base64"), headers: { "Content-Type": "application/json" } } } })'''
+import_add = ["import {CloudTasksClient} from \"@google-cloud/tasks\""]
+import_remove = ["import {QueueServiceClient, QueueClient} from \"@azure/storage-queue\""]
+
+[pattern.bindings]
+queue_name = "client.__queue_name__"
+message_text = "message_text"
+handler_url = "__handler_url__"
+project_id = "__project_id__"
+location = "__region__"
+
+[pattern.notes]
+description = "Azure Storage Queues provide simple message queuing with visibility timeout and poison message handling. GCP Cloud Tasks provides HTTP-target task queues with rate limiting and retry policies. Azure queue messages are pulled by consumers; Cloud Tasks pushes to HTTP endpoints. Azure message visibility timeout maps to Cloud Tasks dispatch deadline. Azure poison queue (after dequeue count) maps to Cloud Tasks retry configuration. Azure Base64 message encoding differs from Cloud Tasks HTTP body format. For pull-based queuing, consider Pub/Sub as an alternative to Cloud Tasks."

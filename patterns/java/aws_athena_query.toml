@@ -1,0 +1,30 @@
+[pattern]
+id = "aws.athena.AthenaClient.startQueryExecution -> gcp.bigquery.BigQuery.query"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.85
+tags = ["analytics", "athena", "bigquery", "query"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "startQueryExecution")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.athena"]
+
+[pattern.transform]
+template = '''BigQueryOptions.getDefaultInstance().getService().query(QueryJobConfiguration.newBuilder({query_string}).setUseLegacySql(false).build())'''
+import_add = ["import com.google.cloud.bigquery.BigQuery", "import com.google.cloud.bigquery.BigQueryOptions", "import com.google.cloud.bigquery.QueryJobConfiguration", "import com.google.cloud.bigquery.TableResult"]
+import_remove = ["import software.amazon.awssdk.services.athena.AthenaClient", "import software.amazon.awssdk.services.athena.model.StartQueryExecutionRequest", "import software.amazon.awssdk.services.athena.model.StartQueryExecutionResponse"]
+
+[pattern.bindings]
+query_string = "request.queryString()"
+output_location = "request.resultConfiguration().outputLocation()"
+database = "request.queryExecutionContext().database()"
+
+[pattern.notes]
+description = "Athena startQueryExecution is asynchronous and requires polling getQueryExecution for status. BigQuery query() with QueryJobConfiguration blocks until completion and returns TableResult directly. Athena results are stored in S3; BigQuery results are returned inline or can be written to a destination table. Athena databases map to BigQuery datasets."

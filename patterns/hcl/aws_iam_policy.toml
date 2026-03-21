@@ -1,0 +1,82 @@
+[pattern]
+id = "aws.iam_policy -> gcp.project_iam_custom_role"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.76
+tags = ["terraform", "iam", "security", "policy"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_iam_policy\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_project_iam_custom_role" {resource_name} {
+    role_id     = {role_id}
+    project     = {project_id}
+    title       = {policy_name}
+    description = {description}
+    stage       = "GA"
+
+    permissions = [
+      # TODO: Map AWS IAM actions to GCP permissions.
+      # AWS policy document: {policy_document}
+      #
+      # Common mappings:
+      #   s3:GetObject          -> storage.objects.get
+      #   s3:PutObject          -> storage.objects.create
+      #   s3:ListBucket         -> storage.objects.list
+      #   dynamodb:GetItem      -> datastore.entities.get
+      #   dynamodb:PutItem      -> datastore.entities.create
+      #   lambda:InvokeFunction -> cloudfunctions.functions.call
+      #   sqs:SendMessage       -> pubsub.topics.publish
+      #   sqs:ReceiveMessage    -> pubsub.subscriptions.consume
+      #   ec2:*                 -> compute.*
+      #   logs:CreateLogGroup   -> logging.logEntries.create
+      #   kms:Decrypt           -> cloudkms.cryptoKeyVersions.useToDecrypt
+      #
+      # "compute.instances.get",
+      # "compute.instances.list",
+    ]
+
+    # AWS IAM policies use JSON documents with Statement blocks.
+    # Each Statement has Effect (Allow/Deny), Action, Resource, and Condition.
+    # GCP custom roles only define permissions (no deny, no resource scope).
+    # Resource scoping is done at the IAM binding level.
+
+    # NOTE: AWS Deny statements have no direct GCP custom role equivalent.
+    # Use IAM Deny Policies (google_iam_deny_policy) for deny rules.
+
+    # NOTE: AWS Condition blocks map to IAM Conditions on bindings,
+    # not on the role definition itself.
+  }
+
+  # To bind this role, create an IAM binding:
+  # resource "google_project_iam_member" "{resource_name}_binding" {
+  #   project = {project_id}
+  #   role    = google_project_iam_custom_role.{resource_name}.id
+  #   member  = "serviceAccount:example@{project_id}.iam.gserviceaccount.com"
+  # }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+policy_name = "resource_body.name"
+description = "resource_body.description"
+policy_document = "resource_body.policy"
+role_id = "resource_body.name"
+path = "resource_body.path"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS IAM policies are JSON documents with Allow/Deny statements scoped to specific ARN resources. GCP custom roles define a list of permissions without resource scoping; resource scoping is done via IAM bindings (google_project_iam_member). AWS policy conditions map to GCP IAM conditions on bindings. AWS managed policies may map to GCP predefined roles. AWS policy attachments (aws_iam_role_policy_attachment) map to google_project_iam_member or google_project_iam_binding. Deny statements require google_iam_deny_policy."

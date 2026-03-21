@@ -1,0 +1,36 @@
+[pattern]
+id = "azure.servicebus.receive_messages -> gcp.pubsub.subscriber.pull"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["messaging", "servicebus", "pubsub", "queue", "receive"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "receive_messages"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.servicebus"]
+
+[pattern.transform]
+template = '''subscriber = pubsub_v1.SubscriberClient()
+response = subscriber.pull(subscription={subscription_path}, max_messages={max_count})
+for msg in response.received_messages:
+    # process msg.message.data
+    subscriber.acknowledge(subscription={subscription_path}, ack_ids=[msg.ack_id])'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["from azure.servicebus import ServiceBusClient", "from azure.servicebus import ServiceBusReceiver"]
+
+[pattern.bindings]
+subscription_path = "client.__subscription_path__"
+max_count = "args.max_message_count"
+
+[pattern.notes]
+description = "Service Bus receive_messages uses peek-lock semantics with automatic lock renewal and settlement (complete/abandon/dead-letter). Pub/Sub pull returns messages that must be explicitly acknowledged. Service Bus sessions, message deferral, and scheduled delivery have no direct Pub/Sub equivalent. Service Bus max_wait_time maps to Pub/Sub's return_immediately or streaming pull timeout. Dead-letter queues require a separate Pub/Sub dead-letter topic configuration."

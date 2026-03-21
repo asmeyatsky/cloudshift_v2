@@ -1,0 +1,96 @@
+[pattern]
+id = "aws.lb -> gcp.compute_url_map"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.80
+tags = ["terraform", "networking", "load-balancer", "alb"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_lb\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_url_map" {resource_name} {
+    name            = {lb_name}
+    project         = {project_id}
+    default_service = google_compute_backend_service.{resource_name}_backend.id
+
+    # AWS ALB internal: {internal}
+    # For internal load balancers, use google_compute_region_url_map instead
+
+    # TODO: Map aws_lb_listener rules to host_rule / path_matcher blocks
+    # host_rule {
+    #   hosts        = ["*"]
+    #   path_matcher = "default"
+    # }
+    # path_matcher {
+    #   name            = "default"
+    #   default_service = google_compute_backend_service.{resource_name}_backend.id
+    # }
+  }
+
+  resource "google_compute_backend_service" "{resource_name}_backend" {
+    name                  = "{lb_name}-backend"
+    project               = {project_id}
+    protocol              = "HTTP"
+    port_name             = "http"
+    load_balancing_scheme = "EXTERNAL"
+    timeout_sec           = {idle_timeout}
+    health_checks         = [google_compute_health_check.{resource_name}_hc.id]
+
+    # TODO: Map aws_lb_target_group to backend blocks
+    # backend {
+    #   group           = google_compute_instance_group.example.id
+    #   balancing_mode  = "UTILIZATION"
+    #   max_utilization = 0.8
+    # }
+  }
+
+  resource "google_compute_health_check" "{resource_name}_hc" {
+    name    = "{lb_name}-hc"
+    project = {project_id}
+
+    http_health_check {
+      port = 80
+      # TODO: Map health check settings from aws_lb_target_group
+    }
+  }
+
+  resource "google_compute_global_forwarding_rule" "{resource_name}_fwd" {
+    name       = "{lb_name}-fwd"
+    project    = {project_id}
+    target     = google_compute_target_http_proxy.{resource_name}_proxy.id
+    port_range = "80"
+
+    # TODO: For HTTPS, use google_compute_target_https_proxy with SSL cert
+  }
+
+  resource "google_compute_target_http_proxy" "{resource_name}_proxy" {
+    name    = "{lb_name}-proxy"
+    project = {project_id}
+    url_map = google_compute_url_map.{resource_name}.id
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+lb_name = "resource_body.name"
+internal = "resource_body.internal"
+idle_timeout = "resource_body.idle_timeout"
+subnets = "resource_body.subnets"
+security_groups = "resource_body.security_groups"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS ALBs combine load balancing, listeners, and target groups. GCP requires separate resources: url_map (routing), backend_service (targets), health_check, forwarding_rule, and target_http(s)_proxy. ALB listener rules map to URL map host_rule/path_matcher. ALB target groups map to backend_service backends. Security groups on ALBs map to GCP firewall rules. Internal ALBs use regional (not global) resources."

@@ -1,0 +1,46 @@
+[pattern]
+id = "aws.s3.CopyObjectInput -> gcp.storage.ObjectHandle.CopierFrom"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.92
+tags = ["storage", "s3", "gcs", "copy"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "CopyObject"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "s3")
+            name: (type_identifier) @type (#eq? @type "CopyObjectInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.transform]
+template = '''
+src := client.Bucket({source_bucket}).Object({source_key})
+dst := client.Bucket({dest_bucket}).Object({dest_key})
+copier := dst.CopierFrom(src)
+_, err = copier.Run(ctx)
+if err != nil {
+    return fmt.Errorf("CopierFrom.Run: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/storage"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/s3"]
+
+[pattern.bindings]
+source_bucket = "params.CopySource.__bucket__"
+source_key = "params.CopySource.__key__"
+dest_bucket = "params.Bucket"
+dest_key = "params.Key"
+
+[pattern.notes]
+description = "S3 CopyObject takes CopySource as 'bucket/key' string and Bucket/Key for the destination. GCS uses ObjectHandle.CopierFrom(src) on the destination object. S3 CopyObject has a 5GB limit for single-part copy; GCS CopierFrom handles objects up to 5TB via server-side rewrite. S3 MetadataDirective controls metadata copy behavior; GCS Copier has explicit ObjectAttrs fields to override metadata."

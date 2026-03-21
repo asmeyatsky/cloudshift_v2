@@ -1,0 +1,34 @@
+[pattern]
+id = "aws.cognito.initiate_auth -> gcp.identity_platform.sign_in_with_password"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["auth", "cognito", "identity-platform", "firebase-auth"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "initiate_auth"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''auth.Client().sign_in_with_email_and_password({email_expr}, {password_expr})  # TODO: map AuthFlow type; Cognito supports USER_PASSWORD_AUTH, USER_SRP_AUTH, CUSTOM_AUTH — Firebase/Identity Platform uses different flow methods'''
+import_add = ["import firebase_admin", "from firebase_admin import auth"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+email_expr = "args.AuthParameters.USERNAME"
+password_expr = "args.AuthParameters.PASSWORD"
+client_id = "args.ClientId"
+auth_flow = "args.AuthFlow"
+
+[pattern.notes]
+description = "Cognito initiate_auth supports multiple auth flows (USER_PASSWORD_AUTH, SRP, CUSTOM). Firebase Auth / Identity Platform uses REST-based sign-in methods. Cognito User Pools map to Identity Platform tenants. Token handling differs: Cognito returns AccessToken/IdToken/RefreshToken while Firebase returns a custom token. MFA, custom challenges, and SRP flows require significant rework."

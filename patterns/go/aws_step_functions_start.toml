@@ -1,0 +1,50 @@
+[pattern]
+id = "aws.sfn.StartExecutionInput -> gcp.workflows.CreateExecution"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.80
+tags = ["orchestration", "step-functions", "workflows", "serverless"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "StartExecution"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "sfn")
+            name: (type_identifier) @type (#eq? @type "StartExecutionInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/sfn"]
+
+[pattern.transform]
+template = '''
+exec, err := client.CreateExecution(ctx, &executionspb.CreateExecutionRequest{
+    Parent: fmt.Sprintf("projects/%s/locations/%s/workflows/%s", {project_id}, {region}, {workflow_name}),
+    Execution: &executionspb.Execution{
+        Argument: {input},
+    },
+})
+if err != nil {
+    return nil, fmt.Errorf("CreateExecution: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/workflows/executions/apiv1", "cloud.google.com/go/workflows/executions/apiv1/executionspb"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/sfn"]
+
+[pattern.bindings]
+state_machine_arn = "params.StateMachineArn"
+input = "params.Input"
+execution_name = "params.Name"
+workflow_name = "__workflow_name__"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Step Functions StartExecution triggers a state machine with JSON input and returns an executionArn. Cloud Workflows CreateExecution starts a workflow and returns an Execution with state and result. Step Functions uses Amazon States Language (ASL) for workflow definition; Workflows uses YAML/JSON with its own syntax. Step Functions supports Standard (up to 1 year) and Express (up to 5 min) workflows; Workflows has a 1-year execution timeout. Both support input/output processing, error handling, and parallel execution."

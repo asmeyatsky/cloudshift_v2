@@ -1,0 +1,36 @@
+[pattern]
+id = "azure.storage.queue.receive_messages -> gcp.pubsub.subscriber.pull"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.86
+tags = ["messaging", "queue", "storage-queue", "pubsub", "receive"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "receive_messages"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.storage.queue"]
+
+[pattern.transform]
+template = '''subscriber = pubsub_v1.SubscriberClient()
+response = subscriber.pull(subscription={subscription_path}, max_messages={max_messages})
+for msg in response.received_messages:
+    # process msg.message.data
+    subscriber.acknowledge(subscription={subscription_path}, ack_ids=[msg.ack_id])'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["from azure.storage.queue import QueueClient", "from azure.storage.queue import QueueServiceClient"]
+
+[pattern.bindings]
+subscription_path = "client.__subscription_path__"
+max_messages = "args.messages_per_page"
+
+[pattern.notes]
+description = "Azure Storage Queue receive_messages uses visibility timeout to hide messages from other consumers during processing; messages must be explicitly deleted after processing. Pub/Sub pull uses ack deadlines similarly. Storage Queue's dequeue_count (delivery attempts) maps to Pub/Sub's delivery_attempt. Storage Queue's peek_messages (non-destructive read) has no direct Pub/Sub equivalent. Message TTL in Storage Queue maps to Pub/Sub message retention on the subscription."

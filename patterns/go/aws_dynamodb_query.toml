@@ -1,0 +1,50 @@
+[pattern]
+id = "aws.dynamodb.QueryInput -> gcp.firestore.Query"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.78
+tags = ["database", "dynamodb", "firestore", "nosql", "query"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "Query"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "dynamodb")
+            name: (type_identifier) @type (#eq? @type "QueryInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.transform]
+template = '''
+iter := client.Collection({table_name}).Where({partition_key}, "==", {partition_value}).Documents(ctx)
+defer iter.Stop()
+for {
+    doc, err := iter.Next()
+    if err == iterator.Done {
+        break
+    }
+    if err != nil {
+        return nil, fmt.Errorf("Documents.Next: %%w", err)
+    }
+    _ = doc.Data()
+}
+'''
+import_add = ["cloud.google.com/go/firestore", "google.golang.org/api/iterator"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.bindings]
+table_name = "params.TableName"
+partition_key = "params.KeyConditionExpression.__pk_field__"
+partition_value = "params.ExpressionAttributeValues.__pk_value__"
+
+[pattern.notes]
+description = "DynamoDB Query uses KeyConditionExpression with partition key and optional sort key conditions plus FilterExpression. Firestore uses chained Where clauses. DynamoDB supports begins_with, between on sort keys; Firestore supports orderBy with startAt/endAt for range queries. DynamoDB ExpressionAttributeNames/Values need conversion to Firestore field paths and native values. Pagination differs: DynamoDB uses ExclusiveStartKey while Firestore uses StartAfter with document snapshots."

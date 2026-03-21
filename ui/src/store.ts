@@ -108,7 +108,7 @@ export const useStore = create<AppState>((set) => ({
   setShowSettings: (showSettings) => set({ showSettings }),
   setResultTab: (resultTab) => set({ resultTab }),
   setApiKey: (apiKey) => {
-    localStorage.setItem('cloudshift_api_key', apiKey)
+    try { localStorage.setItem('cloudshift_api_key', apiKey) } catch { /* private browsing */ }
     set({ apiKey, authVerified: null })
   },
   setAuthVerified: (authVerified) => set({ authVerified }),
@@ -120,11 +120,11 @@ export const useStore = create<AppState>((set) => ({
         timestamp: Date.now(),
       }
       const history = [newEntry, ...state.history].slice(0, 20)
-      localStorage.setItem('cloudshift_history', JSON.stringify(history))
+      try { localStorage.setItem('cloudshift_history', JSON.stringify(history)) } catch { /* private browsing */ }
       return { history }
     }),
   clearHistory: () => {
-    localStorage.removeItem('cloudshift_history')
+    try { localStorage.removeItem('cloudshift_history') } catch { /* private browsing */ }
     set({ history: [] })
   },
   clearResult: () => set({ result: null, transformedCode: '', error: null }),

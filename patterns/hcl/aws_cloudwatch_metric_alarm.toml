@@ -1,0 +1,91 @@
+[pattern]
+id = "aws.cloudwatch_metric_alarm -> gcp.monitoring_alert_policy"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.78
+tags = ["terraform", "monitoring", "cloudwatch", "alerting"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_cloudwatch_metric_alarm\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_monitoring_alert_policy" {resource_name} {
+    display_name = {alarm_name}
+    project      = {project_id}
+    combiner     = "OR"
+
+    conditions {
+      display_name = {alarm_description}
+
+      condition_threshold {
+        filter          = "resource.type = \"gce_instance\" AND metric.type = \"compute.googleapis.com/instance/cpu/utilization\""
+        comparison      = {comparison_operator}
+        threshold_value = {threshold}
+        duration        = "{period}s"
+
+        aggregations {
+          alignment_period     = "{period}s"
+          per_series_aligner   = {statistic}
+          # TODO: Map AWS statistic ({statistic}) to GCP aligner:
+          #   Average -> ALIGN_MEAN
+          #   Sum     -> ALIGN_SUM
+          #   Maximum -> ALIGN_MAX
+          #   Minimum -> ALIGN_MIN
+        }
+
+        # TODO: Map AWS metric_name ({metric_name}) and namespace ({namespace})
+        # to the appropriate GCP metric.type filter string.
+        # AWS dimensions map to GCP metric.labels or resource.labels.
+
+        trigger {
+          count = {datapoints_to_alarm}
+        }
+      }
+    }
+
+    # AWS alarm_actions: {alarm_actions}
+    # TODO: Create google_monitoring_notification_channel resources
+    # and reference them here:
+    # notification_channels = [
+    #   google_monitoring_notification_channel.email.name,
+    # ]
+
+    # AWS treat_missing_data: {treat_missing_data}
+    # GCP equivalent: condition_threshold.evaluation_missing_data
+
+    enabled = {actions_enabled}
+
+    user_labels = {tags}
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+alarm_name = "resource_body.alarm_name"
+alarm_description = "resource_body.alarm_description"
+comparison_operator = "resource_body.comparison_operator"
+threshold = "resource_body.threshold"
+period = "resource_body.period"
+statistic = "resource_body.statistic"
+metric_name = "resource_body.metric_name"
+namespace = "resource_body.namespace"
+datapoints_to_alarm = "resource_body.datapoints_to_alarm"
+alarm_actions = "resource_body.alarm_actions"
+treat_missing_data = "resource_body.treat_missing_data"
+actions_enabled = "resource_body.actions_enabled"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "CloudWatch metric alarms use AWS-specific metric namespaces (AWS/EC2, AWS/RDS, etc.) and dimension filters. GCP Monitoring uses different metric.type paths (compute.googleapis.com/...). Comparison operators differ: GreaterThanOrEqualToThreshold -> COMPARISON_GE. SNS topic alarm_actions must be replaced with GCP notification channels (email, Slack, PagerDuty, webhooks). Evaluation periods and datapoints_to_alarm map to duration and trigger count."

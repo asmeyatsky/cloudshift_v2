@@ -1,0 +1,81 @@
+[pattern]
+id = "azure.dns_zone -> gcp.dns_managed_zone"
+source = "azure"
+target = "gcp"
+language = "hcl"
+confidence = 0.90
+tags = ["terraform", "networking", "dns", "azure-dns", "cloud-dns"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"azurerm_dns_zone\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_dns_managed_zone" {resource_name} {
+    name        = {zone_name}
+    project     = {project_id}
+    dns_name    = "{domain_name}."
+    description = "Migrated from Azure DNS zone: {domain_name}"
+    visibility  = "public"
+
+    # Azure resource_group_name: {resource_group_name}
+    # GCP DNS zones are project-level resources
+
+    # For private DNS zones (Azure private_dns_zone):
+    # visibility = "private"
+    # private_visibility_config {
+    #   networks {
+    #     network_url = google_compute_network.example.id
+    #   }
+    # }
+
+    dnssec_config {
+      state = "off"
+      # TODO: Enable if Azure zone uses DNSSEC
+      # state = "on"
+      # default_key_specs {
+      #   algorithm  = "rsasha256"
+      #   key_length = 2048
+      #   key_type   = "keySigning"
+      # }
+    }
+
+    # Azure SOA record is auto-managed; GCP also manages SOA automatically
+
+    labels = {tags}
+  }
+
+  # Azure DNS records (azurerm_dns_a_record, azurerm_dns_cname_record, etc.)
+  # map to google_dns_record_set resources.
+  # Example:
+  # resource "google_dns_record_set" "{resource_name}_a" {
+  #   name         = "www.{domain_name}."
+  #   type         = "A"
+  #   ttl          = 300
+  #   managed_zone = google_dns_managed_zone.{resource_name}.name
+  #   rrdatas      = ["1.2.3.4"]
+  # }
+
+  # NOTE: After migration, update domain registrar NS records
+  # to point to the GCP Cloud DNS name servers.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+zone_name = "resource_body.name"
+domain_name = "resource_body.name"
+resource_group_name = "resource_body.resource_group_name"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Azure DNS zones and GCP Cloud DNS managed zones are functionally equivalent. Azure separates public (azurerm_dns_zone) and private (azurerm_private_dns_zone) DNS. GCP uses visibility (public/private) on the same google_dns_managed_zone resource. Azure DNS record types (azurerm_dns_a_record, azurerm_dns_cname_record) each have a separate resource type; GCP uses google_dns_record_set with a type attribute. Azure DNS alias records map to GCP routing policies. Name server delegation must be updated at the domain registrar after migration."

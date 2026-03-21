@@ -1,0 +1,96 @@
+[pattern]
+id = "aws.elastic_beanstalk_environment -> gcp.app_engine_application"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.68
+tags = ["terraform", "compute", "paas", "beanstalk", "app-engine"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_elastic_beanstalk_environment\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_app_engine_application" {resource_name} {
+    project     = {project_id}
+    location_id = {region}
+
+    # AWS Beanstalk application: {application}
+    # AWS solution_stack_name: {solution_stack_name}
+    # TODO: Map solution stack to App Engine runtime:
+    #   "64bit Amazon Linux 2 v3.x running Python 3.8" -> python38
+    #   "64bit Amazon Linux 2 v3.x running Node.js 16" -> nodejs16
+    #   "64bit Amazon Linux 2 v3.x running Java 11"    -> java11
+
+    # NOTE: google_app_engine_application can only be created once per project.
+    # If the project already has an App Engine app, import it instead.
+  }
+
+  # Beanstalk environments map to App Engine services/versions
+  resource "google_app_engine_standard_app_version" "{resource_name}_version" {
+    project    = {project_id}
+    service    = "default"
+    runtime    = "python39"
+    version_id = "v1"
+
+    entrypoint {
+      shell = ""
+      # TODO: Set entrypoint from Beanstalk Procfile or option_settings
+    }
+
+    deployment {
+      zip {
+        source_url = ""
+        # TODO: Upload application bundle to GCS and reference here
+      }
+    }
+
+    env_variables = {
+      # TODO: Map Beanstalk environment variables from setting blocks
+      # AWS setting namespace "aws:elasticbeanstalk:application:environment"
+    }
+
+    automatic_scaling {
+      min_idle_instances = 1
+      max_idle_instances = "automatic"
+
+      # AWS setting namespace "aws:autoscaling:asg"
+      # MinSize / MaxSize map to scaling configuration
+    }
+
+    # AWS tier: {tier}
+    # Worker tier -> consider Cloud Tasks + Cloud Run instead of App Engine
+
+    # TODO: For containerized workloads, consider google_cloud_run_v2_service
+    # as an alternative to App Engine.
+  }
+
+  # NOTE: Beanstalk environment settings are spread across multiple namespaces.
+  # Common mappings:
+  # aws:autoscaling:launchconfiguration:InstanceType -> machine_type
+  # aws:elasticbeanstalk:environment:EnvironmentType -> scaling config
+  # aws:elbv2:listener -> App Engine dispatch rules
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+env_name = "resource_body.name"
+application = "resource_body.application"
+solution_stack_name = "resource_body.solution_stack_name"
+tier = "resource_body.tier"
+settings = "resource_body.setting"
+tags = "resource_body.tags"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Elastic Beanstalk is a PaaS that manages EC2 instances, load balancers, and auto-scaling. App Engine is Google's PaaS equivalent. Beanstalk environments map to App Engine services/versions. Beanstalk solution stacks define the runtime platform; App Engine uses runtime identifiers. Beanstalk environment variables map to App Engine env_variables. Beanstalk worker tier has no App Engine equivalent; use Cloud Tasks with Cloud Run instead. For Docker-based Beanstalk apps, Cloud Run is often a better target than App Engine."

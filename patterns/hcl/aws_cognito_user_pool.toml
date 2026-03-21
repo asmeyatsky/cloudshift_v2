@@ -1,0 +1,94 @@
+[pattern]
+id = "aws.cognito_user_pool -> gcp.identity_platform_config"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.72
+tags = ["terraform", "identity", "cognito", "authentication"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_cognito_user_pool\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_identity_platform_config" {resource_name} {
+    project = {project_id}
+
+    sign_in {
+      allow_duplicate_emails = false
+
+      email {
+        enabled           = true
+        password_required  = true
+      }
+
+      # TODO: Map Cognito auto_verified_attributes to sign-in providers
+      # Cognito auto_verified_attributes: {auto_verified_attributes}
+
+      # phone_number {
+      #   enabled = true
+      #   test_phone_numbers = {}
+      # }
+    }
+
+    # Cognito password_policy: {password_policy}
+    # TODO: Identity Platform password policies are configured in the
+    # Firebase Console or via google_identity_platform_project_default_config
+
+    # Cognito mfa_configuration: {mfa_configuration}
+    # mfa {
+    #   state = "ENABLED"
+    #   enabled_providers = ["PHONE_SMS"]
+    # }
+
+    # Cognito lambda_config (triggers): {lambda_config}
+    # TODO: Map to blocking functions:
+    # blocking_functions {
+    #   triggers {
+    #     event_type   = "beforeCreate"
+    #     function_uri = "https://..."
+    #   }
+    # }
+  }
+
+  # Cognito user pool clients map to Identity Platform OAuth clients
+  # resource "google_identity_platform_default_supported_idp_config" "{resource_name}_provider" {
+  #   project       = {project_id}
+  #   enabled       = true
+  #   idp_id        = "google.com"
+  #   client_id     = "..."
+  #   client_secret = "..."
+  # }
+
+  # Cognito user_pool_domain maps to:
+  # resource "google_identity_platform_tenant" "{resource_name}_tenant" {
+  #   display_name = {pool_name}
+  # }
+
+  # NOTE: Cognito user migration requires data export/import.
+  # Identity Platform supports importing users via Admin SDK.
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+pool_name = "resource_body.name"
+auto_verified_attributes = "resource_body.auto_verified_attributes"
+password_policy = "resource_body.password_policy"
+mfa_configuration = "resource_body.mfa_configuration"
+lambda_config = "resource_body.lambda_config"
+email_verification_message = "resource_body.email_verification_message"
+username_attributes = "resource_body.username_attributes"
+tags = "resource_body.tags"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "Cognito user pools provide user directory, authentication, and federation. GCP Identity Platform (Firebase Auth) provides similar capabilities but with different configuration models. Cognito user pool clients map to Identity Platform OAuth clients or app configurations. Cognito triggers (Lambda) map to Identity Platform blocking functions. Cognito hosted UI maps to FirebaseUI. User data migration requires export/import via Admin SDK. MFA, password policies, and email templates differ significantly."

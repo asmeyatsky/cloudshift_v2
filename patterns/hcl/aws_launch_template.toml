@@ -1,0 +1,116 @@
+[pattern]
+id = "aws.launch_template -> gcp.compute_instance_template"
+source = "aws"
+target = "gcp"
+language = "hcl"
+confidence = 0.86
+tags = ["terraform", "compute", "instance-template", "launch-template"]
+
+[pattern.detect]
+query = '''
+  (block
+    (identifier) @block_type (#eq? @block_type "resource")
+    (string_lit) @resource_type (#eq? @resource_type "\"aws_launch_template\"")
+    (string_lit) @resource_name
+    (body) @resource_body)
+'''
+imports = []
+
+[pattern.transform]
+template = '''
+  resource "google_compute_instance_template" {resource_name} {
+    name         = {template_name}
+    project      = {project_id}
+    machine_type = {instance_type}
+    region       = {region}
+
+    # AWS instance_type: {instance_type}
+    # TODO: Map AWS instance type to GCP machine type:
+    #   t3.micro    -> e2-micro
+    #   t3.small    -> e2-small
+    #   t3.medium   -> e2-medium
+    #   m5.large    -> n2-standard-2
+    #   m5.xlarge   -> n2-standard-4
+    #   c5.large    -> c2-standard-4
+    #   r5.large    -> n2-highmem-2
+
+    disk {
+      source_image = {image_id}
+      auto_delete  = true
+      boot         = true
+      disk_size_gb = {volume_size}
+      disk_type    = "pd-balanced"
+
+      # AWS block_device_mappings volume_type: {volume_type}
+      # gp2/gp3 -> pd-balanced, io1/io2 -> pd-ssd, st1/sc1 -> pd-standard
+    }
+
+    # AWS block_device_mappings (additional volumes)
+    # disk {
+    #   auto_delete = true
+    #   boot        = false
+    #   disk_size_gb = 100
+    #   disk_type    = "pd-ssd"
+    # }
+
+    network_interface {
+      network    = {vpc_network}
+      subnetwork = {subnet}
+
+      # AWS associate_public_ip_address: {network_interfaces}
+      # access_config {
+      #   # Include for external IP
+      # }
+    }
+
+    # AWS security_group_ids map to GCP firewall rules (separate resource)
+    # tags = ["allow-http", "allow-ssh"]
+
+    # AWS iam_instance_profile: {iam_instance_profile}
+    service_account {
+      email  = {service_account}
+      scopes = ["cloud-platform"]
+    }
+
+    # AWS user_data: {user_data}
+    metadata = {
+      # startup-script = file("startup.sh")
+      # TODO: Convert user_data (base64-encoded) to startup-script
+    }
+
+    # AWS key_name: {key_name}
+    # metadata = {
+    #   ssh-keys = "user:ssh-rsa AAAA..."
+    # }
+    # Or use OS Login: metadata.enable-oslogin = "TRUE"
+
+    labels = {tags}
+
+    lifecycle {
+      create_before_destroy = true
+    }
+  }
+'''
+import_add = []
+import_remove = []
+
+[pattern.bindings]
+resource_name = "resource_name"
+template_name = "resource_body.name"
+instance_type = "resource_body.instance_type"
+image_id = "resource_body.image_id"
+volume_size = "resource_body.block_device_mappings.ebs.volume_size"
+volume_type = "resource_body.block_device_mappings.ebs.volume_type"
+network_interfaces = "resource_body.network_interfaces"
+iam_instance_profile = "resource_body.iam_instance_profile"
+user_data = "resource_body.user_data"
+key_name = "resource_body.key_name"
+tags = "resource_body.tag_specifications.tags"
+service_account = "__service_account__"
+vpc_network = "__vpc_network__"
+subnet = "__subnet__"
+region = "__region__"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "AWS launch templates define instance configurations for ASGs and EC2. GCP instance templates serve the same purpose for instance group managers. Instance types need manual mapping (e.g., t3.medium -> e2-medium). AMI IDs map to GCP image families/projects. User data scripts map to startup-script metadata. IAM instance profiles map to service account bindings. Key pairs map to SSH metadata or OS Login. Security groups map to network tags + firewall rules. Launch template versions map to new instance template resources (GCP templates are immutable)."

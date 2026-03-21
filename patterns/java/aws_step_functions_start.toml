@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.sfn.SfnClient.startExecution -> gcp.workflows.ExecutionsClient.createExecution"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.79
+tags = ["orchestration", "step-functions", "workflows", "state-machine"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "startExecution")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.sfn"]
+
+[pattern.transform]
+template = '''ExecutionsClient.create().createExecution(WorkflowName.of({project_id}, {region}, {workflow_name}), Execution.newBuilder().setArgument({input}).build())'''
+import_add = ["import com.google.cloud.workflows.executions.v1.ExecutionsClient", "import com.google.cloud.workflows.executions.v1.Execution", "import com.google.cloud.workflows.v1.WorkflowName"]
+import_remove = ["import software.amazon.awssdk.services.sfn.SfnClient", "import software.amazon.awssdk.services.sfn.model.StartExecutionRequest", "import software.amazon.awssdk.services.sfn.model.StartExecutionResponse"]
+
+[pattern.bindings]
+state_machine_arn = "request.stateMachineArn()"
+workflow_name = "request.stateMachineArn().__name__"
+input = "request.input()"
+project_id = "__project_id__"
+region = "__region__"
+
+[pattern.notes]
+description = "Step Functions startExecution launches a state machine execution with JSON input. GCP Workflows createExecution starts a workflow with an argument string. Step Functions ASL (Amazon States Language) needs manual conversion to Workflows YAML/JSON syntax. Step Functions states (Task, Choice, Parallel, Wait, Map) map to Workflows steps (call, switch, parallel, sys.sleep, for-in). Step Functions service integrations map to Workflows connectors. Execution name in Step Functions is optional; in Workflows it is auto-generated."

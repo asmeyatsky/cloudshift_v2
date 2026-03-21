@@ -1,0 +1,41 @@
+[pattern]
+id = "aws.dynamodb.DeleteItemInput -> gcp.firestore.DocumentRef.Delete"
+source = "aws"
+target = "gcp"
+language = "go"
+confidence = 0.85
+tags = ["database", "dynamodb", "firestore", "nosql", "delete"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (selector_expression
+      operand: (identifier) @client
+      field: (field_identifier) @method (#eq? @method "DeleteItem"))
+    arguments: (argument_list
+      (_) @ctx
+      (unary_expression
+        operand: (composite_literal
+          type: (qualified_type
+            package: (package_identifier) @pkg (#eq? @pkg "dynamodb")
+            name: (type_identifier) @type (#eq? @type "DeleteItemInput"))
+          body: (literal_value) @params))))
+'''
+imports = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.transform]
+template = '''
+_, err = client.Collection({table_name}).Doc({item_key}).Delete(ctx)
+if err != nil {
+    return fmt.Errorf("Doc.Delete: %%w", err)
+}
+'''
+import_add = ["cloud.google.com/go/firestore"]
+import_remove = ["github.com/aws/aws-sdk-go-v2/service/dynamodb"]
+
+[pattern.bindings]
+table_name = "params.TableName"
+item_key = "params.Key.__key__"
+
+[pattern.notes]
+description = "DynamoDB DeleteItem removes an item by primary key and optionally returns the deleted item via ReturnValues. Firestore DocumentRef.Delete returns a WriteResult with the update time. DynamoDB supports conditional deletes via ConditionExpression; Firestore supports preconditions via firestore.Exists or firestore.LastUpdateTime. DynamoDB DeleteItem is idempotent (no error if item missing); Firestore Delete is also idempotent."

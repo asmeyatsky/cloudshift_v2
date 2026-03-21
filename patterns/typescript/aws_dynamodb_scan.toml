@@ -1,0 +1,33 @@
+[pattern]
+id = "aws.dynamodb.ScanCommand -> gcp.firestore.collection.get"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.80
+tags = ["database", "dynamodb", "firestore", "nosql", "scan"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "ScanCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-dynamodb"]
+
+[pattern.transform]
+template = '''await new Firestore().collection({table_name}).limit({limit}).get()'''
+import_add = ["import {Firestore} from \"@google-cloud/firestore\""]
+import_remove = ["import {DynamoDBClient, ScanCommand} from \"@aws-sdk/client-dynamodb\""]
+
+[pattern.bindings]
+table_name = "params.TableName"
+limit = "params.Limit"
+
+[pattern.notes]
+description = "DynamoDB Scan reads every item in a table and supports pagination via ExclusiveStartKey/LastEvaluatedKey. Firestore collection get() retrieves all documents. DynamoDB Scan supports FilterExpression for server-side filtering; Firestore uses where() clauses. DynamoDB Scan returns ConsumedCapacity; Firestore read costs are per-document. For large collections, Firestore supports cursors via startAfter() for pagination. DynamoDB parallel scan has no direct Firestore equivalent."

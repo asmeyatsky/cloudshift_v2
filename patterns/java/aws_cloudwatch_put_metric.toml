@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.cloudwatch.CloudWatchClient.putMetricData -> gcp.monitoring.MetricServiceClient.createTimeSeries"
+source = "aws"
+target = "gcp"
+language = "java"
+confidence = 0.82
+tags = ["monitoring", "cloudwatch", "cloud-monitoring", "metrics"]
+
+[pattern.detect]
+query = '''
+  (method_invocation
+    object: (identifier) @client
+    name: (identifier) @method (#eq? @method "putMetricData")
+    arguments: (argument_list
+      (_) @request) @args)
+'''
+imports = ["software.amazon.awssdk.services.cloudwatch"]
+
+[pattern.transform]
+template = '''MetricServiceClient.create().createTimeSeries(ProjectName.of({project_id}), List.of(TimeSeries.newBuilder().setMetric(Metric.newBuilder().setType("custom.googleapis.com/" + {metric_name}).build()).setResource(MonitoredResource.newBuilder().setType("global").putLabels("project_id", {project_id}).build()).addPoints(Point.newBuilder().setInterval(TimeInterval.newBuilder().setEndTime(Timestamps.fromMillis(System.currentTimeMillis())).build()).setValue(TypedValue.newBuilder().setDoubleValue({metric_value}).build()).build()).build()))'''
+import_add = ["import com.google.cloud.monitoring.v3.MetricServiceClient", "import com.google.api.Metric", "import com.google.api.MonitoredResource", "import com.google.monitoring.v3.Point", "import com.google.monitoring.v3.ProjectName", "import com.google.monitoring.v3.TimeInterval", "import com.google.monitoring.v3.TimeSeries", "import com.google.monitoring.v3.TypedValue", "import com.google.protobuf.util.Timestamps", "import java.util.List"]
+import_remove = ["import software.amazon.awssdk.services.cloudwatch.CloudWatchClient", "import software.amazon.awssdk.services.cloudwatch.model.PutMetricDataRequest", "import software.amazon.awssdk.services.cloudwatch.model.MetricDatum"]
+
+[pattern.bindings]
+namespace = "request.namespace()"
+metric_name = "request.metricData().get(0).metricName()"
+metric_value = "request.metricData().get(0).value()"
+project_id = "__project_id__"
+
+[pattern.notes]
+description = "CloudWatch putMetricData accepts a namespace and list of MetricDatum with dimensions. Cloud Monitoring createTimeSeries uses Metric descriptors with labels. CloudWatch namespaces map to metric type prefixes (custom.googleapis.com/). CloudWatch dimensions map to metric labels. MetricServiceClient is AutoCloseable."

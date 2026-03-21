@@ -1,0 +1,35 @@
+[pattern]
+id = "aws.lambda.InvokeCommand -> gcp.cloud_functions.invoke"
+source = "aws"
+target = "gcp"
+language = "typescript"
+confidence = 0.85
+tags = ["compute", "lambda", "cloud-functions", "serverless", "invoke"]
+
+[pattern.detect]
+query = '''
+  (call_expression
+    function: (member_expression
+      object: (identifier) @client
+      property: (property_identifier) @method (#eq? @method "send"))
+    arguments: (arguments
+      (new_expression
+        constructor: (identifier) @command (#eq? @command "InvokeCommand")
+        arguments: (arguments
+          (object) @params))))
+'''
+imports = ["@aws-sdk/client-lambda"]
+
+[pattern.transform]
+template = '''await new CloudFunctionsServiceClient().callFunction({ name: `projects/${project_id}/locations/${location}/functions/${function_name}`, data: JSON.stringify({payload}) })'''
+import_add = ["import {CloudFunctionsServiceClient} from \"@google-cloud/functions\""]
+import_remove = ["import {LambdaClient, InvokeCommand} from \"@aws-sdk/client-lambda\""]
+
+[pattern.bindings]
+function_name = "params.FunctionName"
+payload = "params.Payload"
+project_id = "__project_id__"
+location = "__region__"
+
+[pattern.notes]
+description = "Lambda InvokeCommand supports synchronous (RequestResponse) and async (Event) invocation types. Cloud Functions callFunction is synchronous; for async invocation, use Pub/Sub triggers or Cloud Tasks. Lambda supports qualifier for versioning/aliases; Cloud Functions uses traffic splitting. Lambda Payload is a Buffer/Uint8Array; Cloud Functions data is a JSON string. Lambda returns StatusCode and Payload; Cloud Functions returns result and error."
