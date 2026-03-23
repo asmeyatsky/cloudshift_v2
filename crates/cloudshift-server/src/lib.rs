@@ -189,7 +189,7 @@ const OPENAPI_SPEC: &str = r#"{
                 "properties": {
                   "source": { "type": "string" },
                   "language": { "type": "string", "enum": ["python", "typescript", "javascript", "java", "go", "hcl", "yaml", "dockerfile", "json"] },
-                  "source_cloud": { "type": "string", "enum": ["aws", "azure", "any"] },
+                  "source_cloud": { "type": "string", "enum": ["aws", "azure", "any"], "default": "aws", "description": "Omit to use AWS (default)" },
                   "path_hint": { "type": "string" }
                 }
               }
@@ -264,7 +264,8 @@ async fn api_transform(
             Language::Json => "config.json",
         });
     let config = TransformConfig {
-        source_cloud: body.source_cloud.unwrap_or(SourceCloud::Any),
+        // UI and API clients: AWS-first — omitting `source_cloud` means migrate from AWS.
+        source_cloud: body.source_cloud.unwrap_or(SourceCloud::Aws),
         dry_run: true,
         catalogue_path: std::env::var("CLOUDSHIFT_PATTERNS_DIR").ok(),
         ..Default::default()

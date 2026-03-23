@@ -26,7 +26,11 @@ export async function transform(
   const res = await fetchWithTimeout('/api/transform', {
     method: 'POST',
     headers,
-    body: JSON.stringify(req),
+    body: JSON.stringify({
+      ...req,
+      // Always send explicit cloud; server defaults to aws if omitted, but keeps UI and API aligned.
+      source_cloud: req.source_cloud ?? 'aws',
+    }),
   })
 
   if (!res.ok) {
