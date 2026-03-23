@@ -87,7 +87,7 @@ const homeSteps: DriveStep[] = [
     popover: {
       title: 'GitHub repository',
       description:
-        'Paste a repo URL (https://github.com/org/repo). Optional branch or tag. The server downloads the archive and extracts supported files—same limits as ZIP upload.',
+        'Paste a repo URL (https://github.com/org/repo). Pick source cloud (AWS/Azure/auto), optional branch or tag. The server downloads the archive and extracts supported files—same limits as ZIP upload.',
       side: 'bottom',
     },
   },

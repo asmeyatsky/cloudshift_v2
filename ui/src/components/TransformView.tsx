@@ -27,6 +27,7 @@ import { applyDiff } from '../applyDiff'
 import type { Warning } from '../types'
 import { formatPatternIds } from '../formatPatternIds'
 import { analyzeAwsPythonInput } from '../detectComplexAwsInput'
+import { transformHasEffect } from '../transformOutcome'
 
 const LANGUAGES = [
   { value: 'python', label: 'Python' },
@@ -413,13 +414,19 @@ export default function TransformView() {
                     <span
                       className={clsx(
                         'text-[9px] mt-0.5',
-                        b.status === 'done' && 'text-emerald-500/80',
+                        b.status === 'done' &&
+                          (b.result && transformHasEffect(b.result, b.source)
+                            ? 'text-emerald-500/80'
+                            : 'text-zinc-500'),
                         b.status === 'error' && 'text-red-400/80',
                         b.status === 'running' && 'text-amber-400',
                         b.status === 'pending' && 'text-zinc-600',
                       )}
                     >
-                      {b.status === 'done' && '✓ transformed'}
+                      {b.status === 'done' &&
+                        (b.result && transformHasEffect(b.result, b.source)
+                          ? `✓ ${b.result.patterns.length} pattern(s)`
+                          : 'No pattern match')}
                       {b.status === 'error' && (b.error ? b.error.slice(0, 24) : 'Error')}
                       {b.status === 'running' && '…'}
                       {b.status === 'pending' && 'pending'}
@@ -638,6 +645,16 @@ export default function TransformView() {
                   </>
                 )}
               </div>
+
+              {result && !transformHasEffect(result, code) && (
+                <div className="shrink-0 px-3 py-2 border-b border-amber-500/20 bg-amber-500/10 text-[11px] text-amber-200/90 leading-snug">
+                  <span className="font-medium text-amber-100">Output unchanged — </span>
+                  no catalogue patterns matched this file (or the source cloud filter does not fit). The diff
+                  will look identical. Try <strong className="text-zinc-200">Source: AWS</strong> (or Azure) in
+                  the toolbar, split large files, or use the CLI on a full checkout. CDK/construct-heavy
+                  TypeScript often has few matches until you add patterns.
+                </div>
+              )}
 
               <div className="flex-1 min-h-0 relative overflow-hidden">
                 {/* Keep DiffEditor + result Monaco mounted when switching tabs — avoids

@@ -41,6 +41,8 @@ export default function HomeView() {
   const [examplePicker, setExamplePicker] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
   const [githubRef, setGithubRef] = useState('')
+  /** Source cloud for GitHub imports (batch + single file). */
+  const [githubCloud, setGithubCloud] = useState('aws')
   const [showTourBanner, setShowTourBanner] = useState(false)
 
   useEffect(() => {
@@ -106,12 +108,12 @@ export default function HomeView() {
       const trunc = data.truncated ? ' (first 80 files only)' : ''
       if (data.files.length === 1) {
         const f = data.files[0]
-        loadSnippet(f.source, f.language, 'any', f.path)
+        loadSnippet(f.source, f.language, githubCloud, f.path)
         setImportMsg(`Opened ${f.path} from GitHub${refNote}${trunc}`)
       } else {
         loadBatch(
           data.files.map((f) => ({ path: f.path, source: f.source, language: f.language })),
-          'any',
+          githubCloud,
         )
         setImportMsg(`Loaded ${data.files.length} files from GitHub${refNote}${trunc}`)
       }
@@ -123,7 +125,7 @@ export default function HomeView() {
     } finally {
       setBusy(false)
     }
-  }, [githubUrl, githubRef, apiKey, loadSnippet, loadBatch])
+  }, [githubUrl, githubRef, githubCloud, apiKey, loadSnippet, loadBatch])
 
   const handleFiles = useCallback(
     async (list: FileList | null) => {
@@ -346,8 +348,24 @@ export default function HomeView() {
           </div>
           <p className="text-xs text-zinc-600 leading-relaxed">
             Public repos download on the server (max ~25&nbsp;MB archive). Optional branch or tag. Private
-            repos need <code className="text-zinc-500">GITHUB_TOKEN</code> on the server.
+            repos need <code className="text-zinc-500">GITHUB_TOKEN</code> on the server. Set{' '}
+            <strong className="text-zinc-500">Source cloud</strong> so transforms use the right pattern set
+            (CDK-heavy repos often still show <em>no diff</em> until patterns match).
           </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-[11px] text-zinc-500 shrink-0">Source cloud</label>
+            <select
+              value={githubCloud}
+              onChange={(e) => setGithubCloud(e.target.value)}
+              className="h-9 px-2 text-xs bg-[#111114] border border-[#27272a] rounded-lg text-zinc-300 min-w-[140px]"
+            >
+              {CLOUDS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <input
             type="url"
             value={githubUrl}
