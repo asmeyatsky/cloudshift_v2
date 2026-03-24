@@ -71,7 +71,7 @@ impl LlmFallbackPort for GeminiClient {
 
         let client = reqwest::blocking::Client::new();
         let response = client
-            .post(&self.endpoint())
+            .post(self.endpoint())
             .header("content-type", "application/json")
             .json(&request_body)
             .send()

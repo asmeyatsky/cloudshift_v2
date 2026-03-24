@@ -169,11 +169,13 @@ fn run_transform(
     let path_hint = uri_to_path_hint(uri);
     let language = path_hint_to_language(&path_hint)
         .ok_or_else(|| anyhow::anyhow!("Unsupported file type: {}", path_hint))?;
-    let mut config = TransformConfig::default();
-    config.source_cloud = source_cloud;
-    config.catalogue_path = patterns_path.clone();
-    config.dry_run = true;
-    config.threshold = 0.0;
+    let config = TransformConfig {
+        source_cloud,
+        catalogue_path: patterns_path.clone(),
+        dry_run: true,
+        threshold: 0.0,
+        ..Default::default()
+    };
     transform_source_for_api(&path_hint, source, language, &config)
         .context("transform_source_for_api failed")
 }
