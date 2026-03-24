@@ -585,6 +585,28 @@ pub fn transform_source_for_api(
 ) -> anyhow::Result<TransformResult> {
     let catalogue = load_catalogue(config)?;
     let patterns = catalogue.all_patterns();
+
+    // Wire LLM fallback when enabled
+    #[cfg(feature = "llm-fallback")]
+    let llm_client: Option<crate::llm_fallback::client::ClaudeClient> = if config.llm_fallback {
+        config.llm_api_key.as_ref().map(|key| {
+            let client = crate::llm_fallback::client::ClaudeClient::new(key.clone());
+            if let Some(ref model) = config.llm_model {
+                client.with_model(model.clone())
+            } else {
+                client
+            }
+        })
+    } else {
+        None
+    };
+    #[cfg(feature = "llm-fallback")]
+    let llm_ref: Option<&dyn crate::domain::ports::LlmFallbackPort> = llm_client
+        .as_ref()
+        .map(|c| c as &dyn crate::domain::ports::LlmFallbackPort);
+    #[cfg(not(feature = "llm-fallback"))]
+    let llm_ref: Option<&dyn crate::domain::ports::LlmFallbackPort> = None;
+
     Ok(transform_source(
         path_hint,
         source,
@@ -593,7 +615,7 @@ pub fn transform_source_for_api(
         patterns,
         config.output_format,
         config.threshold,
-        None,
+        llm_ref,
         None,
     ))
 }
@@ -653,6 +675,27 @@ pub fn transform_file(path: &str, config: &TransformConfig) -> anyhow::Result<Tr
     let catalogue = load_catalogue(config)?;
     let patterns = catalogue.all_patterns();
 
+    // Wire LLM fallback when enabled and API key available
+    #[cfg(feature = "llm-fallback")]
+    let llm_client: Option<crate::llm_fallback::client::ClaudeClient> = if config.llm_fallback {
+        config.llm_api_key.as_ref().map(|key| {
+            let client = crate::llm_fallback::client::ClaudeClient::new(key.clone());
+            if let Some(ref model) = config.llm_model {
+                client.with_model(model.clone())
+            } else {
+                client
+            }
+        })
+    } else {
+        None
+    };
+    #[cfg(feature = "llm-fallback")]
+    let llm_ref: Option<&dyn crate::domain::ports::LlmFallbackPort> = llm_client
+        .as_ref()
+        .map(|c| c as &dyn crate::domain::ports::LlmFallbackPort);
+    #[cfg(not(feature = "llm-fallback"))]
+    let llm_ref: Option<&dyn crate::domain::ports::LlmFallbackPort> = None;
+
     // Run the transformation pipeline
     let result = transform_source(
         path,
@@ -662,7 +705,7 @@ pub fn transform_file(path: &str, config: &TransformConfig) -> anyhow::Result<Tr
         patterns,
         config.output_format,
         config.threshold,
-        None, // LLM fallback is wired at CLI level
+        llm_ref,
         Some(&root),
     );
 
@@ -754,6 +797,27 @@ pub fn transform_repo(path: &str, config: &TransformConfig) -> anyhow::Result<Re
         }
     }
 
+    // Wire LLM fallback
+    #[cfg(feature = "llm-fallback")]
+    let llm_client: Option<crate::llm_fallback::client::ClaudeClient> = if config.llm_fallback {
+        config.llm_api_key.as_ref().map(|key| {
+            let client = crate::llm_fallback::client::ClaudeClient::new(key.clone());
+            if let Some(ref model) = config.llm_model {
+                client.with_model(model.clone())
+            } else {
+                client
+            }
+        })
+    } else {
+        None
+    };
+    #[cfg(feature = "llm-fallback")]
+    let llm_ref: Option<&dyn crate::domain::ports::LlmFallbackPort> = llm_client
+        .as_ref()
+        .map(|c| c as &dyn crate::domain::ports::LlmFallbackPort);
+    #[cfg(not(feature = "llm-fallback"))]
+    let llm_ref: Option<&dyn crate::domain::ports::LlmFallbackPort> = None;
+
     let total_files = files.len();
     let progress_cb = config.progress_callback.clone();
     if let Some(ref cb) = progress_cb {
@@ -791,7 +855,7 @@ pub fn transform_repo(path: &str, config: &TransformConfig) -> anyhow::Result<Re
                 &all_patterns,
                 config.output_format,
                 config.threshold,
-                None, // LLM fallback is wired at CLI level
+                llm_ref,
                 Some(root),
             );
 
