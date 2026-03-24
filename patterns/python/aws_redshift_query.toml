@@ -20,12 +20,11 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''bigquery.Client().query({args})'''
+template = '''bigquery.Client().query(sql)'''
 import_add = ["from google.cloud import bigquery"]
 import_remove = ["import boto3"]
 
 [pattern.bindings]
-args = "args"
 
 [pattern.notes]
 description = "Redshift Data API execute_statement uses ClusterIdentifier, Database, and Sql parameters. BigQuery client.query() accepts a SQL string directly. Redshift SQL syntax (PostgreSQL-based) may need adjustments for BigQuery Standard SQL. Result retrieval also differs: Redshift uses get_statement_result, BigQuery returns a QueryJob with .result() iterator."

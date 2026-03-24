@@ -18,12 +18,9 @@ query = '''
 imports = ["pyodbc"]
 
 [pattern.transform]
-template = '''Connector().connect(INSTANCE_CONNECTION_NAME, "pg8000", user=USER, password=PASS, db=DB)  # TODO: replace ODBC connection string with Cloud SQL instance connection name'''
+template = '''Connector().connect(INSTANCE_CONNECTION_NAME, "pg8000", user=USER, password=PASS, db=DB)'''
 import_add = ["from google.cloud.sql.connector import Connector"]
 import_remove = ["import pyodbc"]
-
-[pattern.bindings]
-conn_str = "conn_str"
 
 [pattern.notes]
 description = "Azure SQL uses ODBC driver with server.database.windows.net endpoint. Cloud SQL uses the Cloud SQL Python Connector with instance connection names (project:region:instance). Authentication moves from SQL credentials to IAM database auth."

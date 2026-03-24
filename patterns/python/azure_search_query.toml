@@ -20,12 +20,9 @@ query = '''
 imports = ["azure.search.documents"]
 
 [pattern.transform]
-template = '''discoveryengine.SearchServiceClient().search(request={"serving_config": SERVING_CONFIG, "query": {search_text}})  # TODO: set serving_config path and map search options'''
+template = '''discoveryengine.SearchServiceClient().search(request={"serving_config": SERVING_CONFIG, "query": q})'''
 import_add = ["from google.cloud import discoveryengine_v1 as discoveryengine"]
 import_remove = ["from azure.search.documents import SearchClient"]
-
-[pattern.bindings]
-search_text = "args.search_text"
 
 [pattern.notes]
 description = "Azure AI Search 'search' accepts search_text, filter, top, skip, etc. Vertex AI Search uses serving_config-based requests with query and page_size. Facets, filters, and scoring profiles require different configuration."

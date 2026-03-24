@@ -20,12 +20,9 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, {args})  # TODO: set topic path'''
+template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, message.encode("utf-8"))'''
 import_add = ["from google.cloud import pubsub_v1"]
 import_remove = ["import boto3"]
-
-[pattern.bindings]
-args = "args"
 
 [pattern.notes]
 description = "SNS publish targets a TopicArn. Pub/Sub uses topic paths. SNS Subject is mapped as a Pub/Sub message attribute. SNS supports SMS/email endpoints which have no direct Pub/Sub equivalent."

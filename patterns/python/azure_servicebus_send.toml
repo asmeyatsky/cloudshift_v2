@@ -21,12 +21,9 @@ query = '''
 imports = ["azure.servicebus"]
 
 [pattern.transform]
-template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, {args})  # TODO: set Pub/Sub topic path'''
+template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, msg.encode("utf-8"))'''
 import_add = ["from google.cloud import pubsub_v1"]
 import_remove = ["from azure.servicebus import ServiceBusClient", "from azure.servicebus import ServiceBusMessage"]
-
-[pattern.bindings]
-args = "args"
 
 [pattern.notes]
 description = "Azure Service Bus send_messages accepts ServiceBusMessage objects with body, properties, and session support. Pub/Sub publish accepts bytes data with optional attributes dict. Service Bus sessions, dead-letter queues, and scheduled delivery require alternative patterns on GCP."

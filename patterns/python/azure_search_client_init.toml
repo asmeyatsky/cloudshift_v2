@@ -16,7 +16,7 @@ query = '''
 imports = ["azure.search.documents"]
 
 [pattern.transform]
-template = '''discoveryengine.SearchServiceClient()  # TODO: Azure AI Search index maps to Vertex AI Search datastore; configure serving config and search app'''
+template = '''discoveryengine.SearchServiceClient()'''
 import_add = ["from google.cloud import discoveryengine_v1 as discoveryengine"]
 import_remove = ["from azure.search.documents import SearchClient", "from azure.core.credentials import AzureKeyCredential"]
 

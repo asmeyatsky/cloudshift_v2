@@ -21,12 +21,9 @@ query = '''
 imports = ["azure.storage.queue"]
 
 [pattern.transform]
-template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, {args})'''
+template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, msg.encode("utf-8"))'''
 import_add = ["from google.cloud import pubsub_v1"]
 import_remove = ["from azure.storage.queue import QueueClient", "from azure.storage.queue import QueueServiceClient"]
-
-[pattern.bindings]
-args = "args"
 
 [pattern.notes]
 description = "Azure Storage Queue send_message accepts a string or bytes message with optional visibility_timeout and time_to_live. Pub/Sub publish accepts bytes data. Queue message visibility timeout maps loosely to Pub/Sub ack deadline. Azure Storage Queue's peek and dequeue count features have no direct Pub/Sub equivalent."

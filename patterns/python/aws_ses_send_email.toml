@@ -20,12 +20,9 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''send_email_via_sendgrid({args})  # TODO: GCP has no native email; use SendGrid or SMTP relay'''
+template = '''send_email_via_sendgrid(to_addr, subject, body_html)'''
 import_add = ["from sendgrid import SendGridAPIClient", "from sendgrid.helpers.mail import Mail"]
 import_remove = ["import boto3"]
-
-[pattern.bindings]
-args = "args"
 
 [pattern.notes]
 description = "GCP does not have a native email service equivalent to SES. SendGrid is the recommended third-party service on GCP. SES supports SMTP and API modes; SendGrid uses its own API. HTML email body, CC/BCC, and attachments require additional SendGrid helper objects."

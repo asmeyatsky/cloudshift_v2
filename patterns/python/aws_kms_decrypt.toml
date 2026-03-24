@@ -20,12 +20,9 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''kms.KeyManagementServiceClient().decrypt(request={"name": KEY_NAME, "ciphertext": {args}})'''
+template = '''kms.KeyManagementServiceClient().decrypt(request={"name": KEY_NAME, "ciphertext": ciphertext})'''
 import_add = ["from google.cloud import kms"]
 import_remove = ["import boto3"]
-
-[pattern.bindings]
-args = "args"
 
 [pattern.notes]
 description = "AWS KMS decrypt auto-discovers the key from ciphertext metadata. GCP Cloud KMS requires the explicit crypto key resource name. Response format differs: AWS returns Plaintext, GCP returns plaintext in response object."

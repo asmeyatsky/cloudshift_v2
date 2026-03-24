@@ -19,7 +19,7 @@ query = '''
 imports = ["azure.mgmt.resource"]
 
 [pattern.transform]
-template = '''resourcemanager_v3.ProjectsClient().list_projects(parent=f"folders/{FOLDER_ID}")  # TODO: Azure resource groups map to GCP projects or folders; restructure hierarchy'''
+template = '''resourcemanager_v3.ProjectsClient().list_projects(parent=f"folders/{FOLDER_ID}")'''
 import_add = ["from google.cloud import resourcemanager_v3"]
 import_remove = ["from azure.mgmt.resource import ResourceManagementClient"]
 

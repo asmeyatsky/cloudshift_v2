@@ -20,12 +20,9 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''eventarc.PublisherClient().publish_events(channel=CHANNEL, events={args})  # TODO: set Eventarc channel path'''
+template = '''eventarc.PublisherClient().publish_events(channel=CHANNEL, events=EVENTS)'''
 import_add = ["from google.cloud import eventarc_v1 as eventarc"]
 import_remove = ["import boto3"]
-
-[pattern.bindings]
-args = "args"
 
 [pattern.notes]
 description = "EventBridge put_events sends entries with Source, DetailType, and Detail fields. Eventarc uses CloudEvents format with different structure. EventBridge rules and targets have no direct Eventarc equivalent and require separate Eventarc trigger configuration."
