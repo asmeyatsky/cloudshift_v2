@@ -20,16 +20,11 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''RunJobsClient().run_job(name=f"projects/{project_id}/locations/{region}/jobs/{job_name}")  # TODO: create Cloud Run Job from ECS task definition; map containerOverrides to overrides'''
-import_add = ["from google.cloud.run_v2 import RunJobsClient"]
+template = '''run_v2.JobsClient().run_job(request={"name": f"projects/PROJECT_ID/locations/REGION/jobs/JOB_NAME"})  # TODO: map ECS task definition to Cloud Run Job'''
+import_add = ["from google.cloud import run_v2"]
 import_remove = ["import boto3"]
 
 [pattern.bindings]
-task_definition = "args.taskDefinition"
-cluster = "args.cluster"
-job_name = "__job_name__"
-project_id = "__project_id__"
-region = "__region__"
 
 [pattern.notes]
 description = "ECS run_task launches a one-off task from a task definition on a cluster. Cloud Run Jobs execute containerized tasks without a persistent cluster. ECS task definitions map to Cloud Run Job specs. ECS launch types (FARGATE/EC2) have no direct equivalent — Cloud Run is always serverless. Network configuration, capacity providers, and placement constraints require manual mapping."

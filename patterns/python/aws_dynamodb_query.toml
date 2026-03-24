@@ -20,14 +20,12 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''firestore.Client().collection({table_name}).where({key_condition_field}, "==", {key_condition_value}).stream()'''
+template = '''{client}.where(FIELD, "==", VALUE).stream()  # TODO: map DynamoDB KeyConditionExpression to Firestore where()'''
 import_add = ["from google.cloud import firestore"]
 import_remove = ["import boto3"]
 
 [pattern.bindings]
-table_name = "args.TableName"
-key_condition_field = "args.KeyConditionExpression.__field__"
-key_condition_value = "args.ExpressionAttributeValues.__value__"
+client = "client"
 
 [pattern.notes]
 description = "DynamoDB query uses KeyConditionExpression with ExpressionAttributeValues. Firestore uses chained .where() calls. Complex queries with multiple conditions need decomposition."

@@ -170,28 +170,25 @@ table.put_item(Item={"id": "A1", "status": "shipped"})
 }
 
 #[test]
-fn azure_functions_handler_pattern_matches_minimal_snippet() {
-    use cloudshift_core::catalogue::loader::load_patterns_from_directory;
+fn azure_functions_handler_fixup_rewrites_to_cloud_functions() {
     use cloudshift_core::domain::value_objects::Language;
-    use cloudshift_core::pattern::matcher::match_pattern;
+    use cloudshift_core::fixup::apply_fixups;
 
-    let root = workspace_root();
-    let (patterns, _) = load_patterns_from_directory(&root.join("patterns")).unwrap();
-    let pat = patterns
-        .iter()
-        .find(|p| p.id.as_str().contains("azure.functions.handler"))
-        .expect("pattern");
-    for src in [
-        b"import azure.functions as func\ndef main(req):\n    return 1\n".as_slice(),
-        b"import azure.functions as func\ndef main(req: func.HttpRequest) -> func.HttpResponse:\n    return func.HttpResponse('ok')\n".as_slice(),
-    ] {
-        let m = match_pattern(src, Language::Python, pat).expect("match");
-        assert!(
-            !m.is_empty(),
-            "azure.functions.handler should match:\n{}",
-            std::str::from_utf8(src).unwrap()
-        );
-    }
+    // Azure Functions handler is now converted via fixup, not pattern.
+    let src = "import azure.functions as func\n\napp = func.FunctionApp()\n\n@app.function_name(\"Test\")\ndef main(req: func.HttpRequest):\n    return 1\n";
+    let result = apply_fixups(src, Language::Python);
+    assert!(
+        result.contains("functions_framework"),
+        "fixup should add functions_framework import, got:\n{result}"
+    );
+    assert!(
+        result.contains("def main(request):"),
+        "fixup should rewrite param to (request), got:\n{result}"
+    );
+    assert!(
+        !result.contains("azure.functions"),
+        "fixup should remove azure.functions import, got:\n{result}"
+    );
 }
 
 #[test]

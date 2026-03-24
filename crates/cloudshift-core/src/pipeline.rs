@@ -229,7 +229,30 @@ fn transform_source(
             || source.contains("from 'aws-cdk-lib'")
             || source.contains("from \"aws-cdk-lib\""));
 
-    if constructs.is_empty() && !match_without_constructs && !ts_js_has_aws_strings {
+    // Text-based fallback for Azure imports that tree-sitter may miss
+    // (e.g. `import azure.functions as func` with aliased_import nodes).
+    let has_azure_text = source.contains("azure.")
+        || source.contains("import pyodbc")
+        || source.contains("import redis");
+
+    if constructs.is_empty()
+        && !match_without_constructs
+        && !ts_js_has_aws_strings
+        && !has_azure_text
+    {
+        // Still run fixups for structural rewrites (Azure Functions → Cloud Functions)
+        let fixed = crate::fixup::apply_fixups(source, language);
+        if fixed != source {
+            return TransformResult::new(
+                path.to_string(),
+                language,
+                String::new(),
+                Vec::new(),
+                Confidence::new(0.8),
+                Vec::new(),
+            )
+            .with_transformed_source(fixed);
+        }
         let msg = "No cloud constructs detected; file unchanged (already GCP or no cloud usage).";
         return TransformResult::new(
             path.to_string(),
@@ -270,15 +293,24 @@ fn transform_source(
     matches.retain(|m| m.confidence.value() >= threshold);
 
     if matches.is_empty() {
+        // Still run fixups — they handle structural rewrites like
+        // Lambda/Azure Functions → Cloud Functions that don't use patterns.
+        let fixed = crate::fixup::apply_fixups(source, language);
+        let changed = fixed != source;
+        let diff = if changed {
+            differ.emit_unified_diff(path, source, &fixed)
+        } else {
+            String::new()
+        };
         return TransformResult::new(
             path.to_string(),
             language,
-            String::new(),
+            diff,
             Vec::new(),
-            Confidence::new(1.0),
+            Confidence::new(if changed { 0.8 } else { 1.0 }),
             Vec::new(),
         )
-        .with_transformed_source(source.to_string());
+        .with_transformed_source(fixed);
     }
 
     // Stage 3: Apply transformations

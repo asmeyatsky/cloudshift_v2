@@ -32,6 +32,9 @@ const AZURE_IMPORTS: &[&str] = &[
     "azure.appconfiguration",
     "azure.containerregistry",
     "azure.monitor",
+    // Non-azure-prefixed packages commonly used with Azure services
+    "pyodbc",
+    "redis",
 ];
 
 /// AWS service client method calls we detect.
@@ -343,6 +346,9 @@ fn detect_azure_imports(
     let query_src = r#"
         (import_statement
           name: (dotted_name) @import_name)
+        (import_statement
+          name: (aliased_import
+            name: (dotted_name) @import_name))
         (import_from_statement
           module_name: (dotted_name) @from_module)
     "#;

@@ -18,12 +18,12 @@ query = '''
 imports = ["azure.storage.queue"]
 
 [pattern.transform]
-template = '''pubsub_v1.SubscriberClient().acknowledge(request={"subscription": SUBSCRIPTION_PATH, "ack_ids": [{message}.ack_id]})  # TODO: Queue delete_message maps to Pub/Sub acknowledge'''
+template = '''pubsub_v1.SubscriberClient().acknowledge(request={"subscription": SUBSCRIPTION_PATH, "ack_ids": [{args}]})'''
 import_add = ["from google.cloud import pubsub_v1"]
 import_remove = ["from azure.storage.queue import QueueClient", "from azure.storage.queue import QueueServiceClient"]
 
 [pattern.bindings]
-message = "message"
+args = "args"
 
 [pattern.notes]
 description = "Azure Queue Storage delete_message removes a message after processing. Pub/Sub uses acknowledge to confirm receipt. Queue pop_receipt maps to Pub/Sub ack_id."

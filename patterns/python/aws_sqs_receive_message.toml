@@ -20,14 +20,11 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''pubsub_v1.SubscriberClient().pull(request={"subscription": pubsub_v1.SubscriberClient().subscription_path({project_id}, {subscription_name}), "max_messages": {max_messages}})'''
+template = '''pubsub_v1.SubscriberClient().pull(request={"subscription": SUBSCRIPTION_PATH, "max_messages": 10})  # TODO: set subscription path'''
 import_add = ["from google.cloud import pubsub_v1"]
 import_remove = ["import boto3"]
 
 [pattern.bindings]
-subscription_name = "args.QueueUrl"
-max_messages = "args.MaxNumberOfMessages"
-project_id = "__project_id__"
 
 [pattern.notes]
 description = "SQS receive_message polls for messages and auto-deletes after visibility timeout. Pub/Sub pull requires explicit acknowledgment. Consider using streaming pull for production workloads."

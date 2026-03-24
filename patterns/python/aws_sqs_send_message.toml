@@ -20,14 +20,12 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''pubsub_v1.PublisherClient().publish(pubsub_v1.PublisherClient().topic_path({project_id}, {topic_name}), {message_body}.encode("utf-8"))'''
+template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, {args})  # TODO: set Pub/Sub topic path'''
 import_add = ["from google.cloud import pubsub_v1"]
 import_remove = ["import boto3"]
 
 [pattern.bindings]
-topic_name = "args.QueueUrl"
-message_body = "args.MessageBody"
-project_id = "__project_id__"
+args = "args"
 
 [pattern.notes]
 description = "SQS uses QueueUrl while Pub/Sub uses topic paths. The queue URL needs to be mapped to a Pub/Sub topic name. Message attributes mapping may also be required."

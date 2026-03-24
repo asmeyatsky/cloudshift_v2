@@ -190,11 +190,16 @@ fn apply_python_fixups(source: &str) -> String {
         result = result.replace("s3://", "gs://");
     }
 
-    // === Lambda → Cloud Functions fixup ===
+    // === Lambda / Azure Functions → Cloud Functions fixup ===
     // Rewrite `def xxx(event, context):` → `@functions_framework.http\ndef xxx(request):`
     // and add `import functions_framework`. Done in fixup (not pattern) so inner SDK
     // patterns (DynamoDB, S3, etc.) can transform the function body independently.
     result = fix_lambda_to_cloud_functions(&result);
+
+    // === Azure Functions import cleanup ===
+    // Replace `import azure.functions as func` with `import functions_framework`
+    // and rewrite decorated handlers.
+    result = fix_azure_functions_to_cloud_functions(&result);
 
     // === Unresolved binding cleanup ===
     // Replace /* unresolved: ... */ with TODO comments
@@ -452,6 +457,92 @@ fn fix_lambda_to_cloud_functions(source: &str) -> String {
     }
 
     result
+}
+
+/// Rewrite Azure Functions patterns to Cloud Functions.
+///
+/// Handles `import azure.functions as func`, `func.FunctionApp()`,
+/// and decorated handlers with `@app.xxx_trigger(...)`.
+fn fix_azure_functions_to_cloud_functions(source: &str) -> String {
+    if !source.contains("azure.functions") && !source.contains("func.FunctionApp") {
+        return source.to_string();
+    }
+
+    let mut result = source.to_string();
+
+    // Replace import
+    result = result.replace(
+        "import azure.functions as func",
+        "import functions_framework",
+    );
+
+    // Remove func.FunctionApp() line
+    let lines: Vec<&str> = result.lines().collect();
+    let filtered: Vec<&str> = lines
+        .into_iter()
+        .filter(|l| !l.contains("func.FunctionApp()"))
+        .collect();
+    result = filtered.join("\n");
+
+    // Replace Azure trigger decorators with @functions_framework.http
+    let mut lines: Vec<String> = result.lines().map(String::from).collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
+        // Remove @app.function_name(...) and @app.xxx_trigger(...) decorators
+        if trimmed.starts_with("@app.function_name(")
+            || trimmed.starts_with("@app.service_bus_queue_trigger(")
+            || trimmed.starts_with("@app.route(")
+            || trimmed.starts_with("@app.queue_trigger(")
+            || trimmed.starts_with("@app.blob_trigger(")
+            || trimmed.starts_with("@app.timer_trigger(")
+            || trimmed.starts_with("@app.event_hub_trigger(")
+        {
+            lines.remove(i);
+            continue;
+        }
+        i += 1;
+    }
+    result = lines.join("\n");
+
+    // Rewrite typed Azure Functions params: def xxx(msg: func.ServiceBusMessage):
+    // → @functions_framework.http\ndef xxx(request):
+    let mut lines: Vec<String> = result.lines().map(String::from).collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let trimmed = lines[i].trim_start().to_string();
+        if trimmed.starts_with("def ") && trimmed.ends_with(':') {
+            if let Some(paren_start) = trimmed.find('(') {
+                if let Some(paren_end) = trimmed.rfind(')') {
+                    let params = trimmed[paren_start + 1..paren_end].trim().to_string();
+                    // Match: single param with func.XxxMessage type annotation
+                    if params.contains("func.") || params.contains("azure.functions") {
+                        let indent_len = lines[i].len() - trimmed.len();
+                        let indent = lines[i][..indent_len].to_string();
+                        let func_name = trimmed[4..paren_start].trim().to_string();
+
+                        let already_decorated = i > 0
+                            && lines[..i]
+                                .iter()
+                                .rev()
+                                .find(|l| !l.trim().is_empty())
+                                .map(|l| l.trim().starts_with("@functions_framework"))
+                                .unwrap_or(false);
+
+                        if !already_decorated {
+                            lines.insert(i, format!("{indent}@functions_framework.http"));
+                            i += 1;
+                        }
+
+                        lines[i] = format!("{indent}def {func_name}(request):");
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+
+    lines.join("\n")
 }
 
 /// Replace `/* unresolved: ... */` markers with `# TODO: resolve` comments.
