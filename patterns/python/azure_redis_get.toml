@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.redis.get -> gcp.memorystore.redis.get"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.88
+tags = ["cache", "redis", "memorystore"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get"))
+    arguments: (argument_list
+      (_) @key) @args)
+'''
+imports = ["redis"]
+
+[pattern.transform]
+template = '''redis.Redis(host=MEMORYSTORE_HOST, port=6379).get({key})  # Memorystore: same redis API, update host to VPC-internal IP'''
+import_add = ["import redis"]
+import_remove = []
+
+[pattern.bindings]
+key = "key"
+
+[pattern.notes]
+description = "Redis get() is the same API on both Azure Cache and Memorystore. The pattern flags the usage for host/auth reconfiguration — the redis-py call itself is unchanged."

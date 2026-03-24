@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.ec2.describe_instances -> gcp.compute_v1.list_instances"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["compute", "ec2", "gce", "instances"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "describe_instances"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''compute_v1.InstancesClient().list(request=compute_v1.ListInstancesRequest(project=PROJECT_ID, zone=ZONE, filter={filter_expr}))  # TODO: set PROJECT_ID and ZONE; EC2 Filters list maps to GCE filter string syntax'''
+import_add = ["from google.cloud import compute_v1"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+filter_expr = "args.Filters"
+
+[pattern.notes]
+description = "EC2 describe_instances returns Reservations with Instances. GCE list returns flat instance list. EC2 Filters use Name/Values dicts; GCE uses filter string syntax (e.g. 'status = RUNNING'). EC2 instance IDs (i-xxx) map to GCE instance names."

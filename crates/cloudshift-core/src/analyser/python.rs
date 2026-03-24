@@ -329,6 +329,9 @@ const AZURE_SDK_METHODS: &[&str] = &[
     "get_configuration_setting",
     "list_manifest_properties",
     "query_resource",
+    "upsert_entity",
+    "query_entities",
+    "delete_message",
 ];
 
 /// Detect Azure SDK import statements.

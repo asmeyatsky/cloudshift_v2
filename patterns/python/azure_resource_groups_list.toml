@@ -1,0 +1,27 @@
+[pattern]
+id = "azure.mgmt.resource.resource_groups.list -> gcp.resourcemanager.list_projects"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.72
+tags = ["management", "resource-manager", "organization"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (attribute
+        object: (identifier) @client
+        attribute: (identifier) @prop (#eq? @prop "resource_groups"))
+      attribute: (identifier) @method (#eq? @method "list"))
+    arguments: (argument_list) @args)
+'''
+imports = ["azure.mgmt.resource"]
+
+[pattern.transform]
+template = '''resourcemanager_v3.ProjectsClient().list_projects(parent=f"folders/{FOLDER_ID}")  # TODO: Azure resource groups map to GCP projects or folders; restructure hierarchy'''
+import_add = ["from google.cloud import resourcemanager_v3"]
+import_remove = ["from azure.mgmt.resource import ResourceManagementClient"]
+
+[pattern.notes]
+description = "Azure resource groups are containers within a subscription. GCP has no direct equivalent — projects serve a similar role but are top-level. Resource groups map to either separate GCP projects or labels within a project."

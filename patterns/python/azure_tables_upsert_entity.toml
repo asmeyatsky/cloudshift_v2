@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.tables.upsert_entity -> gcp.firestore.document.set"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["database", "table-storage", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "upsert_entity"))
+    arguments: (argument_list
+      (_) @entity) @args)
+'''
+imports = ["azure.data.tables"]
+
+[pattern.transform]
+template = '''firestore.Client().collection(COLLECTION).document({entity}["RowKey"]).set({entity})  # TODO: PartitionKey+RowKey map to Firestore collection+document ID'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["from azure.data.tables import TableServiceClient"]
+
+[pattern.bindings]
+entity = "entity"
+
+[pattern.notes]
+description = "Azure Table Storage uses PartitionKey+RowKey as composite key. Firestore uses collection+document path. Table Storage upsert_entity creates or replaces; Firestore set() replaces by default. ETag-based concurrency maps to Firestore preconditions."

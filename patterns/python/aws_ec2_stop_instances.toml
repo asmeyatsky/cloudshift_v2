@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.ec2.stop_instances -> gcp.compute_v1.stop_instance"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["compute", "ec2", "gce", "instances"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "stop_instances"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''compute_v1.InstancesClient().stop(project=PROJECT_ID, zone=ZONE, instance={instance_id})  # TODO: set PROJECT_ID and ZONE; EC2 accepts multiple IDs, GCE stops one at a time'''
+import_add = ["from google.cloud import compute_v1"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+instance_id = "args.InstanceIds"
+
+[pattern.notes]
+description = "EC2 stop_instances accepts a list of instance IDs. GCE stop() operates on a single instance by name. Batch stops require iteration. EC2 instance IDs (i-xxx) map to GCE instance names."
