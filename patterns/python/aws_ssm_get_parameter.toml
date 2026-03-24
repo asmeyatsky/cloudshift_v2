@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.ssm.get_parameter -> gcp.secretmanager.access_secret_version"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["config", "ssm", "parameter-store", "secret-manager"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get_parameter"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''secretmanager.SecretManagerServiceClient().access_secret_version(name=f"projects/PROJECT_ID/secrets/{name}/versions/latest")'''
+import_add = ["from google.cloud import secretmanager"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+name = "args.Name"
+
+[pattern.notes]
+description = "SSM get_parameter returns Parameter.Value with optional decryption. Secret Manager returns payload.data as bytes. SSM parameter hierarchies (/app/prod/db-url) map to individual secrets with labels or naming conventions."

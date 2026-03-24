@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.eventhub.send_batch -> gcp.pubsub.publish"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.84
+tags = ["messaging", "eventhub", "pubsub", "streaming"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "send_batch"))
+    arguments: (argument_list
+      (_) @batch) @args)
+'''
+imports = ["azure.eventhub"]
+
+[pattern.transform]
+template = '''pubsub_v1.PublisherClient().publish(TOPIC_PATH, {batch}.encode("utf-8"))  # TODO: iterate batch events and publish individually or use batch settings'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["from azure.eventhub import EventHubProducerClient", "from azure.eventhub import EventData"]
+
+[pattern.bindings]
+batch = "batch"
+
+[pattern.notes]
+description = "Event Hubs send_batch sends a batch of EventData objects to a partition. Pub/Sub publishes messages individually (client handles batching internally). Event Hubs partitions map loosely to Pub/Sub ordering keys. Capture (archival) maps to BigQuery subscriptions."

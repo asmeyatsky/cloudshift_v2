@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.kms.decrypt -> gcp.kms.decrypt"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["encryption", "kms", "cloud-kms"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "decrypt"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''kms.KeyManagementServiceClient().decrypt(request={"name": {key_name}, "ciphertext": {ciphertext}})'''
+import_add = ["from google.cloud import kms"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+key_name = "args.KeyId"
+ciphertext = "args.CiphertextBlob"
+
+[pattern.notes]
+description = "AWS KMS decrypt auto-discovers the key from ciphertext metadata. GCP Cloud KMS requires the explicit crypto key resource name. Response format differs: AWS returns Plaintext, GCP returns plaintext in response object."

@@ -1,0 +1,7 @@
+pattern_ids = [
+    "azure.sql.pyodbc.connect -> gcp.cloud_sql.connector",
+]
+expected_confidence = 0.72
+expected_warnings = [
+    "ODBC connection string maps to Cloud SQL instance connection name",
+]

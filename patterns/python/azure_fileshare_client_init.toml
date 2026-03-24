@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.fileshare.ShareServiceClient.from_connection_string -> gcp.storage.Client"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["storage", "fileshare", "gcs", "filestore", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @cls (#eq? @cls "ShareServiceClient")
+      attribute: (identifier) @method (#eq? @method "from_connection_string"))
+    arguments: (argument_list
+      (_) @conn_str) @args)
+'''
+imports = ["azure.storage.fileshare"]
+
+[pattern.transform]
+template = '''storage.Client()  # TODO: Azure Files maps to Filestore (NFS) or GCS (object storage) depending on access pattern'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["from azure.storage.fileshare import ShareServiceClient"]
+
+[pattern.bindings]
+conn_str = "conn_str"
+
+[pattern.notes]
+description = "Azure Files ShareServiceClient uses connection strings. GCS uses Application Default Credentials. For NFS mount semantics, use Filestore; for API-based file operations, use GCS."

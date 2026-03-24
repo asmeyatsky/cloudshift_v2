@@ -1,0 +1,28 @@
+[pattern]
+id = "azure.redis.Redis -> gcp.memorystore.redis"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.90
+tags = ["cache", "redis", "memorystore"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "redis")
+      attribute: (identifier) @method (#eq? @method "Redis"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["redis"]
+
+[pattern.transform]
+template = '''redis.Redis(host=MEMORYSTORE_HOST, port=6379)  # TODO: Memorystore for Redis uses VPC-internal IP, no SSL/password by default; configure via Private Service Access'''
+import_add = ["import redis"]
+import_remove = []
+
+[pattern.notes]
+description = "Azure Cache for Redis uses hostname.redis.cache.windows.net with SSL on port 6380 and access key auth. Memorystore for Redis uses VPC-internal IPs on port 6379 with no auth by default (AUTH optional). IAM-based access and in-transit encryption available on Memorystore."

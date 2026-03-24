@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.rds_data.execute_statement -> gcp.cloud_sql.cursor.execute"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.70
+tags = ["database", "rds", "cloud-sql", "sql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "execute_statement"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''cursor.execute({sql})  # TODO: replace RDS Data API with Cloud SQL Connector + DB-API cursor; resourceArn/secretArn become instance connection name + IAM auth'''
+import_add = ["from google.cloud.sql.connector import Connector"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+sql = "args.sql"
+
+[pattern.notes]
+description = "RDS Data API execute_statement wraps SQL with resourceArn, secretArn, and database params. Cloud SQL uses standard DB-API connections via the Cloud SQL Connector. Parameter formatting differs: RDS uses typed parameter sets, DB-API uses parameterized queries."

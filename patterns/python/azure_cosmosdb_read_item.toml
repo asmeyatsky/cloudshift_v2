@@ -1,0 +1,31 @@
+[pattern]
+id = "azure.cosmosdb.read_item -> gcp.firestore.document.get"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.88
+tags = ["database", "cosmosdb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "read_item"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.cosmos"]
+
+[pattern.transform]
+template = '''firestore.Client().collection(COLLECTION).document({item_id}).get()'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["from azure.cosmos import CosmosClient"]
+
+[pattern.bindings]
+item_id = "args.item"
+
+[pattern.notes]
+description = "Cosmos DB read_item uses item ID and partition key. Firestore get() uses document reference path. Cosmos DB partition keys map to Firestore collection group structure. Response format differs: Cosmos returns dict, Firestore returns DocumentSnapshot."

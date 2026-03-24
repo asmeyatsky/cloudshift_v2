@@ -1,0 +1,24 @@
+[pattern]
+id = "azure.search.SearchClient -> gcp.discoveryengine.SearchServiceClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.70
+tags = ["search", "ai-search", "discovery-engine", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "SearchClient")
+    arguments: (argument_list
+      (_) @endpoint) @args)
+'''
+imports = ["azure.search.documents"]
+
+[pattern.transform]
+template = '''discoveryengine.SearchServiceClient()  # TODO: Azure AI Search index maps to Vertex AI Search datastore; configure serving config and search app'''
+import_add = ["from google.cloud import discoveryengine_v1 as discoveryengine"]
+import_remove = ["from azure.search.documents import SearchClient", "from azure.core.credentials import AzureKeyCredential"]
+
+[pattern.notes]
+description = "Azure AI Search (formerly Cognitive Search) uses endpoint + API key. GCP Vertex AI Search (Discovery Engine) uses ADC. Index schema maps to datastore schema; skillsets map to document processing pipelines."

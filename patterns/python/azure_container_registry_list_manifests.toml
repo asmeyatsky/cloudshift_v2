@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.containerregistry.list_manifest_properties -> gcp.artifactregistry.list_docker_images"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["containers", "acr", "artifact-registry"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "list_manifest_properties"))
+    arguments: (argument_list
+      (_) @repo_name) @args)
+'''
+imports = ["azure.containerregistry"]
+
+[pattern.transform]
+template = '''artifactregistry.ArtifactRegistryClient().list_docker_images(parent=f"projects/PROJECT_ID/locations/LOCATION/repositories/{repo_name}")'''
+import_add = ["from google.cloud import artifactregistry_v1 as artifactregistry"]
+import_remove = ["from azure.containerregistry import ContainerRegistryClient"]
+
+[pattern.bindings]
+repo_name = "repo_name"
+
+[pattern.notes]
+description = "ACR list_manifest_properties lists image manifests by repository name. Artifact Registry list_docker_images lists images by repository resource path. Manifest digest and tag formats are OCI-compatible across both."

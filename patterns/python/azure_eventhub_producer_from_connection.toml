@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.eventhub.EventHubProducerClient.from_connection_string -> gcp.pubsub.PublisherClient"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.84
+tags = ["messaging", "eventhub", "pubsub", "streaming", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @cls (#eq? @cls "EventHubProducerClient")
+      attribute: (identifier) @method (#eq? @method "from_connection_string"))
+    arguments: (argument_list
+      (_) @conn_str) @args)
+'''
+imports = ["azure.eventhub"]
+
+[pattern.transform]
+template = '''pubsub_v1.PublisherClient()'''
+import_add = ["from google.cloud import pubsub_v1"]
+import_remove = ["from azure.eventhub import EventHubProducerClient", "from azure.eventhub import EventData"]
+
+[pattern.bindings]
+conn_str = "conn_str"
+
+[pattern.notes]
+description = "Event Hubs uses connection strings for auth. Pub/Sub uses Application Default Credentials. Event hub name maps to Pub/Sub topic path (projects/PROJECT/topics/TOPIC)."

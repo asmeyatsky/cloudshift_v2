@@ -1,0 +1,8 @@
+pattern_ids = [
+    "azure.cosmosdb.read_item -> gcp.firestore.document.get",
+    "azure.cosmosdb.upsert_item -> gcp.firestore.document.set",
+]
+expected_confidence = 0.88
+expected_warnings = [
+    "Cosmos DB partition keys map to Firestore collection group structure",
+]

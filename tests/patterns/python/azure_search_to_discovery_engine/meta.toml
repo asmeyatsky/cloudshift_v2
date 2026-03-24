@@ -1,0 +1,8 @@
+pattern_ids = [
+    "azure.search.SearchClient -> gcp.discoveryengine.SearchServiceClient",
+    "azure.search.search -> gcp.discoveryengine.search",
+]
+expected_confidence = 0.69
+expected_warnings = [
+    "Azure AI Search index maps to Vertex AI Search datastore",
+]

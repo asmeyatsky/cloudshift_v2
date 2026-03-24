@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.kms -> gcp.kms_v1.KeyManagementServiceClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.88
+tags = ["encryption", "kms", "cloud-kms", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "kms"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''kms.KeyManagementServiceClient()'''
+import_add = ["from google.cloud import kms"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Replaces boto3.client('kms') with Cloud KMS client. AWS KMS uses key aliases and ARNs; GCP Cloud KMS uses key resource paths (projects/*/locations/*/keyRings/*/cryptoKeys/*)."

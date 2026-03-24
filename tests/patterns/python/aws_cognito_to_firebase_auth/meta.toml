@@ -1,0 +1,9 @@
+pattern_ids = [
+    "aws.boto3.client.cognito_idp -> gcp.identity_platform.Client",
+    "aws.cognito.admin_get_user -> gcp.firebase_auth.get_user",
+    "aws.cognito.admin_set_user_password -> gcp.firebase_auth.update_user",
+]
+expected_confidence = 0.80
+expected_warnings = [
+    "Cognito User Pool ID maps to Firebase Auth / Identity Platform tenant",
+]

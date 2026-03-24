@@ -1,0 +1,33 @@
+[pattern]
+id = "azure.monitor.query_resource -> gcp.monitoring.query_time_series"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.76
+tags = ["monitoring", "metrics", "azure-monitor", "cloud-monitoring"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "query_resource"))
+    arguments: (argument_list
+      (_) @resource_id
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.monitor.query"]
+
+[pattern.transform]
+template = '''monitoring_v3.MetricServiceClient().list_time_series(request={"name": f"projects/{PROJECT_ID}", "filter": f'metric.type="{metric_name}"', "interval": {timespan}})'''
+import_add = ["from google.cloud import monitoring_v3"]
+import_remove = ["from azure.monitor.query import MetricsQueryClient", "from azure.identity import DefaultAzureCredential"]
+
+[pattern.bindings]
+metric_name = "args.metric_names"
+timespan = "args.timespan"
+
+[pattern.notes]
+description = "Azure Monitor queries metrics by resource ID and metric names. Cloud Monitoring uses MQL or filter-based queries on project scope. Metric names differ across providers (CpuPercentage vs compute.googleapis.com/instance/cpu/utilization). Timespan formats also differ."

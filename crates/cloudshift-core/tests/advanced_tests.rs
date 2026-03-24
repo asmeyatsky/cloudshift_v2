@@ -1892,3 +1892,374 @@ fn test_hcl_sample_file_graceful_handling() {
     // No panic = success. Matches may or may not be empty depending
     // on tree-sitter HCL grammar compatibility.
 }
+
+// ===========================================================================
+// Category 9: New demo-coverage pattern tests (KMS, RDS, SSM, Cognito, etc.)
+// ===========================================================================
+
+#[test]
+fn test_aws_kms_pattern_matching() {
+    let source = br#"import boto3
+
+kms = boto3.client('kms')
+
+def encrypt_data(plaintext: bytes):
+    response = kms.encrypt(KeyId='alias/my-key', Plaintext=plaintext)
+    return response['CiphertextBlob']
+
+def decrypt_data(ciphertext: bytes):
+    response = kms.decrypt(CiphertextBlob=ciphertext)
+    return response['Plaintext']
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Aws);
+    assert_patterns_present(&matches, &["kms"]);
+    assert!(
+        matches.len() >= 2,
+        "Expected at least 2 KMS pattern matches (client init + encrypt or decrypt), got {}",
+        matches.len()
+    );
+    let has_cloud_kms_import = matches
+        .iter()
+        .any(|m| m.import_add.iter().any(|i| i.contains("kms")));
+    assert!(has_cloud_kms_import, "Expected Cloud KMS import addition");
+}
+
+#[test]
+fn test_aws_rds_data_pattern_matching() {
+    let source = br#"import boto3
+
+rds = boto3.client('rds-data')
+
+def run_query(sql):
+    return rds.execute_statement(
+        resourceArn='arn:aws:rds:us-east-1:123:cluster:mydb',
+        secretArn='arn:aws:secretsmanager:us-east-1:123:secret:rds',
+        database='app',
+        sql=sql,
+    )
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Aws);
+    assert_patterns_present(&matches, &["rds_data", "execute_statement"]);
+    assert!(
+        matches.len() >= 2,
+        "Expected at least 2 RDS Data pattern matches, got {}",
+        matches.len()
+    );
+    let has_cloud_sql_import = matches.iter().any(|m| {
+        m.import_add
+            .iter()
+            .any(|i| i.contains("cloud.sql.connector") || i.contains("Connector"))
+    });
+    assert!(
+        has_cloud_sql_import,
+        "Expected Cloud SQL Connector import addition"
+    );
+}
+
+#[test]
+fn test_aws_ssm_pattern_matching() {
+    let source = br#"import boto3
+
+ssm = boto3.client('ssm')
+
+def get_param(name):
+    r = ssm.get_parameter(Name=name, WithDecryption=True)
+    return r['Parameter']['Value']
+
+def put_param(name, value):
+    ssm.put_parameter(Name=name, Value=value, Type='SecureString', Overwrite=True)
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Aws);
+    assert_patterns_present(&matches, &["ssm", "get_parameter"]);
+    assert!(
+        matches.len() >= 2,
+        "Expected at least 2 SSM pattern matches (client init + get/put), got {}",
+        matches.len()
+    );
+    let has_secret_manager_import = matches
+        .iter()
+        .any(|m| m.import_add.iter().any(|i| i.contains("secretmanager")));
+    assert!(
+        has_secret_manager_import,
+        "Expected Secret Manager import addition"
+    );
+}
+
+#[test]
+fn test_aws_cognito_pattern_matching() {
+    let source = br#"import boto3
+
+cognito = boto3.client('cognito-idp')
+
+def get_user(username):
+    return cognito.admin_get_user(UserPoolId='pool', Username=username)
+
+def set_password(username, password):
+    cognito.admin_set_user_password(
+        UserPoolId='pool', Username=username, Password=password, Permanent=True
+    )
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Aws);
+    assert_patterns_present(&matches, &["cognito"]);
+    assert!(
+        matches.len() >= 2,
+        "Expected at least 2 Cognito pattern matches (client init + admin calls), got {}",
+        matches.len()
+    );
+    let has_firebase_import = matches.iter().any(|m| {
+        m.import_add
+            .iter()
+            .any(|i| i.contains("firebase") || i.contains("auth"))
+    });
+    assert!(
+        has_firebase_import,
+        "Expected Firebase Auth import addition"
+    );
+}
+
+#[test]
+fn test_azure_cosmosdb_read_upsert_pattern_matching() {
+    let source = br#"from azure.cosmos import CosmosClient
+
+client = CosmosClient(url, credential=key)
+db = client.get_database_client("app")
+container = db.get_container_client("users")
+
+def get_user(user_id):
+    return container.read_item(item=user_id, partition_key=user_id)
+
+def upsert_user(doc):
+    container.upsert_item(doc)
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Azure);
+    assert_patterns_present(&matches, &["cosmosdb"]);
+    assert!(
+        matches.len() >= 1,
+        "Expected at least 1 Cosmos DB pattern match, got {}",
+        matches.len()
+    );
+    let has_firestore_import = matches
+        .iter()
+        .any(|m| m.import_add.iter().any(|i| i.contains("firestore")));
+    assert!(
+        has_firestore_import,
+        "Expected Firestore import addition"
+    );
+}
+
+#[test]
+fn test_azure_sql_pyodbc_pattern_matching() {
+    let source = br#"import pyodbc
+
+conn_str = "Driver={ODBC Driver 18};Server=myserver.database.windows.net;Database=mydb"
+
+def fetch_users():
+    with pyodbc.connect(conn_str) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM users")
+        return cur.fetchall()
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Azure);
+    assert_patterns_present(&matches, &["pyodbc"]);
+    assert!(
+        matches.len() >= 1,
+        "Expected at least 1 pyodbc pattern match, got {}",
+        matches.len()
+    );
+    let has_cloud_sql_import = matches
+        .iter()
+        .any(|m| m.import_add.iter().any(|i| i.contains("Connector")));
+    assert!(
+        has_cloud_sql_import,
+        "Expected Cloud SQL Connector import addition"
+    );
+}
+
+#[test]
+fn test_azure_eventhub_pattern_matching() {
+    let source = br#"from azure.eventhub import EventHubProducerClient, EventData
+
+conn_str = "Endpoint=sb://..."
+
+def send_events(events):
+    producer = EventHubProducerClient.from_connection_string(conn_str, eventhub_name="telemetry")
+    with producer:
+        batch = producer.create_batch()
+        for e in events:
+            batch.add(EventData(e))
+        producer.send_batch(batch)
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Azure);
+    assert_patterns_present(&matches, &["eventhub"]);
+    assert!(
+        matches.len() >= 1,
+        "Expected at least 1 Event Hubs pattern match, got {}",
+        matches.len()
+    );
+    let has_pubsub_import = matches
+        .iter()
+        .any(|m| m.import_add.iter().any(|i| i.contains("pubsub")));
+    assert!(has_pubsub_import, "Expected Pub/Sub import addition");
+}
+
+#[test]
+fn test_azure_redis_pattern_matching() {
+    let source = br#"import redis
+
+r = redis.Redis(host='mycache.redis.cache.windows.net', port=6380, password=key, ssl=True)
+
+def cache_get(k):
+    return r.get(k)
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Azure);
+    assert_patterns_present(&matches, &["redis"]);
+    assert!(
+        matches.len() >= 1,
+        "Expected at least 1 Redis pattern match, got {}",
+        matches.len()
+    );
+}
+
+#[test]
+fn test_azure_search_pattern_matching() {
+    let source = br#"from azure.search.documents import SearchClient
+from azure.core.credentials import AzureKeyCredential
+
+client = SearchClient("https://mysearch.search.windows.net", "products", AzureKeyCredential(key))
+
+def search_products(q):
+    return list(client.search(search_text=q, top=20))
+"#;
+
+    let matches = match_patterns_on_source(source, Language::Python, SourceCloud::Azure);
+    assert_patterns_present(&matches, &["search"]);
+    assert!(
+        matches.len() >= 1,
+        "Expected at least 1 AI Search pattern match, got {}",
+        matches.len()
+    );
+    let has_discovery_import = matches
+        .iter()
+        .any(|m| m.import_add.iter().any(|i| i.contains("discoveryengine")));
+    assert!(
+        has_discovery_import,
+        "Expected Discovery Engine import addition"
+    );
+}
+
+// ===========================================================================
+// Category 10: Regression transforms on new fixtures
+// ===========================================================================
+
+#[test]
+fn regression_transform_kms_fixture_produces_cloud_kms() {
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("set cwd");
+    let fixture_path = root.join("tests/patterns/python/aws_kms_to_cloud_kms/before.py");
+    let config = default_config();
+    let result = transform_file(&fixture_path.to_string_lossy(), &config).expect("transform");
+    assert!(
+        result.pattern_count() > 0,
+        "Expected at least one KMS pattern match"
+    );
+    let out = &result.transformed_source;
+    assert!(
+        out.contains("kms") || out.contains("KeyManagement"),
+        "Output should contain Cloud KMS reference, got:\n{}",
+        out
+    );
+}
+
+#[test]
+fn regression_transform_ssm_fixture_produces_secret_manager() {
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("set cwd");
+    let fixture_path = root.join("tests/patterns/python/aws_ssm_to_secret_manager/before.py");
+    let config = default_config();
+    let result = transform_file(&fixture_path.to_string_lossy(), &config).expect("transform");
+    assert!(
+        result.pattern_count() > 0,
+        "Expected at least one SSM pattern match"
+    );
+    let out = &result.transformed_source;
+    assert!(
+        out.contains("secretmanager") || out.contains("SecretManager"),
+        "Output should contain Secret Manager reference, got:\n{}",
+        out
+    );
+}
+
+#[test]
+fn regression_transform_cognito_fixture_produces_firebase() {
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("set cwd");
+    let fixture_path = root.join("tests/patterns/python/aws_cognito_to_firebase_auth/before.py");
+    let config = default_config();
+    let result = transform_file(&fixture_path.to_string_lossy(), &config).expect("transform");
+    assert!(
+        result.pattern_count() > 0,
+        "Expected at least one Cognito pattern match"
+    );
+    let out = &result.transformed_source;
+    assert!(
+        out.contains("firebase") || out.contains("auth"),
+        "Output should contain Firebase Auth reference, got:\n{}",
+        out
+    );
+}
+
+#[test]
+fn regression_transform_azure_cosmosdb_fixture_produces_firestore() {
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("set cwd");
+    let fixture_path = root.join("tests/patterns/python/azure_cosmosdb_to_firestore/before.py");
+    let config = TransformConfig {
+        source_cloud: SourceCloud::Azure,
+        catalogue_path: default_config().catalogue_path,
+        threshold: 0.0,
+        ..Default::default()
+    };
+    let result = transform_file(&fixture_path.to_string_lossy(), &config).expect("transform");
+    assert!(
+        result.pattern_count() > 0,
+        "Expected at least one Cosmos DB pattern match"
+    );
+    let out = &result.transformed_source;
+    assert!(
+        out.contains("firestore"),
+        "Output should contain Firestore reference, got:\n{}",
+        out
+    );
+}
+
+#[test]
+fn regression_transform_azure_eventhub_fixture_produces_pubsub() {
+    let root = workspace_root();
+    std::env::set_current_dir(&root).expect("set cwd");
+    let fixture_path = root.join("tests/patterns/python/azure_eventhub_to_pubsub/before.py");
+    let config = TransformConfig {
+        source_cloud: SourceCloud::Azure,
+        catalogue_path: default_config().catalogue_path,
+        threshold: 0.0,
+        ..Default::default()
+    };
+    let result = transform_file(&fixture_path.to_string_lossy(), &config).expect("transform");
+    assert!(
+        result.pattern_count() > 0,
+        "Expected at least one Event Hubs pattern match"
+    );
+    let out = &result.transformed_source;
+    assert!(
+        out.contains("pubsub"),
+        "Output should contain Pub/Sub reference, got:\n{}",
+        out
+    );
+}

@@ -527,8 +527,8 @@ fn test_all_fixtures_have_required_files() {
     }
 
     assert!(
-        fixture_count >= 10,
-        "Expected at least 10 test fixtures, found {fixture_count}"
+        fixture_count >= 19,
+        "Expected at least 19 test fixtures, found {fixture_count}"
     );
 }
 

@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.kms.encrypt -> gcp.kms.encrypt"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.85
+tags = ["encryption", "kms", "cloud-kms"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "encrypt"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''kms.KeyManagementServiceClient().encrypt(request={"name": {key_id}, "plaintext": {plaintext}})'''
+import_add = ["from google.cloud import kms"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+key_id = "args.KeyId"
+plaintext = "args.Plaintext"
+
+[pattern.notes]
+description = "AWS KMS encrypt uses KeyId (alias or ARN) and Plaintext bytes. GCP Cloud KMS encrypt requires full crypto key resource name and plaintext bytes. Response wraps ciphertext differently: AWS returns CiphertextBlob, GCP returns ciphertext in response object."

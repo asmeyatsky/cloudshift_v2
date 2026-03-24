@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.rds_data -> gcp.cloud_sql.connector"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.72
+tags = ["database", "rds", "cloud-sql", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "rds-data"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''Connector()  # TODO: use connector.connect(INSTANCE_CONNECTION_NAME, "pg8000", user=USER, password=PASS, db=DB)'''
+import_add = ["from google.cloud.sql.connector import Connector"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "RDS Data API provides HTTP-based SQL access. GCP Cloud SQL uses the Cloud SQL Python Connector or direct socket connections. The Data API's execute_statement maps to standard DB-API cursor.execute(). ARN-based auth becomes IAM database authentication."

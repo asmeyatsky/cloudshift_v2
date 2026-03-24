@@ -1,0 +1,32 @@
+[pattern]
+id = "aws.ssm.put_parameter -> gcp.secretmanager.add_secret_version"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["config", "ssm", "parameter-store", "secret-manager"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "put_parameter"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''secretmanager.SecretManagerServiceClient().add_secret_version(parent=f"projects/PROJECT_ID/secrets/{name}", payload={"data": {value}.encode("utf-8")})'''
+import_add = ["from google.cloud import secretmanager"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+name = "args.Name"
+value = "args.Value"
+
+[pattern.notes]
+description = "SSM put_parameter with Overwrite=True creates or updates. Secret Manager separates secret creation (create_secret) from version addition (add_secret_version). Type=SecureString is implicit in Secret Manager — all values are encrypted."

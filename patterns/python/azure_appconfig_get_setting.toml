@@ -1,0 +1,31 @@
+[pattern]
+id = "azure.appconfiguration.get_configuration_setting -> gcp.runtimeconfig.get_variable"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.72
+tags = ["config", "app-configuration", "runtime-config"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "get_configuration_setting"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["azure.appconfiguration"]
+
+[pattern.transform]
+template = '''secretmanager.SecretManagerServiceClient().access_secret_version(name=f"projects/PROJECT_ID/secrets/{key}/versions/latest")  # TODO: for non-secret config, consider GCP Runtime Configurator, Firestore, or environment variables'''
+import_add = ["from google.cloud import secretmanager"]
+import_remove = ["from azure.appconfiguration import AzureAppConfigurationClient"]
+
+[pattern.bindings]
+key = "args.key"
+
+[pattern.notes]
+description = "Azure App Configuration provides centralized key-value config with labels and feature flags. GCP has no direct equivalent — Secret Manager for sensitive values, Firestore or parameterized YAML for app config, and Firebase Remote Config for feature flags."

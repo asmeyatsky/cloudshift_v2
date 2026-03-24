@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.cognito_idp -> gcp.identity_platform.Client"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["auth", "cognito", "identity-platform", "firebase-auth", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "cognito-idp"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''auth  # firebase_admin.auth module; call initialize_app() first'''
+import_add = ["import firebase_admin", "from firebase_admin import auth"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Cognito User Pools map to Firebase Auth / Identity Platform. Cognito uses client('cognito-idp') while Firebase uses firebase_admin.auth module functions. User pool IDs map to Identity Platform tenant IDs."

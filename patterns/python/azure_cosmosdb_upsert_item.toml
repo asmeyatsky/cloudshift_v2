@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.cosmosdb.upsert_item -> gcp.firestore.document.set"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.88
+tags = ["database", "cosmosdb", "firestore", "nosql"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "upsert_item"))
+    arguments: (argument_list
+      (_) @doc) @args)
+'''
+imports = ["azure.cosmos"]
+
+[pattern.transform]
+template = '''firestore.Client().collection(COLLECTION).document({doc}["id"]).set({doc})'''
+import_add = ["from google.cloud import firestore"]
+import_remove = ["from azure.cosmos import CosmosClient"]
+
+[pattern.bindings]
+doc = "doc"
+
+[pattern.notes]
+description = "Cosmos DB upsert_item creates or replaces a document. Firestore set() with merge=False (default) replaces entirely; use set(merge=True) for partial updates. Cosmos DB's automatic indexing differs from Firestore's composite index requirements."

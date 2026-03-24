@@ -1,0 +1,9 @@
+pattern_ids = [
+    "aws.boto3.client.ssm -> gcp.secretmanager.SecretManagerServiceClient",
+    "aws.ssm.get_parameter -> gcp.secretmanager.access_secret_version",
+    "aws.ssm.put_parameter -> gcp.secretmanager.add_secret_version",
+]
+expected_confidence = 0.80
+expected_warnings = [
+    "SSM Parameter Store hierarchies map to individual GCP secrets with naming conventions",
+]

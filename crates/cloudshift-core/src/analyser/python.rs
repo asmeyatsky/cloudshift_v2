@@ -15,15 +15,23 @@ const AWS_IMPORTS: &[&str] = &["boto3", "botocore", "moto", "aws_cdk", "awscli"]
 /// Azure Python SDK import patterns we look for.
 const AZURE_IMPORTS: &[&str] = &[
     "azure.storage.blob",
+    "azure.storage.fileshare",
+    "azure.storage.queue",
     "azure.identity",
     "azure.keyvault",
     "azure.cosmos",
     "azure.servicebus",
+    "azure.eventhub",
     "azure.ai",
     "azure.cognitiveservices",
     "azure.functions",
     "azure.mgmt",
     "azure.core",
+    "azure.data.tables",
+    "azure.search.documents",
+    "azure.appconfiguration",
+    "azure.containerregistry",
+    "azure.monitor",
 ];
 
 /// AWS service client method calls we detect.
@@ -310,9 +318,17 @@ const AZURE_SDK_METHODS: &[&str] = &[
     "set_secret",
     "create_item",
     "read_item",
+    "upsert_item",
     "query_items",
     "send_messages",
     "receive_messages",
+    "send_batch",
+    "create_batch",
+    "from_connection_string",
+    "upload_file",
+    "get_configuration_setting",
+    "list_manifest_properties",
+    "query_resource",
 ];
 
 /// Detect Azure SDK import statements.

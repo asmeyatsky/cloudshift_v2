@@ -1,0 +1,29 @@
+[pattern]
+id = "azure.fileshare.upload_file -> gcp.storage.blob.upload_from_string"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["storage", "fileshare", "gcs", "filestore"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "upload_file"))
+    arguments: (argument_list
+      (_) @data) @args)
+'''
+imports = ["azure.storage.fileshare"]
+
+[pattern.transform]
+template = '''storage.Client().bucket(BUCKET_NAME).blob(FILE_PATH).upload_from_string({data})  # TODO: for NFS-like access, use Filestore instead of GCS'''
+import_add = ["from google.cloud import storage"]
+import_remove = ["from azure.storage.fileshare import ShareServiceClient"]
+
+[pattern.bindings]
+data = "data"
+
+[pattern.notes]
+description = "Azure Files provides SMB/NFS file shares. GCP Filestore provides NFS shares; GCS provides object storage. For lift-and-shift of file share workloads, Filestore is the closer match. For object storage patterns, use GCS."

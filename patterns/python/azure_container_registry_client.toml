@@ -1,0 +1,24 @@
+[pattern]
+id = "azure.containerregistry.ContainerRegistryClient -> gcp.artifactregistry.Client"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.80
+tags = ["containers", "acr", "artifact-registry", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "ContainerRegistryClient")
+    arguments: (argument_list
+      (_) @endpoint) @args)
+'''
+imports = ["azure.containerregistry"]
+
+[pattern.transform]
+template = '''artifactregistry.ArtifactRegistryClient()  # TODO: ACR endpoint maps to Artifact Registry repository path (projects/PROJECT/locations/LOCATION/repositories/REPO)'''
+import_add = ["from google.cloud import artifactregistry_v1 as artifactregistry"]
+import_remove = ["from azure.containerregistry import ContainerRegistryClient", "from azure.identity import DefaultAzureCredential"]
+
+[pattern.notes]
+description = "Azure Container Registry uses registry endpoints (*.azurecr.io) with DefaultAzureCredential. GCP Artifact Registry uses project-based paths with ADC. ACR tasks map to Cloud Build triggers. ACR geo-replication maps to multi-region Artifact Registry repos."

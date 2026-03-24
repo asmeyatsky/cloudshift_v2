@@ -1,0 +1,8 @@
+pattern_ids = [
+    "aws.boto3.client.rds_data -> gcp.cloud_sql.connector",
+    "aws.rds_data.execute_statement -> gcp.cloud_sql.cursor.execute",
+]
+expected_confidence = 0.71
+expected_warnings = [
+    "RDS Data API ARN-based auth maps to Cloud SQL IAM database authentication",
+]

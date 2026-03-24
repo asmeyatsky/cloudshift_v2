@@ -1,0 +1,7 @@
+pattern_ids = [
+    "azure.redis.Redis -> gcp.memorystore.redis",
+]
+expected_confidence = 0.90
+expected_warnings = [
+    "Memorystore uses VPC-internal IP with no SSL/password by default",
+]

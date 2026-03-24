@@ -1,0 +1,7 @@
+pattern_ids = [
+    "aws.boto3.client.kms -> gcp.kms_v1.KeyManagementServiceClient",
+    "aws.kms.encrypt -> gcp.kms.encrypt",
+    "aws.kms.decrypt -> gcp.kms.decrypt",
+]
+expected_confidence = 0.86
+expected_warnings = []

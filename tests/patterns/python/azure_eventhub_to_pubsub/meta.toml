@@ -1,0 +1,8 @@
+pattern_ids = [
+    "azure.eventhub.EventHubProducerClient.from_connection_string -> gcp.pubsub.PublisherClient",
+    "azure.eventhub.send_batch -> gcp.pubsub.publish",
+]
+expected_confidence = 0.84
+expected_warnings = [
+    "Event Hubs partitions map loosely to Pub/Sub ordering keys",
+]

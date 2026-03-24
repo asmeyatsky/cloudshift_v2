@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.ssm -> gcp.secretmanager.SecretManagerServiceClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["config", "ssm", "parameter-store", "secret-manager", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "ssm"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''secretmanager.SecretManagerServiceClient()'''
+import_add = ["from google.cloud import secretmanager"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "SSM Parameter Store maps to Secret Manager for SecureString params and to Runtime Configurator or environment variables for plain config. GCP Secret Manager uses project-based resource paths instead of parameter name hierarchies."

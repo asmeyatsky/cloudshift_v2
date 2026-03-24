@@ -1,0 +1,31 @@
+[pattern]
+id = "aws.cognito.admin_get_user -> gcp.firebase_auth.get_user"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["auth", "cognito", "identity-platform", "firebase-auth"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @client
+      attribute: (identifier) @method (#eq? @method "admin_get_user"))
+    arguments: (argument_list
+      (keyword_argument
+        name: (identifier) @param_name
+        value: (_) @param_value)*) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''auth.get_user_by_email({username})  # TODO: if username is not email, use auth.get_user(uid) instead'''
+import_add = ["import firebase_admin", "from firebase_admin import auth"]
+import_remove = ["import boto3"]
+
+[pattern.bindings]
+username = "args.Username"
+
+[pattern.notes]
+description = "Cognito admin_get_user returns user attributes by username. Firebase Auth get_user returns UserRecord by UID; use get_user_by_email for email-based lookup. Cognito user attributes map to Firebase custom claims and provider data."

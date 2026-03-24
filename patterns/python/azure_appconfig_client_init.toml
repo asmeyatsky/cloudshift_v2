@@ -1,0 +1,24 @@
+[pattern]
+id = "azure.appconfiguration.AzureAppConfigurationClient -> gcp.secretmanager.Client"
+source = "azure"
+target = "gcp"
+language = "python"
+confidence = 0.72
+tags = ["config", "app-configuration", "runtime-config", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (identifier) @ctor (#eq? @ctor "AzureAppConfigurationClient")
+    arguments: (argument_list
+      (_) @endpoint) @args)
+'''
+imports = ["azure.appconfiguration"]
+
+[pattern.transform]
+template = '''secretmanager.SecretManagerServiceClient()  # TODO: App Configuration has no direct GCP equivalent — use Secret Manager, Firestore, or env vars'''
+import_add = ["from google.cloud import secretmanager"]
+import_remove = ["from azure.appconfiguration import AzureAppConfigurationClient", "from azure.core.credentials import AzureKeyCredential"]
+
+[pattern.notes]
+description = "Azure App Configuration client accepts endpoint + credential. GCP Secret Manager uses ADC. For non-secret config, consider Firestore, Runtime Configurator, or environment variables."
