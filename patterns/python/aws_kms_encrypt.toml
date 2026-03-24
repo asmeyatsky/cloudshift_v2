@@ -20,7 +20,7 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''kms.KeyManagementServiceClient().encrypt(request={"name": KEY_NAME, "plaintext": plaintext})'''
+template = '''kms_client.encrypt(request={"name": KEY_NAME, "plaintext": plaintext})'''
 import_add = ["from google.cloud import kms"]
 import_remove = ["import boto3"]
 

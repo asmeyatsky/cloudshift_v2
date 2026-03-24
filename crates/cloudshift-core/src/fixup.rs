@@ -201,12 +201,40 @@ fn apply_python_fixups(source: &str) -> String {
     // and rewrite decorated handlers.
     result = fix_azure_functions_to_cloud_functions(&result);
 
+    // === Leftover Azure SDK import removal ===
+    // After pattern transforms replace Azure calls with GCP equivalents, leftover
+    // `from azure.xxx import ...` lines may remain. Remove them.
+    result = remove_leftover_azure_imports(&result);
+
     // === DynamoDB → Firestore semantic fixups ===
     // After pattern transforms replace boto3.resource('dynamodb') → firestore.Client(),
     // the surrounding DynamoDB idioms need rewriting to Firestore equivalents.
     if result.contains("firestore") {
         result = fix_dynamodb_to_firestore_semantics(&result);
     }
+
+    // === Azure client init leftover cleanup ===
+    // After Azure method-call patterns fire (upload_blob → upload_from_string, etc.),
+    // the client initialization lines (BlobServiceClient.from_connection_string, etc.)
+    // remain as Azure code. This fixup removes or replaces them when google.cloud
+    // imports are present, preventing broken "cloud cocktails."
+    result = fix_azure_client_init_leftovers(&result);
+
+    // === AWS response access pattern fixups ===
+    // After patterns transform API calls (e.g. Secrets Manager, KMS, Pub/Sub, Compute),
+    // the surrounding code still accesses the response using AWS dict-key patterns
+    // that don't exist in the GCP SDK. Rewrite these to GCP equivalents.
+    result = fix_aws_response_patterns(&result);
+
+    // === KMS variable shadowing fixup ===
+    // `kms = kms.KeyManagementServiceClient()` shadows the module import.
+    // Rename the variable to `kms_client` throughout.
+    result = fix_kms_variable_shadowing(&result);
+
+    // === AWS → GCP client variable renaming ===
+    // After patterns assign GCP clients to AWS-named variables
+    // (e.g. `sns = pubsub_v1.PublisherClient()`), rename to idiomatic GCP names.
+    result = fix_aws_variable_names(&result);
 
     // === Unresolved binding cleanup ===
     // Replace /* unresolved: ... */ with TODO comments
@@ -579,6 +607,7 @@ fn fix_azure_functions_to_cloud_functions(source: &str) -> String {
     // Rewrite typed Azure Functions params: def xxx(msg: func.ServiceBusMessage):
     // → @functions_framework.http\ndef xxx(request):
     let mut lines: Vec<String> = result.lines().map(String::from).collect();
+    let mut old_param_names: Vec<String> = Vec::new();
     let mut i = 0;
     while i < lines.len() {
         let trimmed = lines[i].trim_start().to_string();
@@ -588,6 +617,12 @@ fn fix_azure_functions_to_cloud_functions(source: &str) -> String {
                     let params = trimmed[paren_start + 1..paren_end].trim().to_string();
                     // Match: single param with func.XxxMessage type annotation
                     if params.contains("func.") || params.contains("azure.functions") {
+                        // Extract old parameter name (before the colon/type annotation)
+                        let old_param = params.split(':').next().unwrap_or("").trim().to_string();
+                        if !old_param.is_empty() && old_param != "request" {
+                            old_param_names.push(old_param);
+                        }
+
                         let indent_len = lines[i].len() - trimmed.len();
                         let indent = lines[i][..indent_len].to_string();
                         let func_name = trimmed[4..paren_start].trim().to_string();
@@ -613,7 +648,41 @@ fn fix_azure_functions_to_cloud_functions(source: &str) -> String {
         i += 1;
     }
 
-    lines.join("\n")
+    let mut result = lines.join("\n");
+
+    // Replace old Azure parameter body references with Cloud Functions equivalents
+    for old_param in &old_param_names {
+        // msg.get_body().decode() → request.get_json(silent=True)
+        let get_body_decode = format!("{old_param}.get_body().decode()");
+        result = result.replace(&get_body_decode, "request.get_json(silent=True)");
+
+        // msg.get_body() → request.data
+        let get_body = format!("{old_param}.get_body()");
+        result = result.replace(&get_body, "request.data");
+    }
+
+    result
+}
+
+/// Remove leftover `from azure.xxx import ...` lines after pattern transforms
+/// have replaced the Azure API calls with GCP equivalents.
+fn remove_leftover_azure_imports(source: &str) -> String {
+    let lines: Vec<&str> = source.lines().collect();
+    let filtered: Vec<&str> = lines
+        .into_iter()
+        .filter(|l| {
+            let trimmed = l.trim();
+            // Remove `from azure.eventhub import ...`
+            // Remove `from azure.servicebus import ...`
+            if trimmed.starts_with("from azure.eventhub ")
+                || trimmed.starts_with("from azure.servicebus ")
+            {
+                return false;
+            }
+            true
+        })
+        .collect();
+    filtered.join("\n")
 }
 
 /// Rewrite DynamoDB idioms to Firestore equivalents after pattern transforms.
@@ -769,6 +838,222 @@ fn extract_doc_id_from_set_call(line: &str) -> String {
     "DOC_ID".to_string()
 }
 
+/// Remove or replace Azure client initialization leftovers after pattern transforms.
+///
+/// When Azure method-call patterns fire (e.g. `upload_blob` → `upload_from_string`),
+/// the client init lines (`BlobServiceClient.from_connection_string(...)`, etc.) stay
+/// behind because only the *method calls* are matched by tree-sitter patterns.
+/// This fixup cleans them up, but only when google.cloud imports confirm that
+/// pattern transforms actually ran (conservative guard).
+fn fix_azure_client_init_leftovers(source: &str) -> String {
+    // Only act when GCP imports are present (patterns fired).
+    let has_gcp =
+        source.contains("from google.cloud import") || source.contains("from google.cloud.");
+    if !has_gcp {
+        return source.to_string();
+    }
+
+    let lines: Vec<&str> = source.lines().collect();
+    let mut result_lines: Vec<String> = Vec::with_capacity(lines.len());
+
+    for line in &lines {
+        let trimmed = line.trim();
+
+        // ── Remove Azure import lines ──────────────────────────────────
+        // Catches `from azure.storage.blob import ...`, `from azure.identity import ...`,
+        // `import azure.cosmos`, etc. Excludes azure.functions (separate fixup).
+        if (trimmed.starts_with("from azure.") || trimmed.starts_with("import azure."))
+            && !trimmed.contains("azure.functions")
+        {
+            continue;
+        }
+
+        // ── BlobServiceClient.from_connection_string(...) ──────────────
+        // Patterns: assignment or bare call
+        if trimmed.contains("BlobServiceClient.from_connection_string(")
+            || trimmed.contains("BlobServiceClient(")
+        {
+            // Replace with storage.Client() if assigned to a variable
+            if let Some(eq_pos) = trimmed.find('=') {
+                let lhs = trimmed[..eq_pos].trim();
+                if !lhs.contains('(') {
+                    // It's an assignment: var = BlobServiceClient...
+                    let indent = &line[..line.len() - trimmed.len()];
+                    result_lines.push(format!("{indent}{lhs} = storage.Client()"));
+                    continue;
+                }
+            }
+            // Bare call or complex expression — just remove it
+            continue;
+        }
+
+        // ── container = xxx.get_container_client("name") ───────────────
+        if trimmed.contains(".get_container_client(") {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let lhs = trimmed[..eq_pos].trim();
+                if !lhs.contains('(') {
+                    let indent = &line[..line.len() - trimmed.len()];
+                    // Extract the container/bucket name argument
+                    if let Some(arg) = extract_first_call_arg(trimmed, "get_container_client") {
+                        result_lines
+                            .push(format!("{indent}{lhs} = storage.Client().bucket({arg})"));
+                        continue;
+                    }
+                }
+            }
+            // Not an assignment — remove
+            continue;
+        }
+
+        // ── blob = container.get_blob_client(name) ─────────────────────
+        // GCS doesn't need an intermediate blob client; the blob is accessed
+        // inline via bucket.blob(name) in the transformed method calls.
+        if trimmed.contains(".get_blob_client(") {
+            continue;
+        }
+
+        // ── ServiceBusClient.from_connection_string(...) ───────────────
+        if trimmed.contains("ServiceBusClient.from_connection_string(")
+            || trimmed.contains("ServiceBusClient(")
+        {
+            continue;
+        }
+
+        // ── xxx.get_queue_sender(...) / get_queue_receiver(...) ────────
+        if trimmed.contains(".get_queue_sender(") || trimmed.contains(".get_queue_receiver(") {
+            continue;
+        }
+
+        // ── SecretClient(vault_url=..., credential=...) ────────────────
+        if trimmed.contains("SecretClient(") && trimmed.contains("vault_url") {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let lhs = trimmed[..eq_pos].trim();
+                if !lhs.contains('(') {
+                    let indent = &line[..line.len() - trimmed.len()];
+                    result_lines.push(format!(
+                        "{indent}{lhs} = secretmanager.SecretManagerServiceClient()"
+                    ));
+                    continue;
+                }
+            }
+            continue;
+        }
+
+        // ── MetricsQueryClient(DefaultAzureCredential()) ──────────────
+        if trimmed.contains("MetricsQueryClient(") {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let lhs = trimmed[..eq_pos].trim();
+                if !lhs.contains('(') {
+                    let indent = &line[..line.len() - trimmed.len()];
+                    result_lines.push(format!(
+                        "{indent}{lhs} = monitoring_v3.MetricServiceClient()"
+                    ));
+                    continue;
+                }
+            }
+            continue;
+        }
+
+        // ── QueueServiceClient.from_connection_string(...) ─────────────
+        if trimmed.contains("QueueServiceClient.from_connection_string(")
+            || trimmed.contains("QueueServiceClient(")
+        {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let lhs = trimmed[..eq_pos].trim();
+                if !lhs.contains('(') {
+                    let indent = &line[..line.len() - trimmed.len()];
+                    result_lines.push(format!("{indent}{lhs} = pubsub_v1.PublisherClient()"));
+                    continue;
+                }
+            }
+            continue;
+        }
+
+        // ── xxx.get_queue_client("name") ───────────────────────────────
+        if trimmed.contains(".get_queue_client(") {
+            continue;
+        }
+
+        // ── CosmosClient(url, credential=key) ──────────────────────────
+        if trimmed.contains("CosmosClient(") {
+            continue;
+        }
+
+        // ── client.get_database_client("app") ─────────────────────────
+        if trimmed.contains(".get_database_client(") {
+            continue;
+        }
+
+        // ── db.get_container_client("users") (Cosmos, not Blob) ────────
+        // .get_container_client was already handled above for Blob;
+        // if we reach here it means the blob handler didn't catch it
+        // (e.g. no assignment). Already handled — this is a safety net.
+
+        // ── EventHubProducerClient.from_connection_string(...) ─────────
+        if trimmed.contains("EventHubProducerClient.from_connection_string(")
+            || trimmed.contains("EventHubProducerClient(")
+        {
+            continue;
+        }
+
+        // ── DefaultAzureCredential() bare usage ────────────────────────
+        // Sometimes appears as standalone: credential = DefaultAzureCredential()
+        if trimmed.contains("DefaultAzureCredential()") {
+            continue;
+        }
+
+        // ── Fix .value → .payload.data.decode("utf-8") ────────────────
+        // Azure KeyVault returns secret.value; GCP Secret Manager returns
+        // response.payload.data (bytes).
+        if trimmed.contains(".value")
+            && source.contains("secretmanager")
+            && !trimmed.contains(".payload.data")
+        {
+            let fixed = line.replace(".value", ".payload.data.decode(\"utf-8\")");
+            result_lines.push(fixed);
+            continue;
+        }
+
+        result_lines.push(line.to_string());
+    }
+
+    result_lines.join("\n")
+}
+
+/// Extract the first argument from a method call: `obj.method(ARG, ...)` → `ARG`.
+/// Returns the argument including any quotes.
+fn extract_first_call_arg(line: &str, method_name: &str) -> Option<String> {
+    let pattern = format!("{method_name}(");
+    let start = line.find(&pattern)? + pattern.len();
+    let rest = &line[start..];
+    let mut depth = 0;
+    let mut end = 0;
+    for (i, ch) in rest.char_indices() {
+        match ch {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                if depth == 0 {
+                    end = i;
+                    break;
+                }
+                depth -= 1;
+            }
+            ',' if depth == 0 => {
+                end = i;
+                break;
+            }
+            _ => {}
+        }
+    }
+    if end > 0 {
+        Some(rest[..end].trim().to_string())
+    } else {
+        // Single argument with no comma — take everything up to closing paren
+        let close = rest.find(')')?;
+        Some(rest[..close].trim().to_string())
+    }
+}
+
 /// Replace `/* unresolved: ... */` markers with `# TODO: resolve` comments.
 fn fix_unresolved_bindings(source: &str) -> String {
     let mut result = source.to_string();
@@ -814,6 +1099,385 @@ fn find_last_import_position(source: &str) -> Option<usize> {
         pos = next_pos;
     }
     last_import_end
+}
+
+/// Rewrite AWS SDK response access patterns to GCP equivalents.
+///
+/// After patterns transform API calls from AWS to GCP, the code still accesses
+/// the response using AWS dict-key patterns (e.g. `resp['SecretString']`) that
+/// don't exist in GCP responses. This function rewrites those patterns, but
+/// only when the corresponding GCP import is present to avoid false positives.
+fn fix_aws_response_patterns(source: &str) -> String {
+    let mut result = source.to_string();
+
+    // --- Secret Manager patterns ---
+    // Only apply when secretmanager is imported
+    let has_secretmanager = result.contains("secretmanager");
+
+    if has_secretmanager {
+        // resp['SecretString'] → resp.payload.data.decode("utf-8")
+        result = result.replace("['SecretString']", ".payload.data.decode(\"utf-8\")");
+        result = result.replace("[\"SecretString\"]", ".payload.data.decode(\"utf-8\")");
+
+        // resp['SecretBinary'] → resp.payload.data
+        result = result.replace("['SecretBinary']", ".payload.data");
+        result = result.replace("[\"SecretBinary\"]", ".payload.data");
+
+        // r['Parameter']['Value'] → r.payload.data.decode("utf-8")
+        // (SSM GetParameter transformed to Secret Manager)
+        result = result.replace("['Parameter']['Value']", ".payload.data.decode(\"utf-8\")");
+        result = result.replace(
+            "[\"Parameter\"][\"Value\"]",
+            ".payload.data.decode(\"utf-8\")",
+        );
+
+        // .value on Secret Manager response → .payload.data.decode("utf-8")
+        // Only rewrite `.value` when it follows a variable on a line that looks
+        // like a Secret Manager access (heuristic: same line references a
+        // response variable but NOT a dict/attribute that legitimately has `.value`).
+        let lines: Vec<String> = result.lines().map(String::from).collect();
+        let mut new_lines = Vec::with_capacity(lines.len());
+        for line in &lines {
+            let trimmed = line.trim();
+            // Match: xxx.value where xxx is likely a secret response
+            // Guard: don't rewrite .value in dict literals, class defs, or unrelated contexts
+            if trimmed.contains(".value")
+                && !trimmed.contains(".value.")
+                && !trimmed.contains(".values")
+                && !trimmed.starts_with("class ")
+                && !trimmed.starts_with("def ")
+                && !trimmed.contains("# ")
+                && (trimmed.contains("secret")
+                    || trimmed.contains("response")
+                    || trimmed.contains("resp"))
+            {
+                // Replace .value with .payload.data.decode("utf-8") once per line
+                let fixed = line.replacen(".value", ".payload.data.decode(\"utf-8\")", 1);
+                new_lines.push(fixed);
+            } else {
+                new_lines.push(line.clone());
+            }
+        }
+        result = new_lines.join("\n");
+    }
+
+    // --- Cloud KMS patterns ---
+    // Only apply when kms is imported
+    let has_kms =
+        result.contains("from google.cloud import kms") || result.contains("google.cloud.kms");
+
+    if has_kms {
+        // response['CiphertextBlob'] → response.ciphertext
+        result = result.replace("['CiphertextBlob']", ".ciphertext");
+        result = result.replace("[\"CiphertextBlob\"]", ".ciphertext");
+
+        // response['Plaintext'] → response.plaintext
+        result = result.replace("['Plaintext']", ".plaintext");
+        result = result.replace("[\"Plaintext\"]", ".plaintext");
+    }
+
+    // --- Compute Engine patterns ---
+    // Only apply when compute_v1 or compute is imported
+    let has_compute =
+        result.contains("compute_v1") || result.contains("from google.cloud import compute");
+
+    if has_compute {
+        // r['Reservations'] → list(r)
+        // Walk line by line and replace var['Reservations'] with list(var).
+        let lines: Vec<String> = result.lines().map(String::from).collect();
+        let mut new_lines = Vec::with_capacity(lines.len());
+        for line in &lines {
+            let mut fixed = line.clone();
+            for quote in &["'", "\""] {
+                let pattern = format!("[{quote}Reservations{quote}]");
+                if fixed.contains(&pattern) {
+                    if let Some(bracket_pos) = fixed.find(&pattern) {
+                        let before = &fixed[..bracket_pos];
+                        let var_start = before
+                            .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+                            .map(|i| i + 1)
+                            .unwrap_or(0);
+                        let var_name = &fixed[var_start..bracket_pos];
+                        if !var_name.is_empty() {
+                            let old = format!("{var_name}{pattern}");
+                            let new_val = format!("list({var_name})");
+                            fixed = fixed.replace(&old, &new_val);
+                        }
+                    }
+                }
+            }
+            new_lines.push(fixed);
+        }
+        result = new_lines.join("\n");
+    }
+
+    // --- Pub/Sub patterns ---
+    // Only apply when pubsub_v1 or pubsub is imported
+    let has_pubsub =
+        result.contains("pubsub_v1") || result.contains("from google.cloud import pubsub");
+
+    if has_pubsub {
+        // resp.get('Messages', []) → list(resp.received_messages)
+        let lines: Vec<String> = result.lines().map(String::from).collect();
+        let mut new_lines = Vec::with_capacity(lines.len());
+        for line in &lines {
+            let mut fixed = line.clone();
+            for quote in &["'", "\""] {
+                let pattern = format!(".get({quote}Messages{quote}, [])");
+                if fixed.contains(&pattern) {
+                    if let Some(dot_pos) = fixed.find(&pattern) {
+                        let before = &fixed[..dot_pos];
+                        let var_start = before
+                            .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+                            .map(|i| i + 1)
+                            .unwrap_or(0);
+                        let var_name = &fixed[var_start..dot_pos];
+                        if !var_name.is_empty() {
+                            let old = format!("{var_name}{pattern}");
+                            let new_val = format!("list({var_name}.received_messages)");
+                            fixed = fixed.replace(&old, &new_val);
+                        }
+                    }
+                }
+            }
+            new_lines.push(fixed);
+        }
+        result = new_lines.join("\n");
+
+        // response['MessageId'] → response.result()
+        result = result.replace("['MessageId']", ".result()");
+        result = result.replace("[\"MessageId\"]", ".result()");
+    }
+
+    result
+}
+
+/// Fix KMS variable shadowing: `kms = kms.KeyManagementServiceClient()`.
+///
+/// When `from google.cloud import kms` is present and the code assigns
+/// `kms = kms.KeyManagementServiceClient()`, the variable shadows the module.
+/// Rename the variable to `kms_client` throughout.
+fn fix_kms_variable_shadowing(source: &str) -> String {
+    if !source.contains("from google.cloud import kms") {
+        return source.to_string();
+    }
+    if !source.contains("kms = kms.KeyManagementServiceClient()") {
+        return source.to_string();
+    }
+
+    let mut result = source.to_string();
+
+    // Replace the assignment itself
+    result = result.replace(
+        "kms = kms.KeyManagementServiceClient()",
+        "kms_client = kms.KeyManagementServiceClient()",
+    );
+
+    // Replace subsequent uses of `kms.` that refer to the client variable
+    // (not the module). After renaming, module-level uses like `kms.CryptoKey`
+    // should stay, but method calls like `kms.encrypt(`, `kms.decrypt(` should
+    // become `kms_client.encrypt(`, etc.
+    //
+    // Strategy: walk line by line. After the assignment line, replace `kms.`
+    // with `kms_client.` when the token is used as a method call (lower-case
+    // method name after the dot), not a class/type reference (upper-case).
+    let lines: Vec<String> = result.lines().map(String::from).collect();
+    let mut new_lines = Vec::with_capacity(lines.len());
+    let mut past_assignment = false;
+
+    for line in &lines {
+        if line.contains("kms_client = kms.KeyManagementServiceClient()") {
+            past_assignment = true;
+            new_lines.push(line.clone());
+            continue;
+        }
+
+        if past_assignment {
+            let fixed = rename_kms_client_refs(line);
+            new_lines.push(fixed);
+        } else {
+            new_lines.push(line.clone());
+        }
+    }
+
+    new_lines.join("\n")
+}
+
+/// Rename `kms.method(` to `kms_client.method(` where method starts lower-case.
+/// Preserves module-level references like `kms.CryptoKey`, `kms.KeyRing`.
+fn rename_kms_client_refs(line: &str) -> String {
+    let mut result = String::with_capacity(line.len());
+    let mut search_from = 0;
+    let bytes = line.as_bytes();
+
+    while search_from < bytes.len() {
+        if let Some(pos) = line[search_from..].find("kms.") {
+            let abs_pos = search_from + pos;
+            // Check word boundary before
+            let before_ok = abs_pos == 0
+                || (!bytes[abs_pos - 1].is_ascii_alphanumeric() && bytes[abs_pos - 1] != b'_');
+            // Check the character after 'kms.' — lowercase = method call on client
+            let after_dot = abs_pos + 4;
+            let is_method =
+                after_dot < bytes.len() && (bytes[after_dot] as char).is_ascii_lowercase();
+
+            if before_ok && is_method {
+                result.push_str(&line[search_from..abs_pos]);
+                result.push_str("kms_client.");
+                search_from = after_dot; // skip past "kms."
+            } else {
+                result.push_str(&line[search_from..after_dot]);
+                search_from = after_dot;
+            }
+        } else {
+            result.push_str(&line[search_from..]);
+            break;
+        }
+    }
+
+    result
+}
+
+/// Rename AWS client variable names to idiomatic GCP equivalents.
+///
+/// After patterns assign GCP clients to AWS-named variables
+/// (e.g. `sns = pubsub_v1.PublisherClient()`), we rename the variable
+/// throughout the file to avoid confusion.
+fn fix_aws_variable_names(source: &str) -> String {
+    let mut result = source.to_string();
+
+    // Define (aws_var, gcp_client_constructor_fragment, new_var) triples.
+    // We only rename when the specific GCP client constructor is assigned
+    // to the old AWS variable name.
+    let renames: &[(&str, &str, &str)] = &[
+        ("sns", "pubsub_v1.PublisherClient()", "publisher"),
+        ("sqs", "pubsub_v1.SubscriberClient()", "subscriber"),
+        ("sqs", "pubsub_v1.PublisherClient()", "publisher"),
+        ("ses", "pubsub_v1.PublisherClient()", "email_client"),
+        (
+            "ssm",
+            "secretmanager.SecretManagerServiceClient()",
+            "sm_client",
+        ),
+        ("kinesis", "pubsub_v1.PublisherClient()", "publisher"),
+    ];
+
+    for &(aws_var, gcp_ctor, new_var) in renames {
+        let assignment = format!("{aws_var} = {gcp_ctor}");
+        if !result.contains(&assignment) {
+            continue;
+        }
+
+        // Replace the assignment
+        let new_assignment = format!("{new_var} = {gcp_ctor}");
+        result = result.replace(&assignment, &new_assignment);
+
+        // Replace subsequent uses of the old variable name at word boundaries
+        let lines: Vec<String> = result.lines().map(String::from).collect();
+        let mut new_lines = Vec::with_capacity(lines.len());
+
+        for line in &lines {
+            // Skip string constant lines — don't rename inside URLs, ARNs, etc.
+            let trimmed = line.trim();
+            if trimmed.starts_with("QUEUE_URL")
+                || trimmed.starts_with("TOPIC_ARN")
+                || trimmed.starts_with("STATE_MACHINE")
+                || trimmed.starts_with('#')
+                || (trimmed.contains("'") && trimmed.contains("://"))
+                || (trimmed.contains('"') && trimmed.contains("://"))
+                || (trimmed.contains("arn:aws:"))
+            {
+                new_lines.push(line.clone());
+                continue;
+            }
+            let mut fixed = line.clone();
+            // Replace var.xxx patterns (method calls, attribute access)
+            let old_dot = format!("{aws_var}.");
+            let new_dot = format!("{new_var}.");
+            fixed = replace_standalone_token(&fixed, &old_dot, &new_dot);
+            // Replace bare variable references at word boundaries
+            fixed = replace_bare_variable(&fixed, aws_var, new_var);
+            new_lines.push(fixed);
+        }
+
+        result = new_lines.join("\n");
+    }
+
+    result
+}
+
+/// Replace occurrences of `token` with `replacement` only at word boundaries.
+/// Ensures we don't replace inside longer identifiers.
+fn replace_standalone_token(line: &str, token: &str, replacement: &str) -> String {
+    let mut result = String::with_capacity(line.len());
+    let mut search_from = 0;
+    let bytes = line.as_bytes();
+    let token_len = token.len();
+
+    while search_from < bytes.len() {
+        if let Some(pos) = line[search_from..].find(token) {
+            let abs_pos = search_from + pos;
+            // Check that the character before is not alphanumeric or underscore
+            let before_ok = abs_pos == 0 || {
+                let c = bytes[abs_pos - 1];
+                !c.is_ascii_alphanumeric() && c != b'_'
+            };
+            if before_ok {
+                result.push_str(&line[search_from..abs_pos]);
+                result.push_str(replacement);
+                search_from = abs_pos + token_len;
+            } else {
+                result.push_str(&line[search_from..abs_pos + 1]);
+                search_from = abs_pos + 1;
+            }
+        } else {
+            result.push_str(&line[search_from..]);
+            break;
+        }
+    }
+
+    result
+}
+
+/// Replace a bare variable name at word boundaries (not followed by `.`).
+/// Handles patterns like `func(var)`, `var,`, `var)`, `= var\n`, etc.
+fn replace_bare_variable(line: &str, old_var: &str, new_var: &str) -> String {
+    let mut result = String::with_capacity(line.len());
+    let mut search_from = 0;
+    let bytes = line.as_bytes();
+    let old_len = old_var.len();
+
+    while search_from < bytes.len() {
+        if let Some(pos) = line[search_from..].find(old_var) {
+            let abs_pos = search_from + pos;
+            let end_pos = abs_pos + old_len;
+
+            // Check word boundary before
+            let before_ok = abs_pos == 0 || {
+                let c = bytes[abs_pos - 1];
+                !c.is_ascii_alphanumeric() && c != b'_'
+            };
+            // Check word boundary after
+            let after_ok = end_pos >= bytes.len() || {
+                let c = bytes[end_pos];
+                !c.is_ascii_alphanumeric() && c != b'_'
+            };
+
+            if before_ok && after_ok {
+                result.push_str(&line[search_from..abs_pos]);
+                result.push_str(new_var);
+                search_from = end_pos;
+            } else {
+                result.push_str(&line[search_from..abs_pos + 1]);
+                search_from = abs_pos + 1;
+            }
+        } else {
+            result.push_str(&line[search_from..]);
+            break;
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -1080,6 +1744,230 @@ def upload_json_document(key: str, data: dict) -> str:
     }
 
     // ---------------------------------------------------------------------------
+    // Azure client init leftover tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn test_azure_blob_client_init_replaced() {
+        let source = r#"from google.cloud import storage
+from azure.storage.blob import BlobServiceClient
+
+blob_service = BlobServiceClient.from_connection_string(conn_str)
+container = blob_service.get_container_client("my-container")
+blob = container.get_blob_client("file.txt")
+storage.Client().bucket("my-container").blob("file.txt").upload_from_string(data)
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            !fixed.contains("BlobServiceClient"),
+            "BlobServiceClient should be removed, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("from azure.storage.blob"),
+            "Azure import should be removed, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("blob_service = storage.Client()"),
+            "Should replace with storage.Client(), got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("container = storage.Client().bucket(\"my-container\")"),
+            "Should replace get_container_client, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("get_blob_client"),
+            "get_blob_client should be removed, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("upload_from_string"),
+            "Transformed call should be preserved, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_secret_client_replaced() {
+        let source = r#"from google.cloud import secretmanager
+from azure.keyvault.secrets import SecretClient
+from azure.identity import DefaultAzureCredential
+
+client = SecretClient(vault_url="https://myvault.vault.azure.net", credential=DefaultAzureCredential())
+secret = client.get_secret("my-secret")
+print(secret.value)
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            !fixed.contains("SecretClient(vault_url"),
+            "SecretClient init should be replaced, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("client = secretmanager.SecretManagerServiceClient()"),
+            "Should replace with SecretManagerServiceClient(), got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("from azure.keyvault"),
+            "Azure import should be removed, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("DefaultAzureCredential"),
+            "DefaultAzureCredential should be removed, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains(".payload.data.decode(\"utf-8\")"),
+            "Should fix .value to .payload.data.decode, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_servicebus_client_removed() {
+        let source = r#"from google.cloud import pubsub_v1
+from azure.servicebus import ServiceBusClient, ServiceBusMessage
+
+client = ServiceBusClient.from_connection_string(conn_str)
+sender = client.get_queue_sender("my-queue")
+pubsub_v1.PublisherClient().publish(TOPIC_PATH, msg.encode("utf-8"))
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            !fixed.contains("ServiceBusClient"),
+            "ServiceBusClient should be removed, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("get_queue_sender"),
+            "get_queue_sender should be removed, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("from azure.servicebus"),
+            "Azure import should be removed, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_metrics_client_replaced() {
+        let source = r#"from google.cloud import monitoring_v3
+from azure.monitor.query import MetricsQueryClient
+from azure.identity import DefaultAzureCredential
+
+client = MetricsQueryClient(DefaultAzureCredential())
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            fixed.contains("client = monitoring_v3.MetricServiceClient()"),
+            "Should replace MetricsQueryClient, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("MetricsQueryClient"),
+            "MetricsQueryClient should be removed, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_queue_service_client_replaced() {
+        let source = r#"from google.cloud import pubsub_v1
+from azure.storage.queue import QueueServiceClient
+
+queue_client = QueueServiceClient.from_connection_string(conn_str)
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            fixed.contains("queue_client = pubsub_v1.PublisherClient()"),
+            "Should replace QueueServiceClient, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_cosmos_client_removed() {
+        let source = r#"from google.cloud import firestore
+
+client = CosmosClient(url, credential=key)
+db = client.get_database_client("app")
+container = db.get_container_client("users")
+firestore.Client().collection("users").document(item_id).set(item)
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            !fixed.contains("CosmosClient("),
+            "CosmosClient should be removed, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("get_database_client"),
+            "get_database_client should be removed, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("get_container_client"),
+            "get_container_client should be removed, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("firestore.Client()"),
+            "Transformed call should be preserved, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_eventhub_producer_removed() {
+        let source = r#"from google.cloud import pubsub_v1
+from azure.eventhub import EventHubProducerClient, EventData
+
+producer = EventHubProducerClient.from_connection_string(conn_str, eventhub_name="events")
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            !fixed.contains("EventHubProducerClient"),
+            "EventHubProducerClient should be removed, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("from azure.eventhub"),
+            "Azure eventhub import should be removed, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_fixup_noop_without_gcp_imports() {
+        // Should not modify anything if no google.cloud imports are present
+        let source = r#"from azure.storage.blob import BlobServiceClient
+
+blob_service = BlobServiceClient.from_connection_string(conn_str)
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert_eq!(
+            fixed, source,
+            "Should not modify code without GCP imports, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_azure_fixup_preserves_azure_functions_import() {
+        // azure.functions import is handled by a different fixup — don't remove it here
+        let source = r#"from google.cloud import storage
+import azure.functions as func
+
+storage.Client().bucket("b").blob("k").upload_from_string(data)
+"#;
+        let fixed = fix_azure_client_init_leftovers(source);
+        assert!(
+            fixed.contains("azure.functions"),
+            "azure.functions import should be preserved, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_extract_first_call_arg() {
+        assert_eq!(
+            extract_first_call_arg(
+                "container = blob_service.get_container_client(\"my-bucket\")",
+                "get_container_client"
+            ),
+            Some("\"my-bucket\"".to_string())
+        );
+        assert_eq!(
+            extract_first_call_arg(
+                "container = blob_service.get_container_client('bucket', extra)",
+                "get_container_client"
+            ),
+            Some("'bucket'".to_string())
+        );
+    }
+
+    // ---------------------------------------------------------------------------
     // DynamoDB → standard JSON marshaling tests
     // ---------------------------------------------------------------------------
 
@@ -1121,5 +2009,213 @@ def upload_json_document(key: str, data: dict) -> str:
         let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed["id"], "1");
         assert_eq!(parsed["name"], "Bob");
+    }
+
+    // -----------------------------------------------------------------------
+    // AWS response pattern fixup tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fix_secret_string_pattern() {
+        let source = "from google.cloud import secretmanager\nval = resp['SecretString']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains(r#"resp.payload.data.decode("utf-8")"#),
+            "Should rewrite SecretString, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("['SecretString']"),
+            "Should remove AWS pattern, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_secret_binary_pattern() {
+        let source = "from google.cloud import secretmanager\ndata = resp['SecretBinary']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("resp.payload.data"),
+            "Should rewrite SecretBinary, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_parameter_value_pattern() {
+        let source = "from google.cloud import secretmanager\nval = r['Parameter']['Value']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains(r#"r.payload.data.decode("utf-8")"#),
+            "Should rewrite Parameter/Value, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_secret_string_not_applied_without_import() {
+        let source = "val = resp['SecretString']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("['SecretString']"),
+            "Should NOT rewrite without secretmanager import, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_kms_ciphertext_blob() {
+        let source = "from google.cloud import kms\nct = response['CiphertextBlob']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("response.ciphertext"),
+            "Should rewrite CiphertextBlob, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_kms_plaintext() {
+        let source = "from google.cloud import kms\npt = response['Plaintext']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("response.plaintext"),
+            "Should rewrite Plaintext, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_kms_not_applied_without_import() {
+        let source = "ct = response['CiphertextBlob']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("['CiphertextBlob']"),
+            "Should NOT rewrite without kms import, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_reservations_pattern() {
+        let source = "from google.cloud import compute_v1\ninstances = r['Reservations']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("list(r)"),
+            "Should rewrite Reservations to list(), got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_pubsub_messages_pattern() {
+        let source = "from google.cloud import pubsub_v1\nmsgs = resp.get('Messages', [])";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("list(resp.received_messages)"),
+            "Should rewrite Messages to received_messages, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_pubsub_message_id_pattern() {
+        let source = "from google.cloud import pubsub_v1\nmid = response['MessageId']";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains("response.result()"),
+            "Should rewrite MessageId to .result(), got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_secret_value_attribute() {
+        let source = "from google.cloud import secretmanager\nval = secret_response.value";
+        let fixed = fix_aws_response_patterns(source);
+        assert!(
+            fixed.contains(r#".payload.data.decode("utf-8")"#),
+            "Should rewrite .value on secret response, got:\n{fixed}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // KMS variable shadowing fixup tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fix_kms_variable_shadowing() {
+        let source = "from google.cloud import kms\nkms = kms.KeyManagementServiceClient()\nresult = kms.encrypt(request={\"name\": key_name})\nkey = kms.CryptoKey(name=\"test\")";
+        let fixed = fix_kms_variable_shadowing(source);
+        assert!(
+            fixed.contains("kms_client = kms.KeyManagementServiceClient()"),
+            "Should rename assignment, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("kms_client.encrypt("),
+            "Should rename method calls, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("kms.CryptoKey("),
+            "Should preserve module-level class access, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_kms_shadowing_noop_without_import() {
+        let source = "kms = kms.KeyManagementServiceClient()";
+        let fixed = fix_kms_variable_shadowing(source);
+        assert_eq!(fixed, source, "Should not modify without import");
+    }
+
+    // -----------------------------------------------------------------------
+    // AWS variable name renaming tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fix_sns_to_publisher() {
+        let source = "from google.cloud import pubsub_v1\nsns = pubsub_v1.PublisherClient()\nresult = sns.publish(topic_path, data=message)\nprint(sns)";
+        let fixed = fix_aws_variable_names(source);
+        assert!(
+            fixed.contains("publisher = pubsub_v1.PublisherClient()"),
+            "Should rename assignment, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("publisher.publish("),
+            "Should rename method calls, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("print(publisher)"),
+            "Should rename bare references, got:\n{fixed}"
+        );
+        assert!(
+            !fixed.contains("sns"),
+            "Should not contain old variable name, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_ssm_to_sm_client() {
+        let source = "ssm = secretmanager.SecretManagerServiceClient()\nval = ssm.access_secret_version(name=secret_name)";
+        let fixed = fix_aws_variable_names(source);
+        assert!(
+            fixed.contains("sm_client = secretmanager.SecretManagerServiceClient()"),
+            "Should rename ssm to sm_client, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("sm_client.access_secret_version("),
+            "Should rename method calls, got:\n{fixed}"
+        );
+    }
+
+    #[test]
+    fn test_fix_aws_var_noop_without_match() {
+        let source = "client = storage.Client()\nresult = client.list_buckets()";
+        let fixed = fix_aws_variable_names(source);
+        assert_eq!(fixed, source, "Should not modify non-matching patterns");
+    }
+
+    #[test]
+    fn test_fix_aws_var_no_substring_replacement() {
+        let source = "from google.cloud import pubsub_v1\nsns = pubsub_v1.PublisherClient()\nsns_topic_name = \"projects/p/topics/t\"\nresult = sns.publish(sns_topic_name, data=message)";
+        let fixed = fix_aws_variable_names(source);
+        assert!(
+            fixed.contains("sns_topic_name"),
+            "Should NOT rename sns inside sns_topic_name, got:\n{fixed}"
+        );
+        assert!(
+            fixed.contains("publisher.publish("),
+            "Should rename standalone sns, got:\n{fixed}"
+        );
     }
 }

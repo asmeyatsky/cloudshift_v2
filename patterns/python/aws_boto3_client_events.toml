@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.events -> gcp.eventarc.PublisherClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.78
+tags = ["eventing", "eventbridge", "eventarc", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "events"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''eventarc.PublisherClient()'''
+import_add = ["from google.cloud import eventarc_v1 as eventarc"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Replaces boto3.client('events') (EventBridge) with Eventarc PublisherClient. EventBridge rules and targets require separate Eventarc trigger configuration."

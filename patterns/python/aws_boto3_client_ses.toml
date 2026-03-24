@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.ses -> gcp.sendgrid.SendGridAPIClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.70
+tags = ["email", "ses", "sendgrid", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "ses"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''SendGridAPIClient(SENDGRID_API_KEY)'''
+import_add = ["from sendgrid import SendGridAPIClient"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "GCP has no native email service equivalent to SES. SendGrid is the recommended third-party service on GCP. Replace SENDGRID_API_KEY with an environment variable or Secret Manager lookup."

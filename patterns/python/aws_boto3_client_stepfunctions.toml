@@ -1,0 +1,27 @@
+[pattern]
+id = "aws.boto3.client.stepfunctions -> gcp.workflows.ExecutionsClient"
+source = "aws"
+target = "gcp"
+language = "python"
+confidence = 0.82
+tags = ["orchestration", "step-functions", "workflows", "client-init"]
+
+[pattern.detect]
+query = '''
+  (call
+    function: (attribute
+      object: (identifier) @module (#eq? @module "boto3")
+      attribute: (identifier) @method (#eq? @method "client"))
+    arguments: (argument_list
+      (string
+        (string_content) @service_name (#eq? @service_name "stepfunctions"))) @args)
+'''
+imports = ["boto3"]
+
+[pattern.transform]
+template = '''workflows.ExecutionsClient()'''
+import_add = ["from google.cloud import workflows_v1 as workflows"]
+import_remove = ["import boto3"]
+
+[pattern.notes]
+description = "Replaces boto3.client('stepfunctions') with GCP Workflows ExecutionsClient. State machine definitions (ASL) differ from Workflows YAML and require separate migration."
