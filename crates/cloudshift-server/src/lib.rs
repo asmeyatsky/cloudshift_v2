@@ -263,11 +263,14 @@ async fn api_transform(
             Language::Dockerfile => "Dockerfile",
             Language::Json => "config.json",
         });
+    let gemini_key = std::env::var("GEMINI_API_KEY").ok();
     let config = TransformConfig {
         // UI and API clients: AWS-first — omitting `source_cloud` means migrate from AWS.
         source_cloud: body.source_cloud.unwrap_or(SourceCloud::Aws),
         dry_run: true,
         catalogue_path: std::env::var("CLOUDSHIFT_PATTERNS_DIR").ok(),
+        llm_fallback: gemini_key.is_some(),
+        llm_api_key: gemini_key,
         ..Default::default()
     };
     match transform_source_for_api(path_hint, &body.source, body.language, &config) {

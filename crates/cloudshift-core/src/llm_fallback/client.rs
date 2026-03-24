@@ -1,32 +1,27 @@
-//! HTTP client for Claude API -- infrastructure adapter for LLM-assisted migration.
+//! HTTP client for Gemini API -- infrastructure adapter for LLM-assisted migration.
 //!
 //! This module is only compiled when the `llm-fallback` feature is enabled.
-//! It implements the `LlmFallbackPort` trait using the Anthropic Messages API.
+//! It implements the `LlmFallbackPort` trait using the Google Gemini API.
 
 use crate::domain::ports::{LlmFallbackContext, LlmFallbackError, LlmFallbackPort};
 use crate::domain::value_objects::{Language, SourceCloud};
 
-/// Claude API client for LLM-assisted migration fallback.
-pub struct ClaudeClient {
+/// Gemini API client for LLM-assisted migration fallback.
+pub struct GeminiClient {
     api_key: String,
     model: String,
-    base_url: String,
 }
 
-/// Default Claude model for migration fallback (current stable Sonnet).
-const DEFAULT_LLM_MODEL: &str = "claude-3-5-sonnet-20241022";
+/// Default Gemini model for migration fallback.
+const DEFAULT_LLM_MODEL: &str = "gemini-2.5-flash";
 
-impl ClaudeClient {
-    /// Create a new Claude API client.
+impl GeminiClient {
+    /// Create a new Gemini API client.
     /// Model can be overridden via `CLOUDSHIFT_LLM_MODEL` env var.
     pub fn new(api_key: String) -> Self {
         let model =
             std::env::var("CLOUDSHIFT_LLM_MODEL").unwrap_or_else(|_| DEFAULT_LLM_MODEL.to_string());
-        Self {
-            api_key,
-            model,
-            base_url: "https://api.anthropic.com/v1/messages".to_string(),
-        }
+        Self { api_key, model }
     }
 
     /// Create with a custom model (overrides env default).
@@ -34,9 +29,16 @@ impl ClaudeClient {
         self.model = model;
         self
     }
+
+    fn endpoint(&self) -> String {
+        format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+            self.model, self.api_key
+        )
+    }
 }
 
-impl LlmFallbackPort for ClaudeClient {
+impl LlmFallbackPort for GeminiClient {
     fn complete_migration(
         &self,
         source: &str,
@@ -56,19 +58,20 @@ impl LlmFallbackPort for ClaudeClient {
         );
 
         let request_body = serde_json::json!({
-            "model": self.model,
-            "max_tokens": 8192,
-            "messages": [{
-                "role": "user",
-                "content": prompt
-            }]
+            "contents": [{
+                "parts": [{
+                    "text": prompt
+                }]
+            }],
+            "generationConfig": {
+                "maxOutputTokens": 8192,
+                "temperature": 0.1
+            }
         });
 
         let client = reqwest::blocking::Client::new();
         let response = client
-            .post(&self.base_url)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
+            .post(&self.endpoint())
             .header("content-type", "application/json")
             .json(&request_body)
             .send()
@@ -87,10 +90,10 @@ impl LlmFallbackPort for ClaudeClient {
             .json()
             .map_err(|e| LlmFallbackError::ParseError(e.to_string()))?;
 
-        // Extract text from Claude's response
-        let text = body["content"][0]["text"]
+        // Extract text from Gemini's response
+        let text = body["candidates"][0]["content"]["parts"][0]["text"]
             .as_str()
-            .ok_or_else(|| LlmFallbackError::ParseError("No text in response".into()))?;
+            .ok_or_else(|| LlmFallbackError::ParseError("No text in Gemini response".into()))?;
 
         // Extract code from markdown code block if present
         let code = extract_code_block(text).unwrap_or(text);
@@ -98,6 +101,9 @@ impl LlmFallbackPort for ClaudeClient {
         Ok(code.to_string())
     }
 }
+
+// Keep backward-compatible type alias
+pub type ClaudeClient = GeminiClient;
 
 /// Extract code from a markdown code block.
 fn extract_code_block(text: &str) -> Option<&str> {

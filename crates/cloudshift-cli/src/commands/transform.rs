@@ -156,7 +156,7 @@ impl TransformArgs {
             catalogue_path: crate::commands::discover_catalogue_path(),
             only_files: self.only_files.clone(),
             llm_fallback: self.llm_fallback,
-            llm_api_key: std::env::var("ANTHROPIC_API_KEY").ok(),
+            llm_api_key: std::env::var("GEMINI_API_KEY").ok(),
             llm_model: None,
             progress_callback: None,
         }
