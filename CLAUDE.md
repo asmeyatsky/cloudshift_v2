@@ -15,6 +15,7 @@ Universal GCP code refactoring engine. Rust core + Python bindings via Maturin/P
 - `crates/cloudshift-cli/` — CLI binary (clap)
 - `crates/cloudshift-py/` — Python bindings (PyO3)
 - `crates/cloudshift-lsp/` — LSP server for IDE extensions
+- `extensions/vscode/` — VSCode extension (diagnostics + code actions); run from repo: build LSP (`cargo build -p cloudshift-lsp`), then F5 in `extensions/vscode` or set `cloudshift.lspPath` to `target/debug/cloudshift-lsp`
 - `patterns/` — GCP Pattern Catalogue (TOML)
 - `tests/patterns/` — Pattern test fixtures (before/after pairs)
 

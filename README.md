@@ -38,6 +38,21 @@ cloudshift analyse ./path --output json
 cloudshift catalogue list --language python
 ```
 
+## Pattern catalogue
+
+**268 patterns** across 5 languages and 2 source clouds:
+
+| Language | AWS | Azure | Total |
+|----------|-----|-------|-------|
+| Python | 91 | 26 | 117 |
+| TypeScript | 34 | 11 | 45 |
+| HCL/Terraform | 36 | 16 | 52 |
+| Java | 23 | 7 | 30 |
+| Go | 23 | 1 | 24 |
+| **Total** | **207** | **61** | **268** |
+
+AWS services covered include S3, DynamoDB, Lambda, SQS, SNS, Secrets Manager, KMS, RDS Data API, SES, CloudWatch, SSM Parameter Store, EventBridge, Step Functions, Cognito, ECS, EC2, and more. Azure services include Blob Storage, Cosmos DB, Azure Functions, Service Bus, Key Vault, Event Hubs, Redis, SQL, AI Search, Container Registry, and more.
+
 ## Layout
 
 | Path | Role |
