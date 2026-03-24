@@ -2046,10 +2046,7 @@ def upsert_user(doc):
     let has_firestore_import = matches
         .iter()
         .any(|m| m.import_add.iter().any(|i| i.contains("firestore")));
-    assert!(
-        has_firestore_import,
-        "Expected Firestore import addition"
-    );
+    assert!(has_firestore_import, "Expected Firestore import addition");
 }
 
 #[test]
