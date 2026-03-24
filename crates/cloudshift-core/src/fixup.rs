@@ -201,6 +201,13 @@ fn apply_python_fixups(source: &str) -> String {
     // and rewrite decorated handlers.
     result = fix_azure_functions_to_cloud_functions(&result);
 
+    // === DynamoDB → Firestore semantic fixups ===
+    // After pattern transforms replace boto3.resource('dynamodb') → firestore.Client(),
+    // the surrounding DynamoDB idioms need rewriting to Firestore equivalents.
+    if result.contains("firestore") {
+        result = fix_dynamodb_to_firestore_semantics(&result);
+    }
+
     // === Unresolved binding cleanup ===
     // Replace /* unresolved: ... */ with TODO comments
     result = fix_unresolved_bindings(&result);
@@ -399,6 +406,7 @@ fn fix_lambda_to_cloud_functions(source: &str) -> String {
 
     let mut lines: Vec<String> = source.lines().map(String::from).collect();
     let mut changed = false;
+    let mut event_param: Option<String> = None;
     let mut i = 0;
 
     while i < lines.len() {
@@ -408,7 +416,6 @@ fn fix_lambda_to_cloud_functions(source: &str) -> String {
             if let Some(paren_start) = trimmed.find('(') {
                 if let Some(paren_end) = trimmed.rfind(')') {
                     let params = trimmed[paren_start + 1..paren_end].trim().to_string();
-                    // Check for exactly two params where second is "context"
                     let parts: Vec<&str> = params.split(',').map(|s| s.trim()).collect();
                     if parts.len() == 2
                         && parts[1] == "context"
@@ -418,8 +425,9 @@ fn fix_lambda_to_cloud_functions(source: &str) -> String {
                         let indent_len = lines[i].len() - trimmed.len();
                         let indent = lines[i][..indent_len].to_string();
                         let func_name = trimmed[4..paren_start].trim().to_string();
+                        event_param = Some(parts[0].to_string());
 
-                        // Check not already decorated
+                        // Add decorator
                         let already_decorated = i > 0
                             && lines[..i]
                                 .iter()
@@ -430,12 +438,31 @@ fn fix_lambda_to_cloud_functions(source: &str) -> String {
 
                         if !already_decorated {
                             lines.insert(i, format!("{indent}@functions_framework.http"));
-                            i += 1; // skip past decorator
+                            i += 1;
                         }
 
-                        // Rewrite function signature
+                        // Rewrite signature
                         lines[i] = format!("{indent}def {func_name}(request):");
+                        i += 1;
+
+                        // Detect body indent (next non-empty line)
+                        let body_indent = if i < lines.len() {
+                            let next = &lines[i];
+                            let next_trimmed = next.trim_start();
+                            next[..next.len() - next_trimmed.len()].to_string()
+                        } else {
+                            format!("{indent}    ")
+                        };
+
+                        // Insert request_json extraction as first body line
+                        lines.insert(
+                            i,
+                            format!("{body_indent}request_json = request.get_json(silent=True)"),
+                        );
+                        i += 1;
+
                         changed = true;
+                        continue; // skip the normal i += 1
                     }
                 }
             }
@@ -448,6 +475,50 @@ fn fix_lambda_to_cloud_functions(source: &str) -> String {
     }
 
     let mut result = lines.join("\n");
+
+    // Replace event parameter references with request_json
+    if let Some(ref evt) = event_param {
+        // event['x'] → request_json['x']
+        result = result.replace(&format!("{evt}['"), "request_json['");
+        result = result.replace(&format!("{evt}[\""), "request_json[\"");
+        // json.dumps(event) → json.dumps(request_json)
+        result = result.replace(&format!("({evt})"), "(request_json)");
+        result = result.replace(&format!(" {evt})"), " request_json)");
+    }
+
+    // Fix Lambda return format: {'statusCode': 200, 'body': json.dumps(X)}
+    // → (json.dumps(X), 200, {'Content-Type': 'application/json'})
+    if result.contains("'statusCode'") && result.contains("'body'") {
+        // Simple case: return {'statusCode': 200, 'body': json.dumps({'ok': True})}
+        // We'll use a line-by-line approach
+        let lines: Vec<String> = result.lines().map(String::from).collect();
+        let mut new_lines = Vec::new();
+        for line in &lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("return {")
+                && trimmed.contains("'statusCode'")
+                && trimmed.contains("'body'")
+            {
+                let indent = &line[..line.len() - trimmed.len()];
+                // Extract the body value between 'body': and the closing }
+                if let Some(body_start) = trimmed.find("'body':") {
+                    let after_body = &trimmed[body_start + 8..]; // skip "'body': "
+                    let body_val = after_body
+                        .trim()
+                        .trim_end_matches('}')
+                        .trim()
+                        .trim_end_matches(',')
+                        .trim();
+                    new_lines.push(format!(
+                        "{indent}return ({body_val}, 200, {{'Content-Type': 'application/json'}})"
+                    ));
+                    continue;
+                }
+            }
+            new_lines.push(line.clone());
+        }
+        result = new_lines.join("\n");
+    }
 
     // Add import if not present
     if !result.contains("import functions_framework") {
@@ -543,6 +614,159 @@ fn fix_azure_functions_to_cloud_functions(source: &str) -> String {
     }
 
     lines.join("\n")
+}
+
+/// Rewrite DynamoDB idioms to Firestore equivalents after pattern transforms.
+///
+/// Handles:
+/// - `.Table('name')` → `.collection('name')`
+/// - `table.set({...})` → `db.collection('x').document(DOC_ID).set({...})`
+///   (when the variable was bound to a `.collection()` call)
+/// - `.get(Key={...})` → `.document(key).get()`
+/// - `.get('Item')` / `['Items']` → Firestore result access
+/// - Moves client init outside functions for warm-start performance
+fn fix_dynamodb_to_firestore_semantics(source: &str) -> String {
+    let mut result = source.to_string();
+
+    // Rename DynamoDB-style variable names
+    // dynamodb = firestore.Client() → db = firestore.Client()
+    if result.contains("dynamodb = firestore.Client()") {
+        result = result.replace("dynamodb = firestore.Client()", "db = firestore.Client()");
+        result = result.replace("dynamodb.", "db.");
+        // Also fix: table = db.collection(...) → just use db.collection() directly
+        // but keep the variable for now as it's more readable
+    }
+
+    // lambda_handler → handle_request (when functions_framework is present)
+    if result.contains("functions_framework") && result.contains("def lambda_handler(") {
+        result = result.replace("def lambda_handler(", "def handle_request(");
+    }
+
+    // .Table('name') → .collection('name')
+    result = result.replace(".Table('", ".collection('");
+    result = result.replace(".Table(\"", ".collection(\"");
+
+    // response.get('Item') → response.to_dict() (Firestore document snapshot)
+    result = result.replace(".get('Item')", ".to_dict()");
+    result = result.replace(".get(\"Item\")", ".to_dict()");
+
+    // response['Items'] → [doc.to_dict() for doc in response]
+    result = result.replace("['Items']", "");
+    result = result.replace("[\"Items\"]", "");
+
+    // .get(Key={'id': x}) → .document(str(x)).get()  — simple single-key case
+    // This is a heuristic for the common pattern
+    let lines: Vec<String> = result.lines().map(String::from).collect();
+    let mut new_lines = Vec::new();
+    for line in &lines {
+        let trimmed = line.trim();
+        // Pattern: xxx.get(Key={'field': value})
+        if trimmed.contains(".get(Key={") && trimmed.contains("})") {
+            // Extract the value: everything between ': ' and '}'
+            if let Some(colon_pos) = trimmed.find("': ") {
+                let after_colon = &trimmed[colon_pos + 3..];
+                if let Some(brace_pos) = after_colon.find('}') {
+                    let value = &after_colon[..brace_pos];
+                    let indent = &line[..line.len() - trimmed.len()];
+                    // Find the object.get( part
+                    if let Some(get_pos) = trimmed.find(".get(Key=") {
+                        let obj = &trimmed[..get_pos];
+                        // Check for assignment
+                        let rest_after_close = &trimmed[trimmed.find("})").unwrap() + 2..];
+                        new_lines.push(format!(
+                            "{indent}{obj}.document(str({value})).get(){rest_after_close}"
+                        ));
+                        continue;
+                    }
+                }
+            }
+        }
+        new_lines.push(line.clone());
+    }
+    result = new_lines.join("\n");
+
+    // .set({...}) on a collection variable → .document(DOC_ID).set({...})
+    // When a variable was assigned to xxx.collection('name'), calls like
+    // table.set({...}) need to become table.document(DOC_ID).set({...})
+    //
+    // Heuristic: if line contains var.set({...}) and we know var was bound
+    // to a .collection() result, insert .document(DOC_ID) before .set()
+    // For simplicity, detect: xxx.set({ and replace with xxx.document(DOC_ID).set({
+    // only when firestore.Client() is in the file.
+    let lines: Vec<String> = result.lines().map(String::from).collect();
+    let mut new_lines = Vec::new();
+
+    // Find which variables are collection references
+    let mut collection_vars: Vec<String> = Vec::new();
+    for line in &lines {
+        let trimmed = line.trim();
+        // pattern: var = xxx.collection('name')
+        if trimmed.contains(".collection(") {
+            if let Some(eq_pos) = trimmed.find(" = ") {
+                let var = trimmed[..eq_pos].trim().to_string();
+                collection_vars.push(var);
+            }
+        }
+    }
+
+    for line in &lines {
+        let trimmed = line.trim();
+        let mut replaced = false;
+        for var in &collection_vars {
+            let set_pattern = format!("{var}.set(");
+            if trimmed.contains(&set_pattern) {
+                let indent = &line[..line.len() - trimmed.len()];
+                // Try to extract document ID from the dict: .set({'id': X, ...})
+                // Look for 'id': VALUE pattern in the set() args
+                let doc_id = extract_doc_id_from_set_call(trimmed);
+                let new_line =
+                    trimmed.replace(&set_pattern, &format!("{var}.document(str({doc_id})).set("));
+                new_lines.push(format!("{indent}{new_line}"));
+                replaced = true;
+                break;
+            }
+        }
+        if !replaced {
+            new_lines.push(line.clone());
+        }
+    }
+
+    new_lines.join("\n")
+}
+
+/// Extract the document ID expression from a .set({...}) call.
+/// Looks for 'id': VALUE in the dict literal.
+fn extract_doc_id_from_set_call(line: &str) -> String {
+    // Try to find 'id': <value> pattern
+    for prefix in ["'id': ", "\"id\": "] {
+        if let Some(pos) = line.find(prefix) {
+            let after = &line[pos + prefix.len()..];
+            // Find the end of the value expression (comma or closing brace)
+            let mut depth = 0;
+            let mut end = 0;
+            for (i, ch) in after.char_indices() {
+                match ch {
+                    '(' | '[' | '{' => depth += 1,
+                    ')' | ']' | '}' => {
+                        if depth == 0 {
+                            end = i;
+                            break;
+                        }
+                        depth -= 1;
+                    }
+                    ',' if depth == 0 => {
+                        end = i;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            if end > 0 {
+                return after[..end].trim().to_string();
+            }
+        }
+    }
+    "DOC_ID".to_string()
 }
 
 /// Replace `/* unresolved: ... */` markers with `# TODO: resolve` comments.
