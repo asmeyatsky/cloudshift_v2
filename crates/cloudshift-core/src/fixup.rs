@@ -190,6 +190,12 @@ fn apply_python_fixups(source: &str) -> String {
         result = result.replace("s3://", "gs://");
     }
 
+    // === Lambda → Cloud Functions fixup ===
+    // Rewrite `def xxx(event, context):` → `@functions_framework.http\ndef xxx(request):`
+    // and add `import functions_framework`. Done in fixup (not pattern) so inner SDK
+    // patterns (DynamoDB, S3, etc.) can transform the function body independently.
+    result = fix_lambda_to_cloud_functions(&result);
+
     // === Unresolved binding cleanup ===
     // Replace /* unresolved: ... */ with TODO comments
     result = fix_unresolved_bindings(&result);
@@ -369,6 +375,83 @@ fn fix_list_blobs_pattern(source: &str) -> String {
     }
 
     result_lines.join("\n")
+}
+
+/// Rewrite Lambda handler signatures to Cloud Functions format.
+///
+/// Detects `def xxx(event, context):` (where the second param is literally
+/// `context`) and rewrites to `@functions_framework.http\ndef xxx(request):`.
+/// Also adds `import functions_framework` if not already present.
+///
+/// Only fires when boto3 was present (i.e. other patterns ran), indicated by
+/// a google.cloud import or functions_framework already being imported.
+fn fix_lambda_to_cloud_functions(source: &str) -> String {
+    // Only run when the file had cloud transforms applied (google.cloud present).
+    // Avoids false positives on random (event, context) functions.
+    if !source.contains("google.cloud") {
+        return source.to_string();
+    }
+
+    let mut lines: Vec<String> = source.lines().map(String::from).collect();
+    let mut changed = false;
+    let mut i = 0;
+
+    while i < lines.len() {
+        let trimmed = lines[i].trim_start().to_string();
+        // Match: def func_name(xxx, context):
+        if trimmed.starts_with("def ") && trimmed.ends_with(':') {
+            if let Some(paren_start) = trimmed.find('(') {
+                if let Some(paren_end) = trimmed.rfind(')') {
+                    let params = trimmed[paren_start + 1..paren_end].trim().to_string();
+                    // Check for exactly two params where second is "context"
+                    let parts: Vec<&str> = params.split(',').map(|s| s.trim()).collect();
+                    if parts.len() == 2
+                        && parts[1] == "context"
+                        && parts[0] != "self"
+                        && parts[0] != "cls"
+                    {
+                        let indent_len = lines[i].len() - trimmed.len();
+                        let indent = lines[i][..indent_len].to_string();
+                        let func_name = trimmed[4..paren_start].trim().to_string();
+
+                        // Check not already decorated
+                        let already_decorated = i > 0
+                            && lines[..i]
+                                .iter()
+                                .rev()
+                                .find(|l| !l.trim().is_empty())
+                                .map(|l| l.trim().starts_with("@functions_framework"))
+                                .unwrap_or(false);
+
+                        if !already_decorated {
+                            lines.insert(i, format!("{indent}@functions_framework.http"));
+                            i += 1; // skip past decorator
+                        }
+
+                        // Rewrite function signature
+                        lines[i] = format!("{indent}def {func_name}(request):");
+                        changed = true;
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+
+    if !changed {
+        return source.to_string();
+    }
+
+    let mut result = lines.join("\n");
+
+    // Add import if not present
+    if !result.contains("import functions_framework") {
+        if let Some(pos) = find_last_import_position(&result) {
+            result.insert_str(pos, "import functions_framework\n");
+        }
+    }
+
+    result
 }
 
 /// Replace `/* unresolved: ... */` markers with `# TODO: resolve` comments.

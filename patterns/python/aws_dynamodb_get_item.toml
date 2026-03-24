@@ -20,13 +20,13 @@ query = '''
 imports = ["boto3"]
 
 [pattern.transform]
-template = '''firestore.Client().collection({table_name}).document({key_value}).get()'''
+template = '''{client}.get(Key={key_value})'''
 import_add = ["from google.cloud import firestore"]
 import_remove = ["import boto3"]
 
 [pattern.bindings]
-table_name = "args.TableName"
-key_value = "args.Key.__key__"
+client = "client"
+key_value = "args.Key"
 
 [pattern.notes]
 description = "DynamoDB get_item returns typed attributes. Firestore returns native Python dicts. A deserialization adapter may be needed for full compatibility."
